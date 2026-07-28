@@ -1,0 +1,46 @@
+# PDS backend
+
+This API provides authentication, PostgreSQL storage, role-based permissions, analytics, and protected workflows for performance, competency, learning, training, succession, and recognition.
+
+## Workflow rules
+
+Each workflow has one ordered, server-controlled set of stages. The client cannot choose a later stage or mark work complete out of order. The role assigned to the current stage must advance it; the following stage is then assigned to its intended role. Every action is recorded in `workflow_events`, giving HR a complete audit history.
+
+Roles are `employee`, `supervisor`, and `hr`. Employees can only view or update workflows linked to their own employee record. Supervisor and HR access is separately enforced at each action.
+
+## Set up PostgreSQL
+
+Create a local database named `perdevsys`, then copy `.env.example` to `.env` and set a unique `JWT_SECRET`. The migrations automatically create the demo accounts listed below.
+
+```powershell
+cd pds/server
+npm install
+npm run migrate
+npm run dev
+```
+
+The frontend is started separately from `pds` with `npm run dev`; its development proxy routes `/api` to port 4000.
+
+## AI insights with OpenRouter
+
+Add `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` to `pds/server/.env`, then restart the API. The key is used only by the backend; it is never sent to the browser. `POST /api/analytics/insights` sends aggregate, non-identifying workforce metrics to OpenRouter and returns four concise insight cards.
+
+Demo accounts all use `ChangeMe123!`:
+
+| Role | Email |
+| --- | --- |
+| HR | ava@pds.local |
+| Supervisor | jordan@pds.local |
+| Employee | emily@pds.local |
+
+## Key endpoints
+
+- `POST /api/auth/login`
+- `GET /api/workflows/definitions`
+- `GET, POST /api/workflows`
+- `GET /api/workflows/:id`
+- `POST /api/workflows/:id/advance`
+- `GET /api/analytics/dashboard`
+- `GET /api/analytics/me`
+
+The request body for advancing is `{ "note": "optional audit note", "data": {} }`. The server decides the next stage; do not include a stage name in the body.

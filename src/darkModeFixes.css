@@ -1,0 +1,45 @@
+/* Performance Management: complete dark-mode palette for panels, forms, and labels. */
+.dark .enterprise-review{color:#f3f3f5}
+.dark .review-top p,.dark .review-metrics small,.dark .timeline-head small,.dark .workspace-label span,.dark .process-form>p,.dark .empty-state span,.dark .ai-title small,.dark .ai-assistant p,.dark .ai-assistant small,.dark .ai-assistant li{color:#b8b5c0}
+.dark .review-metrics article,.dark .workflow-timeline,.dark .active-workspace,.dark .ai-assistant{background:#242428;border-color:#424149;color:#f3f3f5}
+.dark .workflow-timeline>button,.dark .process-form details,.dark .ai-assistant article,.dark .workspace-label,.dark .detail-content{border-color:#424149;color:#f3f3f5}
+.dark .workflow-timeline>button{color:#f3f3f5}
+.dark .workflow-timeline button small{color:#b8b5c0}
+.dark .workflow-timeline>button>span{background:#36353c;color:#d9d7df}
+.dark .workflow-timeline button.current{background:#40375a}
+.dark .workspace-label b,.dark .process-form h2,.dark .process-form summary,.dark .process-form label,.dark .score-grid b,.dark .empty-state b,.dark .ai-title h2,.dark .ai-assistant h3{color:#f3f3f5}
+.dark .form-tabs button,.dark .form-actions button:not(.primary),.dark .process-form textarea{background:#302f35;border-color:#504e58;color:#f3f3f5}
+.dark .process-form .primary{background:#34323a!important;border:1px solid #595661!important;color:#f4f3f7!important}
+.dark .score-grid article,.dark .process-form details,.dark .empty-state{background:#2c2b31;border-color:#48464f;color:#f3f3f5}
+.dark .score-grid small{color:#b8b5c0}
+.dark .process-form textarea::placeholder{color:#a7a4ad}
+.dark .return{color:#f1b18b!important}
+.dark .ai-title,.dark .ai-assistant article{border-color:#424149}
+.dark .ai-assistant h3{color:#c7baff}
+.dark .gap{background:#454057}
+
+/* Covers the alternate performance workspace styles used by the module. */
+.dark .performance-process{color:#f3f3f5}
+.dark .performance-heading p,.dark .process-title p,.dark .review-actions p,.dark .process-summary small,.dark .process-summary span,.dark .full-process li small{color:#b8b5c0}
+.dark .performance-heading select,.dark .process-summary article,.dark .full-process,.dark .review-actions{background:#242428;border-color:#424149;color:#f3f3f5}
+.dark .full-process li,.dark .review-status{border-color:#424149}
+
+/* Shared module pages: Skill Development, Learning, Training, Succession, and Recognition. */
+.dark .module-workspace{color:#f4f3f7}
+.dark .module-heading p,.dark .module-metrics small,.dark .module-metrics em,.dark .module-flow>small,.dark .module-flow div small,.dark .module-content>p,.dark .module-data small,.dark .module-data span,.dark .module-content details p,.dark .module-insights>small,.dark .module-insights p,.dark .insight-record small{color:#c1bec8}
+.dark .module-metrics article,.dark .module-flow,.dark .module-process,.dark .module-insights{background:#242428;border-color:#48464f;color:#f4f3f7}
+.dark .module-flow>button,.dark .insight-record{color:#f4f3f7}
+.dark .module-flow>button>span{background:#38363e;color:#e1dfe7}
+.dark .module-flow button.active{background:#43375e;box-shadow:inset 3px 0 #8b70ff}
+.dark .module-flow button.active>span{background:#7959ed;color:#fff}
+.dark .module-flow button.complete>span{background:#2e5a45;color:#c5f3d6}
+.dark .module-process-head,.dark .module-insights article,.dark .records-title,.dark .module-content details{border-color:#48464f}
+.dark .module-process-head b,.dark .module-content h2,.dark .module-data b,.dark .module-content summary,.dark .module-insights h2,.dark .module-insights h3,.dark .insight-record b{color:#f4f3f7}
+.dark .module-content details{background:#2b2a30}
+.dark .module-data article{background:#2b2a30;border-color:#4c4a53}
+.dark .module-content textarea{background:#302f35;border-color:#55525e;color:#f4f3f7}
+.dark .module-content textarea::placeholder{color:#b6b2bd}
+.dark .module-actions button:first-child{background:#34323a;border-color:#595661;color:#f4f3f7}
+.dark .module-actions .module-primary{background:#34323a!important;border:1px solid #595661!important;color:#f4f3f7!important}
+.dark .module-insights h3{color:#c9bcff}
+.dark .insight-record:hover,.dark .insight-record.selected{background:#44385d}

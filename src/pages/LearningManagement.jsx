@@ -1,0 +1,6 @@
+import React from 'react'
+import WorkflowPage from '../components/WorkflowPage'
+
+export default function LearningManagement() {
+  return <WorkflowPage title="Learning progress" description="Complete and monitor learning activities assigned to your role." action={{ hr: 'Create learning path' }} metrics={[["Active learners", "1,018", "81.6% of workforce"], ["Course completions", "728", "This month"], ["Assessment pass rate", "91%", "Post-learning tests"], ["Learning hours", "3,864", "Logged this quarter"]]} stages={[["Publish learning resources", "Keep courses and activities current.", ["hr"]], ["Employee enrollment", "Enroll employees in assigned learning.", ["hr", "supervisor"]], ["Complete learning activities", "Complete assigned learning activities.", ["employee"]], ["Post-learning assessment", "Complete required learning assessments.", ["employee", "supervisor"]], ["Update competency records", "Update competency records and analytics.", ["hr"]]]} items={[["Leadership essentials", "248 learners - 92% complete", "On track", "LE"], ["Data-driven decision making", "186 learners - 64% complete", "In progress", "DD"], ["Security awareness 2026", "524 learners - 98% complete", "Complete", "SA"], ["New manager program", "60 learners - 42% complete", "At risk", "NM"]]} itemLabel="Learning activity" />
+}

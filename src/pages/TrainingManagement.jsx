@@ -1,0 +1,6 @@
+import React from 'react'
+import WorkflowPage from '../components/WorkflowPage'
+
+export default function TrainingManagement() {
+  return <WorkflowPage title="Training management" description="Manage only the training actions assigned to your role." action={{ hr: 'Schedule training' }} metrics={[["Upcoming sessions", "14", "Next 30 days"], ["Attendance rate", "94%", "Across all sessions"], ["Training completion", "88%", "This quarter"], ["Effectiveness score", "4.6/5", "Learner feedback"]]} stages={[["Schedule training", "Set dates, facilitators and capacity.", ["hr"]], ["Invite participants", "Notify assigned employees and supervisors.", ["hr", "supervisor"]], ["Record attendance", "Confirm attendance and completion.", ["employee", "supervisor", "hr"]], ["Measure effectiveness", "Collect feedback and assessment results.", ["employee", "supervisor"]], ["Publish analytics", "Share completion and outcome data.", ["hr"]]]} items={[["Leadership lab", "Aug 05 - 24 attendees", "Confirmed", "LL"], ["Security awareness", "Aug 08 - 62 attendees", "Open", "SA"], ["Manager coaching", "Aug 13 - 18 attendees", "Waitlist", "MC"], ["Product discovery", "Aug 18 - 30 attendees", "Draft", "PD"]]} itemLabel="Training session" />
+}
