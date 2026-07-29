@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.js'
 import workflowRoutes from './routes/workflows.js'
 import analyticsRoutes from './routes/analytics.js'
 import certificateRoutes from './routes/certificates.js'
+import notificationRoutes from './routes/notifications.js'
 import { errorHandler, notFound } from './middleware.js'
 import { pool } from './db.js'
 
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/workflows', workflowRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/certificates', certificateRoutes)
+app.use('/api/notifications', notificationRoutes)
 app.use(notFound)
 app.use(errorHandler)
 app.listen(config.port, () => console.log(`PDS API listening on port ${config.port}`))

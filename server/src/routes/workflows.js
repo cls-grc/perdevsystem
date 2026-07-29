@@ -8,6 +8,15 @@ const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), metadata: z.record(z.unknown()).default({}) })
 const advanceSchema = z.object({ note: z.string().max(2000).optional(), data: z.record(z.unknown()).default({}) })
 const noteSchema = z.object({ note: z.string().min(1).max(2000), data: z.record(z.unknown()).default({}) })
+async function notifyNextOwners(client, workflow, destination) {
+  const employeeOnly = destination.roles.length === 1 && destination.roles[0] === 'employee'
+  const recipients = employeeOnly
+    ? await client.query('SELECT id FROM users WHERE employee_id=$1 AND is_active=true', [workflow.subject_employee_id])
+    : await client.query('SELECT id FROM users WHERE role = ANY($1::user_role[]) AND is_active=true', [destination.roles])
+  const title = `${workflow.module[0].toUpperCase()}${workflow.module.slice(1)} action required`
+  const message = `${destination.label} is ready for your action: ${workflow.title}.`
+  for (const recipient of recipients.rows) await client.query('INSERT INTO notifications(user_id, workflow_id, title, message) VALUES($1,$2,$3,$4)', [recipient.id, workflow.id, title, message])
+}
 router.use(authenticate)
 
 router.get('/definitions', (_req, res) => res.json({ workflows: Object.fromEntries(Object.entries({ performance: stagesFor('performance'), competency: stagesFor('competency'), learning: stagesFor('learning'), training: stagesFor('training'), succession: stagesFor('succession'), recognition: stagesFor('recognition') }).map(([module, stages]) => [module, stages.map(([key, label, roles]) => ({ key, label, roles }))])) }))
@@ -58,6 +67,9 @@ router.post('/:id/notes', async (req, res, next) => {
     const workflow = rows[0]
     if (!workflow) return res.status(404).json({ error: 'Workflow not found.' })
     if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot update this workflow.' })
+    const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow.current_stage)
+    if (!currentStage?.[2].includes(req.user.role)) return res.status(403).json({ error: `This workflow action is assigned to ${currentStage?.[2].join(' or ') || 'another role'}.` })
+    if (input.data?.type === 'training_schedule' && req.user.role !== 'hr') return res.status(403).json({ error: 'Only HR can record a verified training schedule.' })
     await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
     await query('UPDATE workflows SET updated_at=NOW() WHERE id=$1', [workflow.id])
     res.status(201).json({ saved: true })
@@ -80,6 +92,7 @@ router.post('/:id/advance', async (req, res, next) => {
       }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'advanced', req.user.sub, input.note || null, input.data])
+      await notifyNextOwners(client, workflow, destination)
       return { workflow: update.rows[0], nextAction: destination.label }
     })
     res.json(result)
