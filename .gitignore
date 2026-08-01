@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary/debug files
+lint-output.txt
+*_debug.txt
+*_numbered.txt
+*_lines.txt
+tmp_*.txt

@@ -8,7 +8,7 @@ import { generateInsights } from '../services/openrouter.js'
 const router = Router()
 router.use(authenticate)
 
-router.get('/dashboard', authorize('hr'), async (_req, res, next) => {
+router.get('/dashboard', authorize('hr', 'operations_manager'), async (_req, res, next) => {
   try {
     const [{ rows: totals }, { rows: employees }, { rows: modules }] = await Promise.all([
       query(`SELECT count(*)::int AS total_employees, coalesce(round(avg(performance_score))::int,0) AS average_performance,
@@ -35,7 +35,7 @@ router.get('/me', async (req, res, next) => {
 
 const insightRequest = z.object({ employeeName: z.string().min(2).max(120).optional() })
 const moduleInsightRequest = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), stage: z.string().min(2).max(140) })
-router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/insights', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
   try {
     const { employeeName } = insightRequest.parse(req.body || {})
     const [{ rows: totals }, { rows: departments }, { rows: workflows }] = await Promise.all([
@@ -53,7 +53,7 @@ router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) =
   } catch (error) { next(error) }
 })
 
-router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management'), async (req, res, next) => {
+router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management', 'operations_manager'), async (req, res, next) => {
   try {
     const context = moduleInsightRequest.parse(req.body)
     const [{ rows: workforce }, { rows: moduleWorkflows }] = await Promise.all([

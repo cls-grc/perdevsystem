@@ -7,6 +7,7 @@ const people = [
   ['E003','Maya Chen','Product','Head of Design',88,85,78,'employee','maya@pds.local'],
   ['E004','Ava Reyes','People Operations','HR Business Partner',90,90,88,'hr','ava@pds.local'],
   ['E005','Noah Santos','Executive Office','Senior Operations Manager',91,89,86,'management','noah@pds.local'],
+  ['E006','Samir Patel','Operations','Operations Manager',89,86,75,'operations_manager','samir@pds.local'],
 ]
 for (const [number,name,department,title,performance,competency,learning,role,email] of people) {
   const employee = await pool.query('INSERT INTO employees(employee_number,full_name,department,job_title,performance_score,competency_score,learning_progress) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(employee_number) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id', [number,name,department,title,performance,competency,learning])

@@ -1,5 +1,183 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-const modules={hr:[{to:'/',label:'AI Analytic Dashboard',icon:'grid'},{to:'/performance',label:'Performance Reviews',icon:'trend'},{to:'/certificates',label:'Certificate Management',icon:'award'},{to:'/competency',label:'Skill Development',icon:'award'},{to:'/learning',label:'Learning Progress',icon:'book'},{to:'/training',label:'Training Management',icon:'calendar'},{to:'/succession',label:'Succession Planning',icon:'users'},{to:'/recognition',label:'Social Recognition',icon:'heart'}],supervisor:[{to:'/',label:'Team Dashboard',icon:'grid'},{to:'/performance',label:'Team Performance',icon:'trend'},{to:'/competency',label:'Team Development',icon:'award'},{to:'/learning',label:'Team Learning',icon:'book'},{to:'/training',label:'Training Attendance',icon:'calendar'},{to:'/succession',label:'Succession Nominations',icon:'users'},{to:'/recognition',label:'Recognition Review',icon:'heart'}],management:[{to:'/',label:'Leadership Dashboard',icon:'grid'},{to:'/succession',label:'Succession Approvals',icon:'users'}],employee:[{to:'/',label:'My Dashboard',icon:'grid'},{to:'/performance',label:'My Performance',icon:'trend'},{to:'/certificates',label:'My Certificates',icon:'award'},{to:'/competency',label:'My Development Plan',icon:'award'},{to:'/learning',label:'My Learning',icon:'book'},{to:'/training',label:'My Training',icon:'calendar'},{to:'/recognition',label:'Recognition',icon:'heart'}]}
-export function Icon({name,size=20}){const p={grid:<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,trend:<><path d="M3 17 9 11l4 4 8-9"/><path d="M15 6h6v6"/></>,award:<><circle cx="12" cy="8" r="5"/><path d="m8.5 12.2-1 8 4.5-2.5 4.5 2.5-1-8"/></>,book:<><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H20v17H7.5A3.5 3.5 0 0 0 4 22z"/><path d="M4 5.5V22M8 6h8M8 10h7"/></>,settings:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.2 1.6Z"/></>,calendar:<><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,users:<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></>,heart:<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z"/>,search:<><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></>,bell:<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></>,chevron:<path d="m9 18 6-6-6-6"/>};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{p[name]}</svg>}
-export default function Sidebar({user,onLogout}){const roleLabel={hr:'HR Administrator',supervisor:'Department Head',management:'Senior Management',employee:'Employee'}[user.role]||user.role;return <aside className="sidebar"><div className="brand"><span className="brand-mark"><span/></span><span>PerDevSys</span></div><p className="workspace-label">HOSPITALITY HR</p><nav className="nav-list">{(modules[user.role]||[]).map(({to,label,icon})=><NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'nav-active':''}`}><Icon name={icon}/><span>{label}</span>{user.role==='hr'&&label==='AI Analytic Dashboard'&&<span className="nav-dot"/>}</NavLink>)}</nav><div className="sidebar-bottom"><div className="profile-mini profile-rbac"><span className="avatar avatar-lia">{user.name?.split(' ').map(x=>x[0]).join('').slice(0,2)}</span><div><b>{user.name}</b><small>{roleLabel}</small></div><span className="role-dot" title={roleLabel}/></div><button className="sidebar-signout" onClick={onLogout}>Sign out</button></div></aside>}
+
+const sectionsByRole = {
+  hr: [
+    {
+      title: 'Overview',
+      links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
+        { to: '/competency', label: 'Skill Development', icon: 'award' },
+        { to: '/recognition', label: 'Social Recognition', icon: 'heart' }
+      ]
+    },
+    {
+      title: 'Monitoring',
+      links: [
+        { to: '/learning', label: 'Learning Progress', icon: 'book' },
+        { to: '/training', label: 'Training Management', icon: 'calendar' },
+        { to: '/succession', label: 'Succession Planning', icon: 'users' }
+      ]
+    }
+  ],
+  supervisor: [
+    {
+      title: 'Overview',
+      links: [{ to: '/', label: 'Team Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { to: '/performance', label: 'Team Performance', icon: 'trend' },
+        { to: '/competency', label: 'Team Development', icon: 'award' },
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
+      ]
+    },
+    {
+      title: 'Monitoring',
+      links: [
+        { to: '/learning', label: 'Team Learning', icon: 'book' },
+        { to: '/training', label: 'Training Attendance', icon: 'calendar' },
+        { to: '/succession', label: 'Succession Nominations', icon: 'users' }
+      ]
+    }
+  ],
+  management: [
+    {
+      title: 'Overview',
+      links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { to: '/succession', label: 'Succession Approvals', icon: 'users' },
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
+      ]
+    }
+  ],
+  operations_manager: [
+    {
+      title: 'Overview',
+      links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
+        { to: '/competency', label: 'Skill Development', icon: 'award' },
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
+      ]
+    },
+    {
+      title: 'Monitoring',
+      links: [
+        { to: '/learning', label: 'Learning Progress', icon: 'book' },
+        { to: '/training', label: 'Training Management', icon: 'calendar' },
+        { to: '/succession', label: 'Succession Planning', icon: 'users' }
+      ]
+    }
+  ],
+  employee: [
+    {
+      title: 'Overview',
+      links: [{ to: '/', label: 'My Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { to: '/performance', label: 'My Performance', icon: 'trend' },
+        { to: '/competency', label: 'My Development Plan', icon: 'award' },
+        { to: '/recognition', label: 'Recognition', icon: 'heart' }
+      ]
+    },
+    {
+      title: 'Monitoring',
+      links: [
+        { to: '/learning', label: 'My Learning', icon: 'book' },
+        { to: '/training', label: 'My Training', icon: 'calendar' }
+      ]
+    }
+  ]
+}
+
+export function Icon({name,size=20}){
+  const p = {
+    grid: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
+    trend: <><path d="M3 17 9 11l4 4 8-9"/><path d="M15 6h6v6"/></>,
+    award: <><circle cx="12" cy="8" r="5"/><path d="m8.5 12.2-1 8 4.5-2.5 4.5 2.5-1-8"/></>,
+    book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H20v17H7.5A3.5 3.5 0 0 0 4 22z"/><path d="M4 5.5V22M8 6h8M8 10h7"/></>,
+    settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.2 1.6Z"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
+    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></>,
+    heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z"/>,
+    bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>,
+    chevron: <path d="m9 18 6-6-6-6"/>
+  }
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {p[name]}
+    </svg>
+  )
+}
+
+export default function Sidebar({user,onLogout}) {
+  const roleLabel = {hr:'HR Administrator',supervisor:'Department Head',management:'Senior Management',operations_manager:'Operations Manager',employee:'Employee'}[user.role] || user.role
+  const initials = user.name?.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()
+  const navSections = sectionsByRole[user.role] || sectionsByRole.employee
+
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="brand-mark"><span /></span>
+        <span>PerDevSys</span>
+      </div>
+
+      <p className="workspace-label">HOSPITALITY HR</p>
+
+      <div className="nav-list">
+        {navSections.map((section) => (
+          <div key={section.title} className="sidebar-section">
+            <div className="section-title">{section.title}</div>
+            <div className="section-list">
+              {section.links.map((item) =>
+                item.disabled ? (
+                  <div key={item.label} className="nav-item disabled">
+                    <Icon name={item.icon} size={18} />
+                    <span className="label">{item.label}</span>
+                  </div>
+                ) : (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/'}
+                    className={({ isActive }) => `nav-item ${isActive ? 'nav-active' : ''}`}
+                  >
+                    <Icon name={item.icon} size={18} />
+                    <span className="label">{item.label}</span>
+                  </NavLink>
+                )
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="sidebar-footer">
+        <div className="profile-mini profile-rbac">
+          <span className="avatar avatar-lia">{initials}</span>
+          <div className="profile-info">
+            <b>{user.name}</b>
+            <small>{roleLabel}</small>
+          </div>
+          <span className="role-dot" title={roleLabel} />
+        </div>
+        <button className="sidebar-signout" onClick={onLogout}>Sign out</button>
+      </div>
+    </aside>
+  )
+}

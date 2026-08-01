@@ -10,7 +10,6 @@ import LearningManagement from './pages/LearningManagement'
 import TrainingManagement from './pages/TrainingManagement'
 import SuccessionPlanning from './pages/SuccessionPlanning'
 import SocialRecognition from './pages/SocialRecognition'
-import CertificateManagement from './pages/CertificateManagement'
 import './index.css'
 import './buttonStyles.css'
 import './employeeSearch.css'
@@ -57,15 +56,14 @@ function App() {
         <div className="flex-1 min-h-screen flex flex-col">
           <Header onToggle={() => setDark((s) => !s)} dark={dark} />
           <Routes>
-            <Route path="/" element={user.role==='hr'?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
+            <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
             <Route path="/performance" element={<PerformanceManagement />} />
             <Route path="/competency" element={<CompetencyManagement />} />
             <Route path="/learning" element={<LearningManagement />} />
             <Route path="/training" element={<TrainingManagement />} />
-            <Route path="/succession" element={['hr','supervisor','management'].includes(user.role)?<SuccessionPlanning />:<RoleHome role={user.role} name={user.name}/>} />
+            <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning />:<RoleHome role={user.role} name={user.name}/>} />
             <Route path="/recognition" element={<SocialRecognition />} />
-            <Route path="/certificates" element={['hr','employee'].includes(user.role)?<CertificateManagement />:<RoleHome role={user.role} name={user.name}/>} />
-            <Route path="*" element={user.role==='hr'?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
+            <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
           </Routes>
         </div>
       </div>
