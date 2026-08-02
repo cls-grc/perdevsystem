@@ -61,3 +61,33 @@ export function nextStage(module, currentStage, role) {
   const [key, label, roles] = stages[currentIndex + 1]
   return { key, label, roles }
 }
+
+// Earlier stages that a current stage owner may return a workflow to.
+export function previousStages(module, currentStage, role) {
+  const stages = stagesFor(module)
+  const currentIndex = stages.findIndex(([key]) => key === currentStage)
+  if (currentIndex < 0) throw Object.assign(new Error('Workflow has an invalid current stage.'), { status: 409 })
+  const [, currentLabel, currentRoles] = stages[currentIndex]
+  if (!currentRoles.includes(role)) throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  return stages.slice(0, currentIndex).map(([key, label, roles]) => ({ key, label, roles }))
+}
+
+// Return a workflow to an earlier stage. Without a target, returns one stage back.
+export function returnToStage(module, currentStage, role, targetStage) {
+  const stages = stagesFor(module)
+  const currentIndex = stages.findIndex(([key]) => key === currentStage)
+  if (currentIndex < 0) throw Object.assign(new Error('Workflow has an invalid current stage.'), { status: 409 })
+  const [, currentLabel, currentRoles] = stages[currentIndex]
+  if (!currentRoles.includes(role)) throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  if (currentIndex === 0) throw Object.assign(new Error('This workflow is at its first stage and cannot be returned further.'), { status: 409 })
+  let targetIndex
+  if (targetStage) {
+    targetIndex = stages.findIndex(([key]) => key === targetStage)
+    if (targetIndex < 0) throw Object.assign(new Error('Target stage does not exist in this workflow.'), { status: 400 })
+    if (targetIndex >= currentIndex) throw Object.assign(new Error('You can only return to an earlier stage.'), { status: 400 })
+  } else {
+    targetIndex = currentIndex - 1
+  }
+  const [key, label, roles] = stages[targetIndex]
+  return { key, label, roles }
+}

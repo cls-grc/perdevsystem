@@ -2,10 +2,24 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 
 const sectionsByRole = {
-  hr: [
+hr: [
     {
       title: 'Overview',
       links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Administration',
+      links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Certificate Management', icon: 'award' }
+      ]
+    },
+    {
+      title: 'Development',
+      links: [
+        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
+        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
+      ]
     },
     {
       title: 'Operations',
@@ -24,10 +38,23 @@ const sectionsByRole = {
       ]
     }
   ],
-  supervisor: [
+supervisor: [
     {
       title: 'Overview',
       links: [{ to: '/', label: 'Team Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Administration',
+      links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' }
+      ]
+    },
+    {
+      title: 'Development',
+      links: [
+        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
+        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
+      ]
     },
     {
       title: 'Operations',
@@ -59,10 +86,23 @@ const sectionsByRole = {
       ]
     }
   ],
-  operations_manager: [
+operations_manager: [
     {
       title: 'Overview',
       links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Administration',
+      links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' }
+      ]
+    },
+    {
+      title: 'Development',
+      links: [
+        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
+        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
+      ]
     },
     {
       title: 'Operations',
@@ -81,10 +121,17 @@ const sectionsByRole = {
       ]
     }
   ],
-  employee: [
+employee: [
     {
       title: 'Overview',
       links: [{ to: '/', label: 'My Dashboard', icon: 'grid' }]
+    },
+    {
+      title: 'Development',
+      links: [
+        { to: '/goals', label: 'My Goals & OKRs', icon: 'trend' },
+        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
+      ]
     },
     {
       title: 'Operations',

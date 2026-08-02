@@ -7,3 +7,27 @@
 .module-heading>button:disabled,.module-actions>button:disabled,.schedule-trigger:disabled{display:none}.module-process .module-content>p{margin-bottom:12px}
 .module-actions:has(.module-primary:disabled)>button:first-child{display:none}
 @media(max-width:900px){.analytics-visuals{grid-template-columns:1fr 1fr}.heat-card{grid-column:1/-1}.readiness-cards,.award-cards{grid-template-columns:1fr}.competency-columns{grid-template-columns:1fr}}@media(max-width:600px){.analytics-visuals{grid-template-columns:1fr}.heat-card{grid-column:auto}.enhancement-title{display:block}.enhancement-title button{margin-top:9px}.skill-line{grid-template-columns:95px 1fr 25px}}
+.module-insights .ai-report p{font-size:9.5px}.dark .ai-report,.dark .ai-report h2,.dark .ai-report h3{color:#bca6ef}.dark .ai-report p{color:#c3c0c9}
+
+/* Return-step and cancel-workflow controls for WorkflowPage */
+.schedule-dialog select,.schedule-dialog textarea{border:1px solid #dfdce6;border-radius:9px;padding:10px 12px;background:#fcfbff;font-size:11px;color:#262531}
+.schedule-dialog select:focus,.schedule-dialog textarea:focus{outline:0;border-color:#7254e3;box-shadow:0 0 0 3px rgba(114,84,227,.13)}
+.schedule-dialog textarea{resize:vertical;min-height:84px;font-family:inherit}
+.dark .schedule-dialog select,.dark .schedule-dialog textarea{background:#29282e;border-color:#4a4852;color:#eee}
+.return-button{color:#b06948 !important}
+.module-cancel-row{margin-top:-4px}
+.module-cancel-row .cancel-button{color:#a14c3e;border-color:#f0d8d3;background:#fff7f5}
+.cancel-confirm{background:#b23a2f !important;border:0 !important;color:#fff !important;box-shadow:0 6px 14px rgba(178,58,47,.24)}
+.cancel-confirm:hover:not(:disabled){background:#8f2c24 !important}
+.dark .module-cancel-row .cancel-button{background:#3a2622;border-color:#5a3a34;color:#ffb4a8}
+
+.ai-report strong{font-weight:700;color:#3d3750}.ai-report ul{margin:6px 0;padding-left:16px;list-style:disc}.ai-report li{margin:3px 0;font-size:9.5px;line-height:1.5;color:#5d5964}.dark .ai-report strong{color:#e2d5ff}.dark .ai-report li{color:#c3c0c9}
+
+/* Workflow picker search/filter controls */
+.workflow-picker-wrap{display:grid;gap:6px;margin:12px 0}.workflow-picker-label{font-size:9px;color:#77737d}.workflow-picker-controls{display:grid;gap:7px}.workflow-picker-search{border:1px solid #dfdce5;border-radius:5px;background:#fff;padding:8px;font-size:9px;color:#48454f;outline:0}.workflow-picker-search:focus{border-color:#7254e3;box-shadow:0 0 0 3px rgba(114,84,227,.13)}.workflow-picker{display:block;border:1px solid #dfdce5;border-radius:5px;background:#fff;padding:7px;font-size:9px;color:#48454f;width:100%}.dark .workflow-picker-search,.dark .workflow-picker{background:#2d2d32;border-color:#4a4950;color:#eee}
+
+/* Retry button inside the error banner */
+.module-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.module-error button{border:1px solid #e0b5af;background:#fff;color:#a14c3e;border-radius:6px;padding:6px 10px;font-size:9px;font-weight:650}.module-error button:hover{background:#fff7f5}.dark .module-error button{background:#4a302e;border-color:#6a4a44;color:#ffd0c8}
+
+/* Dialog focus ring (visible, not outline-none) */
+.settings-dialog:focus,.schedule-dialog:focus,.certificate-modal:focus{outline:3px solid rgba(114,84,227,.35);outline-offset:3px}

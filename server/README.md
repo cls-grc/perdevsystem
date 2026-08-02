@@ -23,7 +23,9 @@ The frontend is started separately from `pds` with `npm run dev`; its developmen
 
 ## AI insights with OpenRouter
 
-Add `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` to `pds/server/.env`, then restart the API. The key is used only by the backend; it is never sent to the browser. `POST /api/analytics/insights` sends aggregate, non-identifying workforce metrics to OpenRouter and returns four concise insight cards.
+Add `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` to `pds/server/.env`, then restart the API. The key is used only by the backend; it is never sent to the browser. `POST /api/analytics/insights` sends aggregate, non-identifying workforce metrics to OpenRouter and returns concise insight cards.
+
+When no API key is configured (or the LLM call fails), the server gracefully falls back to deterministic, template-based reports built from the same database metrics, so the dashboard keeps working in demos and offline environments.
 
 Demo accounts all use `ChangeMe123!`:
 
@@ -40,7 +42,11 @@ Demo accounts all use `ChangeMe123!`:
 - `GET, POST /api/workflows`
 - `GET /api/workflows/:id`
 - `POST /api/workflows/:id/advance`
+- `POST /api/workflows/:id/return` — send a workflow back to an earlier stage (current stage owner)
+- `POST /api/workflows/:id/cancel` — cancel a workflow (workflow owner or HR)
 - `GET /api/analytics/dashboard`
 - `GET /api/analytics/me`
 
 The request body for advancing is `{ "note": "optional audit note", "data": {} }`. The server decides the next stage; do not include a stage name in the body.
+
+The request body for returning is `{ "targetStage": "earlier_stage", "note": "optional reason", "data": {} }`. If `targetStage` is omitted, the workflow moves back exactly one stage. The body for cancelling is `{ "reason": "why this is cancelled", "data": {} }`.

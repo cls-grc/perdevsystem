@@ -1,12 +1,22 @@
 import jwt from 'jsonwebtoken'
 import { ZodError } from 'zod'
 import { config } from './config.js'
+import { query } from './db.js'
 
-export function authenticate(req, res, next) {
+export async function authenticate(req, res, next) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '')
   if (!token) return res.status(401).json({ error: 'Authentication is required.' })
-  try { req.user = jwt.verify(token, config.jwtSecret); next() }
-  catch { return res.status(401).json({ error: 'Your session is invalid or has expired.' }) }
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret)
+    // Check if token is an access token (15min expiry) — not a long-lived one
+    if (decoded.exp && decoded.exp - decoded.iat > 3600) {
+      return res.status(401).json({ error: 'Invalid token type.' })
+    }
+    req.user = decoded
+    next()
+  } catch {
+    return res.status(401).json({ error: 'Your session is invalid or has expired.' })
+  }
 }
 
 export function authorize(...roles) {

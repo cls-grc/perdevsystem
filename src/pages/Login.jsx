@@ -8,7 +8,13 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false)
   const submit = async (event) => {
     event.preventDefault(); setLoading(true); setError('')
-    try { const result = await api.login(email, password); localStorage.setItem('pds-token', result.token); localStorage.setItem('pds-user', JSON.stringify(result.user)); onLogin(result.user) }
+    try {
+      const result = await api.login(email, password)
+      localStorage.setItem('pds-token', result.token)
+      if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
+      localStorage.setItem('pds-user', JSON.stringify(result.user))
+      onLogin(result.user)
+    }
     catch (requestError) { setError(requestError.message) }
     finally { setLoading(false) }
   }
