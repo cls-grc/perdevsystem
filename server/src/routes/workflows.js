@@ -2,7 +2,8 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { query, transaction } from '../db.js'
 import { stagesFor, nextStage, returnToStage } from '../workflow.js'
-import { authenticate } from '../middleware.js'
+import { authenticate, authorize } from '../middleware.js'
+import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
@@ -70,6 +71,27 @@ router.get('/:id', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// GET /:id/ai-reports - fetch saved AI reports linked to a workflow (audit trail)
+router.get('/:id/ai-reports', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id=w.subject_employee_id WHERE w.id=$1', [req.params.id])
+    if (!rows[0]) return res.status(404).json({ error: 'Workflow not found.' })
+    if (req.user.role === 'employee' && rows[0].subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot view this workflow.' })
+const reports = await getReportsForWorkflow(req.params.id)
+    res.json({ reports })
+  } catch (error) { next(error) }
+})
+
+// POST /:id/generate-report - HR only. Generate an AI report on demand for a
+// completed workflow. Creates a new immutable report row; previous reports stay
+// in history. The newest report appears first.
+router.post('/:id/generate-report', authorize('hr'), async (req, res, next) => {
+  try {
+    const report = await generateOnDemand(req.params.id, req.user.sub)
+    res.status(201).json({ report })
+  } catch (error) { next(error) }
+})
+
 router.post('/:id/notes', async (req, res, next) => {
   try {
     const input = noteSchema.parse(req.body)
@@ -131,7 +153,7 @@ router.post('/:id/advance', async (req, res, next) => {
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
       if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
-      const destination = nextStage(workflow.module, workflow.current_stage, req.user.role)
+const destination = nextStage(workflow.module, workflow.current_stage, req.user.role)
       if (!destination) {
         await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])
@@ -146,7 +168,19 @@ router.post('/:id/advance', async (req, res, next) => {
             await client.query(`UPDATE employees SET ${scoreUpdates.join(', ')}, updated_at = NOW() WHERE id = $4`, scoreParams)
           }
         }
-        return { completed: true, stage: workflow.current_stage }
+// AI-assisted analytics: calculate and save the module metrics so the
+        // UI can show a "Ready to Generate AI Report" state. The AI report is
+        // NOT generated automatically — HR generates it on demand via
+        // POST /:id/generate-report. This is best-effort and never blocks
+        // workflow completion even if metric calculation fails.
+        try {
+          const { metrics, details } = await calculateMetrics(workflow.module)
+          await saveMetricsForWorkflow(client, workflow, req.user.sub, metrics)
+          return { completed: true, stage: workflow.current_stage, metricsReady: true }
+        } catch (aiError) {
+          console.warn('[workflows] Could not save metrics for workflow completion:', aiError.message)
+          return { completed: true, stage: workflow.current_stage, metricsReady: false }
+        }
       }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'advanced', req.user.sub, input.note || null, input.data])

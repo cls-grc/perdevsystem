@@ -43,34 +43,7 @@ function App() {
     }
   })
 
-// Auto-logout after 3 minutes of inactivity
-  useEffect(() => {
-    if (!user) return
-    let timeout
-    const IDLE_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes
-    const resetTimer = () => {
-      clearTimeout(timeout)
-      timeout = setTimeout(async () => {
-        const refreshToken = localStorage.getItem('pds-refresh-token')
-        if (refreshToken) {
-          try { await api.logout(refreshToken) } catch { /* best-effort */ }
-        }
-        localStorage.removeItem('pds-token')
-        localStorage.removeItem('pds-refresh-token')
-        localStorage.removeItem('pds-user')
-        setUser(null)
-      }, IDLE_TIMEOUT_MS)
-    }
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
-    events.forEach(event => window.addEventListener(event, resetTimer))
-    resetTimer()
-    return () => {
-      clearTimeout(timeout)
-      events.forEach(event => window.removeEventListener(event, resetTimer))
-    }
-  }, [user])
-
-  useEffect(() => {
+useEffect(() => {
     const root = document.documentElement
     if (dark) {
       root.classList.add('dark')
@@ -110,23 +83,23 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
-        <Sidebar user={user} onLogout={handleLogout} />
+        <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
         <div className="flex-1 min-h-screen flex flex-col">
-          <Header user={user} onToggle={() => setDark((s) => !s)} dark={dark} />
+          <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} />
           <Routes>
-            <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
-            <Route path="/performance" element={<PerformanceManagement />} />
-            <Route path="/competency" element={<CompetencyManagement />} />
-            <Route path="/learning" element={<LearningManagement />} />
-            <Route path="/training" element={<TrainingManagement />} />
-            <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning />:<RoleHome role={user.role} name={user.name}/>} />
-            <Route path="/recognition" element={<SocialRecognition />} />
-            <Route path="/certificates" element={['hr', 'employee'].includes(user.role) ? <CertificateManagement /> : <Navigate to="/" replace />} />
-<Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement /> : <Navigate to="/" replace />} />
-            <Route path="/goals" element={<GoalsManagement />} />
-            <Route path="/feedback" element={<Feedback360 />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics />:<RoleHome role={user.role} name={user.name}/>} />
+            <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
+            <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
+            <Route path="/competency" element={<CompetencyManagement key={`comp-${user.id}`} />} />
+            <Route path="/learning" element={<LearningManagement key={`learn-${user.id}`} />} />
+            <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
+            <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning key={`succ-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
+            <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
+            <Route path="/certificates" element={['hr', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
+<Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
+            <Route path="/goals" element={<GoalsManagement key={`goals-${user.id}`} />} />
+            <Route path="/feedback" element={<Feedback360 key={`fb-${user.id}`} />} />
+            <Route path="/register" element={<Register key={`reg-${user.id}`} />} />
+            <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
           </Routes>
         </div>
       </div>

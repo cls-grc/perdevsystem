@@ -47,23 +47,25 @@ function renderContent(content, keyPrefix) {
   return elements
 }
 
-export default function AIReport({ insights = [] }) {
+export default function AIReport({ insights = [], content = '', title = '' }) {
+  const source = content?.trim() || insights?.map(insight => insight.summary).join('\n\n') || ''
+  const reportTitle = title || ''
   return <article className="ai-report" aria-label="AI analytics report">
-    {insights.flatMap((insight, insightIndex) => blocks(insight.summary).map((block, blockIndex) => {
-      const key = `${insightIndex}-${blockIndex}`
-      if (block.startsWith('# ')) return <h2 key={key}>{block.slice(2).trim()}</h2>
+    {reportTitle && <header className="ai-report-header"><h2>{reportTitle}</h2></header>}
+    {source ? blocks(source).map((block, blockIndex) => {
+      const key = `r-${blockIndex}`
+      if (block.startsWith('# ') && !reportTitle) return <h2 key={key}>{block.slice(2).trim()}</h2>
       if (block.startsWith('## ')) {
         const [heading, ...rest] = block.slice(3).split('\n')
-        const content = rest.join('\n').trim()
+        const body = rest.join('\n').trim()
         return (
-          <section key={key} className="ai-report-section">
+          <section key={key} className={`ai-report-section${/recommend/i.test(heading) ? ' ai-report-recommend' : ''}`}>
             <h3>{heading.trim()}</h3>
-            {content ? renderContent(content, `${key}-body`) : null}
+            {body ? renderContent(body, `${key}-body`) : <p>Insufficient records exist for this section.</p>}
           </section>
         )
       }
       return renderContent(block, `${key}-body`)
-    }))}
+    }) : <div className="insight-empty"><b>No report available</b><p>Generate a report to view structured AI analytics.</p></div>}
   </article>
 }
-

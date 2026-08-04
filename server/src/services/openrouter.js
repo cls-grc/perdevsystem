@@ -94,23 +94,37 @@ function serializeContext(context) {
   return JSON.stringify(context, null, 2)
 }
 
+const MODULE_SECTIONS = {
+  performance: ['Overall Performance Summary', 'KPI Analysis', 'Strengths', 'Areas Needing Improvement', 'Coaching Recommendations', 'Performance Trend', 'Readiness Score'],
+  competency: ['Competency Summary', 'Missing Competencies', 'Skill Gap Analysis', 'Priority Skills', 'Development Recommendations', 'Readiness Assessment'],
+  learning: ['Completion Analysis', 'Learning Engagement', 'Weak Learning Areas', 'Learning Effectiveness', 'Suggested Next Courses'],
+  training: ['Attendance Analysis', 'Completion Rate', 'Training Effectiveness', 'Participants Needing Follow-up', 'Recommended Future Trainings'],
+  succession: ['Readiness Summary', 'Leadership Potential', 'Successor Ranking', 'Risk Analysis', 'Development Recommendations'],
+  recognition: ['Recognition Trends', 'Frequently Recognized Employees', 'Team Engagement', 'Employees Needing Recognition', 'Recognition Distribution'],
+}
+
+const EXECUTIVE_SECTIONS = ['Workforce Overview', 'Department Analysis', 'Performance Analysis', 'Competency Analysis', 'Learning Analysis', 'Training Analysis', 'Succession Readiness', 'Recognition Analysis', 'Organizational Strengths', 'Areas Requiring Attention', 'Executive Recommendations']
+
 function buildPrompt(context) {
   if (context.moduleWorkflow) {
     const moduleLabel = context.moduleWorkflow.module
     const stage = context.moduleWorkflow.stage
+    const sections = MODULE_SECTIONS[moduleLabel] || ['Overview', 'Analysis', 'Strengths', 'Areas Requiring Attention', 'Recommendations']
     return {
-      system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce clear, evidence-based management reports.',
-      user: `Generate a concise HR analytics report for the "${moduleLabel}" module at stage "${stage}".
+      system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce evidence-based, structured HR management reports.',
+      user: `Generate an HR analytics report for the "${moduleLabel}" module at stage "${stage}". Use only the data provided below; do not invent values.
 
-Use this structure with Markdown headings:
-# <Report Title>
-## Overview
-## Analysis
-## Strengths
-## Areas Requiring Attention
-## Recommendations
+Use this exact structure with Markdown headings:
+# ${moduleLabel[0].toUpperCase()}${moduleLabel.slice(1)} Management Report
+${sections.map(s => `## ${s}`).join('\n')}
 
-Format important terms and key metrics in **bold** using double asterisks. When listing multiple items (for example departments), use a bulleted list with `- item`. Base every claim strictly on the provided data. Be specific, use numbers, and keep the report under 450 words. Do not invent facts that are not present in the data.
+Rules:
+- Base every claim strictly on the provided data and actual numbers.
+- Interpret relationships between metrics rather than only listing numbers — explain what score gaps mean, how completed vs active records relate, and what the data implies for action.
+- Explain the meaning of each metric in professional HR language.
+- If a dataset has no records, explicitly state that insufficient records exist for that area.
+- Recommendations must be grounded in the calculated metrics.
+- Keep the report under 450 words.
 
 Here is the current database context (JSON):
 ${serializeContext(context)}`,
@@ -119,7 +133,7 @@ ${serializeContext(context)}`,
   if (context.employee) {
     return {
       system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You produce concise, evidence-based employee analytics reports.',
-      user: `Generate a concise employee HR analytics report for ${context.employee.full_name}.
+      user: `Generate a concise employee HR analytics report for ${context.employee.full_name}. Use only the provided data; do not invent values.
 
 Use this structure with Markdown headings:
 # <Report Title>
@@ -129,25 +143,27 @@ Use this structure with Markdown headings:
 ## Areas Requiring Attention
 ## Recommendations
 
-Format important terms and key metrics in **bold** using double asterisks. When listing multiple items, use a bulleted list with `- item`. Base every claim strictly on the provided data. Be specific, use numbers, and keep the report under 350 words.
+Interpret the relationships between the employee's performance, competency, and learning metrics rather than only restating them. Base every claim strictly on the provided data. Explain metric meaning, and if a metric has no data, explicitly state that insufficient records exist. Keep the report under 350 words.
 
 Here is the employee context (JSON):
 ${serializeContext(context.employee)}`,
     }
   }
   return {
-    system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce clear, evidence-based executive reports.',
-    user: `Generate a concise executive HR analytics report for the organization.
+    system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce structured, evidence-based executive workforce analytics reports.',
+    user: `Generate an Executive Workforce Analytics Report for the organization. Use only data provided below; do not invent values.
 
-Use this structure with Markdown headings:
-# <Report Title>
-## Overview
-## Analysis
-## Strengths
-## Areas Requiring Attention
-## Recommendations
+Use this exact structure with Markdown headings:
+# Executive Workforce Analytics Report
+${EXECUTIVE_SECTIONS.map(s => `## ${s}`).join('\n')}
 
-Format important terms and key metrics in **bold** using double asterisks. When listing multiple items (for example departments), use a bulleted list with `- item`. Base every claim strictly on the provided data. Be specific, use numbers, and keep the report under 500 words.
+Rules:
+- Base every claim strictly on the provided data and actual numbers.
+- Interpret relationships between metrics across modules rather than only reporting numbers — explain how performance compares to competency, how learning completion relates to capability, and how active workflow queues affect readiness.
+- Explain the meaning of each metric in professional HR language.
+- If a dataset has no records, explicitly state that insufficient records exist for that area.
+- Recommendations must be grounded in the calculated metrics.
+- Keep the report under 600 words.
 
 Here is the current workforce context (JSON):
 ${serializeContext(context)}`,

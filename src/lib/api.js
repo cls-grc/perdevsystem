@@ -73,7 +73,22 @@ export const api = {
   analytics: () => request('/api/analytics/dashboard'),
   analyticsMe: () => request('/api/analytics/me'),
   generateInsights: (employeeName) => request('/api/analytics/insights', { method: 'POST', body: JSON.stringify(employeeName ? { employeeName } : {}) }),
-  generateModuleInsights: (module, stage) => request('/api/analytics/module-insights', { method: 'POST', body: JSON.stringify({ module, stage }) }),
+generateModuleInsights: (module, stage) => request('/api/analytics/module-insights', { method: 'POST', body: JSON.stringify({ module, stage }) }),
+  executiveReport: () => request('/api/analytics/executive-report'),
+  generateExecutiveReport: () => request('/api/analytics/executive-report', { method: 'POST', body: '{}' }),
+workflowReports: (id) => request(`/api/workflows/${id}/ai-reports`),
+  generateWorkflowReport: (id) => request(`/api/workflows/${id}/generate-report`, { method: 'POST', body: '{}' }),
+  downloadReportPdf: async (id) => {
+    const token = localStorage.getItem('pds-token')
+    const response = await fetch(`${BASE_URL}/api/analytics/reports/${id}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.error || 'PDF download failed.')
+    }
+    return response.blob()
+  },
 notifications: ({ page, limit } = {}) => {
     const qs = new URLSearchParams()
     if (page) qs.set('page', page)

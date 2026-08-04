@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SearchableSelector from './SearchableSelector'
 import ModuleAIInsights from './ModuleAIInsights'
+import WorkflowForms from './WorkflowForms'
+import WorkflowTimeline from './WorkflowTimeline'
+import ModuleDashboard from './ModuleDashboard'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
+import { configFor, computeModuleStats } from '../workflowConfig'
+import { getInitialValue } from './WorkflowForms'
 
 const getRole = () => {
   try {
@@ -44,13 +49,30 @@ const normalizeStage = stage => {
     const [label, description = '', roles = []] = stage
     return { key: slugify(label), label, description, roles }
   }
-
   return {
     key: stage.key || slugify(stage.label),
     label: stage.label || '',
     description: stage.description || '',
     roles: stage.roles || [],
   }
+}
+
+// Generic success / error notification that fades after a few seconds.
+function Notice({ notice, type = 'success', onDismiss }) {
+  const timerRef = useRef(null)
+  useEffect(() => {
+    if (notice) {
+      timerRef.current = setTimeout(onDismiss, 4500)
+      return () => clearTimeout(timerRef.current)
+    }
+  }, [notice, onDismiss])
+  if (!notice) return null
+  return (
+    <div className={`module-notice module-notice-${type}`}>
+      <span>{type === 'success' ? '✓' : '!'} {notice}</span>
+      <button type="button" className="notice-dismiss" onClick={onDismiss} aria-label="Dismiss notification">×</button>
+    </div>
+  )
 }
 
 export default function WorkflowPage({
@@ -67,15 +89,18 @@ export default function WorkflowPage({
   const role = getRole()
   const userId = getUserId()
   const moduleKey = module || moduleKeys[title]
+  const moduleCfg = useMemo(() => configFor(moduleKey), [moduleKey])
   const [workflow, setWorkflow] = useState(null)
   const [workflows, setWorkflows] = useState([])
   const [definitions, setDefinitions] = useState([])
   const [events, setEvents] = useState([])
+  const [analyticsData, setAnalyticsData] = useState(null)
   const [people, setPeople] = useState([])
   const [subject, setSubject] = useState(null)
   const [selected, setSelected] = useState(items[0] || ['', '', ''])
   const [note, setNote] = useState('')
   const [notice, setNotice] = useState('')
+  const [noticeType, setNoticeType] = useState('success')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -89,6 +114,10 @@ export default function WorkflowPage({
   const [cancelReason, setCancelReason] = useState('')
   const [workflowFilter, setWorkflowFilter] = useState('')
   const [schedule, setSchedule] = useState({ date: '', time: '09:00', venue: 'Hotel Learning Hub' })
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  // Per-step form data
+  const [formData, setFormData] = useState({})
 
   const roleAction = typeof action === 'string' ? action : action?.[role]
   const itemOptions = useMemo(
@@ -112,6 +141,9 @@ export default function WorkflowPage({
       setWorkflow(active)
       setEvents(active ? (await api.workflow(active.id)).events || [] : [])
       setError('')
+      // Load analytics for dashboard stats
+      const analytics = await api.analytics().catch(() => null)
+      setAnalyticsData(analytics)
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -151,6 +183,55 @@ export default function WorkflowPage({
         .map(stage => ({ value: stage.key, label: stage.label }))
     : []
 
+  // Current step form config from moduleCfg
+  const currentFormConfig = useMemo(() => {
+    if (!workflow || !current) return null
+    return moduleCfg.stepForms[workflow.current_stage] || null
+  }, [workflow, current, moduleCfg])
+
+const currentFormValue = useMemo(() => {
+    const key = workflow?.current_stage || ''
+    return formData[key] !== undefined ? formData[key] : {}
+  }, [formData, workflow?.current_stage])
+
+  // When the workflow moves to a new stage, seed a fresh initial value for the
+  // stage's form/builder so the step always has a valid controlled value.
+  useEffect(() => {
+    if (!workflow || !currentFormConfig) return
+    const key = workflow.current_stage
+    if (formData[key] !== undefined) return
+    const initial = getInitialValue(currentFormConfig, role)
+    if (initial !== undefined) {
+      setFormData(prev => (prev[key] !== undefined ? prev : { ...prev, [key]: initial }))
+    }
+  }, [workflow?.current_stage, currentFormConfig, role]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setFormValue = useCallback((patchOrValue, meta) => {
+    const key = workflow?.current_stage || ''
+    if (meta?.submit) {
+      // Form submitted — store the data and proceed with completion
+      setFormData(prev => ({ ...prev, [key]: patchOrValue }))
+      setConfirmAction(() => complete)
+      setConfirmOpen(true)
+      return
+    }
+    setFormData(prev => ({ ...prev, [key]: patchOrValue }))
+  }, [workflow?.current_stage])
+
+  // Check if form is valid for the current step
+  const isFormValid = useMemo(() => {
+    if (!currentFormConfig) return true // no form config = allow
+    if (currentFormConfig.aiOnly) return true // no fields needed for AI steps
+    const fields = currentFormConfig.fields || []
+    return fields.every(field => {
+      if (!field.required) return true
+      const v = currentFormValue[field.name]
+      if (Array.isArray(v)) return v.length > 0
+      if (field.type === 'toggle') return Boolean(v)
+      return v !== undefined && v !== null && String(v).trim() !== ''
+    })
+  }, [currentFormConfig, currentFormValue])
+
   // Live items: when the page uses employees as items, prefer real records from the API.
   const liveItems = useMemo(() => {
     if (!itemIsEmployee || !people.length) return items
@@ -169,9 +250,14 @@ export default function WorkflowPage({
     return workflows.filter(w => `${w.title} ${w.subject_name || ''}`.toLowerCase().includes(q))
   }, [workflows, workflowFilter])
 
+  const showNotice = (msg, type = 'success') => {
+    setNotice(msg)
+    setNoticeType(type)
+  }
+
   const start = async (trainingSchedule) => {
     if (role !== 'employee' && !assigned) return setError(`Select a valid ${itemLabel.toLowerCase()} first.`)
-    setNotice(`Creating ${title.toLowerCase()} workflow...`)
+    showNotice(`Creating ${title.toLowerCase()} workflow...`)
     setError('')
     setSaving(true)
     try {
@@ -192,7 +278,7 @@ export default function WorkflowPage({
           data: { type: 'training_schedule', ...trainingSchedule, training: selected[0] },
         })
       }
-      setNotice(trainingSchedule ? 'Training schedule and workflow saved to the database.' : `${roleAction || 'Workflow'} started and saved to the database.`)
+      showNotice(trainingSchedule ? 'Training schedule and workflow saved.' : `${roleAction || 'Workflow'} started and saved.`)
       await load()
     } catch (requestError) {
       setNotice('')
@@ -213,14 +299,12 @@ export default function WorkflowPage({
       const stage = normalizedStages.find(candidate => candidate.key === entry.current_stage)
       return stage?.roles.includes(role)
     })
-
     if (!assignedWorkflow) {
-      setNotice(`There are no ${title.toLowerCase()} actions waiting for your role.`)
+      showNotice(`There are no ${title.toLowerCase()} actions waiting for your role.`, 'info')
       return
     }
-
     void chooseWorkflow(assignedWorkflow.id)
-    setNotice(`${roleAction} is ready in the selected workflow.`)
+    showNotice(`${roleAction} is ready in the selected workflow.`)
   }
 
   const handleHeaderAction = () => {
@@ -233,15 +317,17 @@ export default function WorkflowPage({
 
   const complete = async () => {
     setSaving(true)
+    setError('')
     try {
       const result = await api.advanceWorkflow(workflow.id, {
         note: note || undefined,
-        data: { selectedItem: selected[0] },
+        data: { selectedItem: selected[0], formData: currentFormValue, ...currentFormValue },
       })
       setNote('')
-      setNotice(
+      setConfirmOpen(false)
+      showNotice(
         result.completed
-          ? 'Workflow completed and recorded.'
+          ? '✓ Workflow completed. Metrics calculated and ready for AI report generation.'
           : `${display} completed. ${result.nextAction} is now awaiting its assigned role.`,
       )
       await load()
@@ -252,13 +338,32 @@ export default function WorkflowPage({
     }
   }
 
+  const handleCompleteWithValidation = () => {
+    if (currentFormConfig && !isFormValid) {
+      setError('Please complete all required fields before submitting this step.')
+      return
+    }
+    setConfirmAction(() => complete)
+    setConfirmOpen(true)
+  }
+
+  const quickAction = action => {
+    const stage = normalizedStages.find(s => s.key === action.stage)
+    if (!stage) return
+    if (stage.roles.includes(role)) {
+      if (workflow?.current_stage === stage.key) return
+      // If no workflow at this stage, start one
+      if (canStart) begin()
+    }
+  }
+
   const saveNote = async () => {
     if (!note.trim()) return setError('Add a note before saving.')
     setSaving(true)
     try {
       await api.addWorkflowNote(workflow.id, { note, data: { selectedItem: selected[0] } })
       setNote('')
-      setNotice('Note saved to the database audit history.')
+      showNotice('Note saved to the database audit history.')
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -281,7 +386,7 @@ export default function WorkflowPage({
       setReturnOpen(false)
       setReturnTarget('')
       setReturnNote('')
-      setNotice(`Workflow returned to "${result.returnedTo}" for the assigned role to redo.`)
+      showNotice(`Workflow returned to "${result.returnedTo}" for the assigned role to redo.`)
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -299,7 +404,7 @@ export default function WorkflowPage({
       await api.cancelWorkflow(workflow.id, cancelReason.trim())
       setCancelOpen(false)
       setCancelReason('')
-      setNotice('Workflow cancelled and recorded in the audit history.')
+      showNotice('Workflow cancelled and recorded in the audit history.', 'info')
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -333,7 +438,7 @@ export default function WorkflowPage({
         data: { type: 'training_schedule', ...schedule, training: selected[0] },
       })
       setScheduleOpen(false)
-      setNotice('Verified training schedule saved to the database.')
+      showNotice('Verified training schedule saved.')
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -347,6 +452,7 @@ export default function WorkflowPage({
   const scheduleRef = useDialogFocus(scheduleOpen, () => setScheduleOpen(false))
   const returnRef = useDialogFocus(returnOpen, () => { setReturnOpen(false); setReturnTarget(''); setReturnNote('') })
   const cancelRef = useDialogFocus(cancelOpen, () => { setCancelOpen(false); setCancelReason('') })
+  const confirmRef = useDialogFocus(confirmOpen, () => setConfirmOpen(false))
 
   if (loading) return <main className="module-workspace"><div className="dashboard-skeleton"><i /><i /><i /><i /></div></main>
 
@@ -357,6 +463,11 @@ export default function WorkflowPage({
     ['Audit entries', events.length],
     ['Last updated', workflow ? new Date(workflow.updated_at).toLocaleTimeString() : '-'],
   ]
+
+  // compute overall progress based on stage index
+  const stageProgress = current && normalizedStages.length
+    ? Math.round(((normalizedStages.findIndex(s => s.key === current.key) + 1) / normalizedStages.length) * 100)
+    : 0
 
   return <main className="module-workspace">
     <div className="module-heading">
@@ -369,79 +480,122 @@ export default function WorkflowPage({
         {extraHeaderAction}
       </div>}
     </div>
-    {notice && <div className="module-notice">✓ {notice}</div>}
+
+    {notice && <Notice notice={notice} type={noticeType} onDismiss={() => setNotice('')} />}
     {error && <div className="module-error" role="alert"><span>{error}</span><button onClick={() => { setError(''); void load() }}>Retry</button></div>}
+
+    {/* Module-specific dashboard widgets */}
+    <ModuleDashboard
+      moduleKey={moduleKey}
+      data={analyticsData}
+      workflows={workflows}
+      role={role}
+      onQuickAction={quickAction}
+    />
+
+    {/* Progress bar */}
+    {workflow && normalizedStages.length > 0 && (
+      <div className="workflow-progress">
+        <div className="progress-bar"><em style={{ width: `${stageProgress}%` }} /></div>
+        <div className="progress-stages">
+          {normalizedStages.map((st, idx) => {
+            const currentIdx = normalizedStages.findIndex(s => s.key === current?.key)
+            const stStatus = idx < currentIdx ? 'complete' : idx === currentIdx ? 'active' : 'pending'
+            return (
+              <span key={st.key} className={`prog-stage ${stStatus}`} title={st.label}>
+                {idx + 1}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+    )}
+
     <section className="module-metrics">
       {stats.map(([label, value], index) => <article key={label}><span>{index + 1}</span><div><small>{label}</small><b>{value}</b><em>Live database value</em></div></article>)}
     </section>
+
     <section className="module-grid">
       <section className="module-process">
         <div className="module-process-head">
           <span>{workflow ? (canAct ? 'Action required' : 'Read-only status') : 'Ready to start'}</span>
           <b>{display}</b>
         </div>
+
+        {/* Step stepper */}
         <div className="module-steps">
           {roleStages.map((stage, index) => {
-            const status = workflow
-              ? index < roleCurrentIndex
-                ? 'complete'
-                : index === roleCurrentIndex
-                ? 'active'
-                : 'pending'
-              : index === 0 && canStart
-              ? 'active'
-              : 'pending'
+            const stStatus = workflow
+              ? index < roleCurrentIndex ? 'complete' : index === roleCurrentIndex ? 'active' : 'pending'
+              : index === 0 && canStart ? 'active' : 'pending'
             return (
               <div
                 key={stage.key}
-                className={`module-step ${status}`}
+                className={`module-step ${stStatus}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => {
-                  setDetailsStage(stage)
-                  setDetailsOpen(true)
-                }}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    setDetailsStage(stage)
-                    setDetailsOpen(true)
-                  }
-                }}
+                onClick={() => { setDetailsStage(stage); setDetailsOpen(true) }}
+                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailsStage(stage); setDetailsOpen(true) } }}
               >
-                <div className="step-marker">{status === 'complete' ? '✓' : index + 1}</div>
-                <div className="step-copy"><b>{stage.label}</b><small>{status === 'active' ? 'Current step' : status === 'complete' ? 'Completed' : 'Upcoming'}</small></div>
+                <div className="step-marker">{stStatus === 'complete' ? '✓' : index + 1}</div>
+                <div className="step-copy"><b>{stage.label}</b><small>{stStatus === 'active' ? 'Current step' : stStatus === 'complete' ? 'Completed' : 'Upcoming'}</small></div>
               </div>
             )
           })}
         </div>
+
+        {/* Step details and form */}
         <div className="module-content">
           <h2>{display}</h2>
           <p>{workflow ? currentDescription : canStart ? 'Select a record, then start the workflow.' : 'Your role does not have a start action for this workflow.'}</p>
+
           {workflow && (
             <div className="module-actions module-details-row">
-              <button className="module-secondary" type="button" onClick={() => {
-                setDetailsStage(current)
-                setDetailsOpen(true)
-              }}>
+              <button className="module-secondary" type="button" onClick={() => { setDetailsStage(current); setDetailsOpen(true) }}>
                 View current step details
               </button>
             </div>
           )}
+
           {workflow ? (
             <>
               <div className="module-content-meta">
                 <p><strong>Assigned roles:</strong> {current?.roles?.join(', ') || 'N/A'}</p>
                 <p><strong>Workflow item:</strong> {selected?.[0] || assigned?.full_name || 'Not selected'}</p>
+                {workflow.subject_name && <p><strong>Subject:</strong> {workflow.subject_name}</p>}
+                {workflow.due_date && <p><strong>Due:</strong> {new Date(workflow.due_date).toLocaleDateString()}</p>}
               </div>
+
+              {/* Per-step business form */}
+              {currentFormConfig && !currentFormConfig.aiOnly && (
+                <div className="workflow-form-wrap">
+                  <WorkflowForms
+                    formConfig={currentFormConfig}
+                    value={currentFormValue}
+                    onChange={setFormValue}
+                    role={role}
+                    people={people}
+                  />
+                </div>
+              )}
+
+              {/* AI-only step — no business form, just the AI insights panel */}
+              {currentFormConfig?.aiOnly && (
+                <div className="workflow-ai-step">
+                  <p>This step requires reviewing the AI-generated insights and confirming completion below.</p>
+                </div>
+              )}
+
               {canAct ? (
                 <>
                   <label>
                     Add note
-                    <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add a note or review comment for this step." />
+                    <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add a note or review comment for this step." rows={2} />
                   </label>
                   <div className="module-actions">
-                    <button className="module-primary" disabled={saving} onClick={complete}>{saving ? 'Completing...' : 'Complete step'}</button>
+                    <button className="module-primary" disabled={saving || (!isFormValid && Boolean(currentFormConfig))} onClick={handleCompleteWithValidation}>
+                      {saving ? 'Completing...' : 'Complete step'}
+                    </button>
                     <button className="module-secondary" disabled={saving || !note.trim()} onClick={saveNote}>Save note</button>
                     {canReturn && <button className="module-secondary return-button" disabled={saving} onClick={() => setReturnOpen(true)}>Return step</button>}
                   </div>
@@ -464,32 +618,33 @@ export default function WorkflowPage({
               <button className="module-primary" type="button" disabled={saving} onClick={begin}>{saving ? 'Creating...' : roleAction || 'Start workflow'}</button>
             </>
           ) : null}
+
           {filteredWorkflows.length > 0 && (
             <div className="workflow-picker-wrap">
               <label className="workflow-picker-label">View active workflow</label>
               <div className="workflow-picker-controls">
-                <input
-                  className="workflow-picker-search"
-                  value={workflowFilter}
-                  onChange={event => setWorkflowFilter(event.target.value)}
-                  placeholder="Filter by title or employee…"
-                  aria-label="Filter active workflows"
-                />
+                <input className="workflow-picker-search" value={workflowFilter} onChange={event => setWorkflowFilter(event.target.value)} placeholder="Filter by title or employee…" aria-label="Filter active workflows" />
                 <select className="workflow-picker" value={workflow?.id || ''} onChange={event => chooseWorkflow(event.target.value)} aria-label="Select active workflow">
                   {filteredWorkflows.map(entry => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
                 </select>
               </div>
             </div>
           )}
+
+          {/* Workflow history timeline */}
+          {workflow && (
+            <div className="workflow-timeline-wrap">
+              <WorkflowTimeline workflow={workflow} events={events} currentStageLabel={display} />
+            </div>
+          )}
         </div>
       </section>
-      <ModuleAIInsights module={moduleKey} stage={display} />
+      <ModuleAIInsights module={moduleKey} stage={display} workflowId={workflow?.id} />
     </section>
+
+    {/* Stage details modal */}
     {detailsOpen && (
-      <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Stage details" onClick={() => {
-        setDetailsOpen(false)
-        setDetailsStage(null)
-      }}>
+      <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Stage details" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>
         <section className="settings-dialog workflow-modal" ref={detailsRef} onClick={event => event.stopPropagation()}>
           <div className="module-process-head">
             <span>Stage details</span>
@@ -501,19 +656,28 @@ export default function WorkflowPage({
             <article><small>Workflow item</small><b>{selected?.[0] || assigned?.full_name || 'Not selected'}</b></article>
           </div>
           <div className="module-actions">
-            <button className="cancel-button" onClick={() => {
-              setDetailsOpen(false)
-              setDetailsStage(null)
-            }}>Close</button>
-            <button className="module-primary" onClick={() => {
-              setDetailsOpen(false)
-              setDetailsStage(null)
-            }}>Got it</button>
+            <button className="cancel-button" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>Close</button>
+            <button className="module-primary" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>Got it</button>
           </div>
         </section>
       </div>
     )}
+
+    {/* Confirmation dialog */}
+    {confirmOpen && (
+      <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Confirm action" onClick={() => setConfirmOpen(false)}>
+        <section className="schedule-dialog workflow-modal" ref={confirmRef} onClick={event => event.stopPropagation()}>
+          <div><h2>Confirm step completion</h2><p>This will complete the current step and advance the workflow to the next stage.</p></div>
+          <div className="module-actions">
+            <button className="module-secondary" onClick={() => setConfirmOpen(false)}>Cancel</button>
+            <button className="module-primary" disabled={saving} onClick={confirmAction}>{saving ? 'Completing...' : 'Confirm & complete'}</button>
+          </div>
+        </section>
+      </div>
+    )}
+
     {scheduleOpen && <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Schedule training" onClick={() => setScheduleOpen(false)}><section className="schedule-dialog" ref={scheduleRef} onClick={event => event.stopPropagation()}><div><h2>Schedule training</h2><p>Set session details after HR verifies enrollment.</p></div><label>Training date<input type="date" value={schedule.date} onChange={event => setSchedule({ ...schedule, date: event.target.value })} /></label><label>Start time<input type="time" value={schedule.time} onChange={event => setSchedule({ ...schedule, time: event.target.value })} /></label><label>Venue<input value={schedule.venue} onChange={event => setSchedule({ ...schedule, venue: event.target.value })} /></label><div className="module-actions"><button className="module-secondary" onClick={() => setScheduleOpen(false)}>Cancel</button><button className="module-primary" disabled={saving} onClick={saveSchedule}>{saving ? 'Saving...' : 'Confirm schedule'}</button></div></section></div>}
+
     {returnOpen && (
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Return step" onClick={() => { setReturnOpen(false); setReturnTarget(''); setReturnNote('') }}>
         <section className="schedule-dialog workflow-modal" ref={returnRef} onClick={event => event.stopPropagation()}>
@@ -534,6 +698,7 @@ export default function WorkflowPage({
         </section>
       </div>
     )}
+
     {cancelOpen && (
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Cancel workflow" onClick={() => { setCancelOpen(false); setCancelReason('') }}>
         <section className="schedule-dialog workflow-modal" ref={cancelRef} onClick={event => event.stopPropagation()}>

@@ -4,6 +4,13 @@ import { query } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { calculateReadiness } from '../services/metrics.js'
 import { generateInsights } from '../services/openrouter.js'
+import {
+  calculateMetrics,
+  generateAI,
+  saveExecutiveReport,
+  getLatestReports,
+  getReportsForWorkflow,
+} from '../services/aiReports.js'
 
 const router = Router()
 router.use(authenticate)
@@ -42,14 +49,6 @@ router.get('/me', async (req, res, next) => {
 
 const insightRequest = z.object({ employeeName: z.string().min(2).max(120).optional() })
 const moduleInsightRequest = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), stage: z.string().min(2).max(140) })
-const moduleMetricQueries = {
-  performance: `SELECT count(*)::int AS employee_count, coalesce(round(avg(performance_score))::int,0) AS average_score, (SELECT count(*)::int FROM workflows WHERE module='performance' AND status='active') AS active_count, (SELECT count(*)::int FROM workflows WHERE module='performance' AND status='completed') AS completed_count FROM employees WHERE is_active=true`,
-  competency: `SELECT count(*)::int AS employee_count, coalesce(round(avg(competency_score))::int,0) AS average_score FROM employees WHERE is_active=true`,
-  learning: `SELECT count(*)::int AS employee_count, coalesce(round(avg(learning_progress))::int,0) AS average_score, count(*) FILTER (WHERE learning_progress=100)::int AS completed_count FROM employees WHERE is_active=true`,
-  training: `SELECT count(*) FILTER (WHERE w.status='active')::int AS active_count, count(*) FILTER (WHERE w.status='completed')::int AS completed_count, count(DISTINCT w.id) FILTER (WHERE e.details->>'type'='training_schedule')::int AS scheduled_count FROM workflows w LEFT JOIN workflow_events e ON e.workflow_id=w.id WHERE w.module='training'`,
-  succession: `SELECT count(*)::int AS candidate_count, coalesce(round(avg(readiness_score))::int,0) AS average_readiness, count(*) FILTER (WHERE readiness_band='ready_now')::int AS ready_now_count, count(*) FILTER (WHERE readiness_band='ready_in_1_2_years')::int AS ready_later_count, count(*) FILTER (WHERE readiness_band='development_needed')::int AS development_count FROM succession_profiles`,
-  recognition: `SELECT count(*) FILTER (WHERE status='completed')::int AS completed_count FROM workflows WHERE module='recognition'`,
-}
 router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const { employeeName } = insightRequest.parse(req.body || {})
@@ -70,20 +69,103 @@ router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) =
   } catch (error) { next(error) }
 })
 
+// Module insights: compute metrics, generate AI, and return the structured report.
+// This is the "Generate AI Insights" action in a module workflow.
 router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management'), async (req, res, next) => {
   try {
     const context = moduleInsightRequest.parse(req.body)
-    const detailsQuery = context.module === 'performance'
-      ? `SELECT (SELECT full_name FROM employees WHERE is_active=true ORDER BY performance_score DESC, full_name LIMIT 1) AS top_name, (SELECT performance_score FROM employees WHERE is_active=true ORDER BY performance_score DESC, full_name LIMIT 1) AS top_score, (SELECT full_name FROM employees WHERE is_active=true ORDER BY performance_score, full_name LIMIT 1) AS bottom_name, (SELECT performance_score FROM employees WHERE is_active=true ORDER BY performance_score, full_name LIMIT 1) AS bottom_score`
-      : context.module === 'recognition'
-        ? `SELECT e.full_name AS top_name, count(*)::int AS top_count FROM workflows w JOIN employees e ON e.id=w.subject_employee_id WHERE w.module='recognition' GROUP BY e.full_name ORDER BY count(*) DESC, e.full_name LIMIT 1`
-        : 'SELECT NULL::text AS top_name'
-    const [{ rows: moduleWorkflows }, { rows: metricRows }, { rows: detailRows }] = await Promise.all([
+    const { metrics, details } = await calculateMetrics(context.module)
+    const report = await generateAI(context.module, metrics, details)
+    const [{ rows: moduleWorkflows }] = await Promise.all([
       query(`SELECT current_stage, count(*)::int AS count FROM workflows WHERE module=$1 AND status='active' GROUP BY current_stage ORDER BY count DESC`, [context.module]),
-      query(moduleMetricQueries[context.module]),
-      query(detailsQuery),
     ])
-    res.json({ insights: await generateInsights({ moduleWorkflow: { ...context, scope: 'organization-wide' }, moduleMetrics: metricRows[0], moduleDetails: detailRows[0], activeModuleWorkflows: moduleWorkflows }) })
+    res.json({ insights: [{ title: report.title, summary: report.content }], metrics, activeModuleWorkflows: moduleWorkflows })
+  } catch (error) { next(error) }
+})
+
+// GET /executive-report - load the latest saved executive report (no regeneration on refresh).
+router.get('/executive-report', authorize('hr', 'operations_manager', 'management'), async (req, res, next) => {
+  try {
+    const { metrics } = await calculateMetrics('executive')
+    const latest = await getLatestReports('executive', { limit: 1 })
+    let report = latest[0] || null
+    if (report) {
+      const gen = await query('SELECT full_name FROM users WHERE id=$1', [report.created_by])
+      report = { ...report, generated_by_name: gen.rows[0]?.full_name || 'HR' }
+    }
+    res.json({ report, metrics })
+  } catch (error) { next(error) }
+})
+
+// POST /executive-report - generate + save a new executive report (HR only).
+router.post('/executive-report', authorize('hr'), async (req, res, next) => {
+  try {
+    const { metrics } = await calculateMetrics('executive')
+    const report = await generateAI('executive', metrics)
+    const saved = await saveExecutiveReport({ ...report, metricsJson: metrics }, req.user.sub, metrics)
+    res.status(201).json({ report: saved })
+  } catch (error) { next(error) }
+})
+
+// GET /workflows/:id/reports - fetch saved AI reports for a workflow (audit trail).
+router.get('/workflows/:id/reports', authorize('hr', 'supervisor', 'management', 'employee'), async (req, res, next) => {
+  try {
+    const reports = await getReportsForWorkflow(req.params.id)
+    res.json({ reports })
+  } catch (error) { next(error) }
+})
+
+// GET /reports/:id/pdf - download a saved AI report as a lightweight PDF.
+// Produces a simple text-based PDF from the report title + content so users
+// can retain and share AI reports without adding a heavy PDF dependency.
+router.get('/reports/:id/pdf', authorize('hr', 'supervisor', 'management', 'employee'), async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM ai_reports WHERE id=$1', [req.params.id])
+    const report = rows[0]
+    if (!report) return res.status(404).json({ error: 'Report not found.' })
+    // Build a minimal single-page PDF (A4 portrait) from the report text.
+    const title = report.title || 'AI Report'
+    const body = (report.content || report.summary || '').replace(/#{1,3}\s+/g, '').replace(/\*\*/g, '')
+    const text = `${title}\n\n${body}`
+    const maxWidth = 90
+    const lines = []
+    text.split('\n').forEach(line => {
+      let current = line
+      while (current.length > maxWidth) {
+        lines.push(current.slice(0, maxWidth))
+        current = current.slice(maxWidth)
+      }
+      lines.push(current)
+    })
+    const lineHeight = 12
+    const margin = 40
+    const pageHeight = 792
+    const maxLines = Math.floor((pageHeight - margin * 2) / lineHeight)
+    const contentStream = []
+    let y = margin
+    let count = 0
+    for (const line of lines) {
+      if (count >= maxLines) {
+        contentStream.push('BT 40 752 Td /F1 11 Tf (Page Break) Tj ET')
+        y = margin
+        count = 0
+      }
+      const escaped = line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+      contentStream.push(`BT ${margin} ${y} Td /F1 10 Tf (${escaped}) Tj ET`)
+      y -= lineHeight
+      count++
+    }
+    const objects = [
+      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
+      '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+      `5 0 obj << /Length ${contentStream.join('\n').length} >> stream\n${contentStream.join('\n')}\nendstream endobj`,
+    ]
+    const pdf = `%PDF-1.4\n${objects.join('\n')}\ntrailer << /Root 1 0 R /Size 6 >>\n%%EOF`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${(title.replace(/\s+/g, '-') || 'report').toLowerCase()}.pdf"`)
+    res.send(Buffer.from(pdf, 'latin1'))
   } catch (error) { next(error) }
 })
 export default router
