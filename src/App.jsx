@@ -13,8 +13,6 @@ import SuccessionPlanning from './pages/SuccessionPlanning'
 import SocialRecognition from './pages/SocialRecognition'
 import CertificateManagement from './pages/CertificateManagement'
 import EmployeeManagement from './pages/EmployeeManagement'
-import GoalsManagement from './pages/GoalsManagement'
-import Feedback360 from './pages/Feedback360'
 import Register from './pages/Register'
 import './index.css'
 import './buttonStyles.css'
@@ -29,7 +27,6 @@ import './roleControls.css'
 import './certificate.css'
 import './certificateUpload.css'
 import './employeeRecords.css'
-import './goalsFeedback.css'
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -96,9 +93,7 @@ useEffect(() => {
             <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
             <Route path="/certificates" element={['hr', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
 <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
-            <Route path="/goals" element={<GoalsManagement key={`goals-${user.id}`} />} />
-            <Route path="/feedback" element={<Feedback360 key={`fb-${user.id}`} />} />
-            <Route path="/register" element={<Register key={`reg-${user.id}`} />} />
+<Route path="/register" element={<Register key={`reg-${user.id}`} />} />
             <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
           </Routes>
         </div>

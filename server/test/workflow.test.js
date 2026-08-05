@@ -4,7 +4,7 @@ import { nextStage, stagesFor, returnToStage, previousStages } from '../src/work
 import { calculatePerformance, calculateReadiness } from '../src/services/metrics.js'
 
 test('performance workflow advances only in its defined order', () => {
-  assert.deepEqual(nextStage('performance', 'self_assessment', 'employee'), { key: 'supervisor_review', label: 'Supervisor review', roles: ['supervisor'] })
+  assert.deepEqual(nextStage('performance', 'self_assessment', 'employee'), { key: 'performance_evaluation', label: 'Performance evaluation', roles: ['supervisor'] })
   assert.throws(() => nextStage('performance', 'self_assessment', 'supervisor'), { status: 403 })
 })
 
@@ -29,7 +29,7 @@ test('every module has a valid actionable workflow', () => {
 })
 
 test('returnToStage moves a workflow to an earlier stage for the current owner', () => {
-  assert.deepEqual(returnToStage('performance', 'supervisor_review', 'supervisor'), { key: 'self_assessment', label: 'Self assessment', roles: ['employee'] })
+  assert.deepEqual(returnToStage('performance', 'performance_evaluation', 'supervisor'), { key: 'self_assessment', label: 'Self assessment', roles: ['employee'] })
   assert.deepEqual(returnToStage('performance', 'performance_evaluation', 'supervisor', 'self_assessment'), { key: 'self_assessment', label: 'Self assessment', roles: ['employee'] })
 })
 
@@ -42,7 +42,7 @@ test('returnToStage rejects invalid targets and non-owners', () => {
 
 test('previousStages returns only stages before the current one', () => {
   const stages = previousStages('performance', 'calibration', 'hr')
-  assert.deepEqual(stages.map(({ key }) => key), ['create_review', 'configure_kpi', 'notify_employee', 'self_assessment', 'supervisor_review', 'performance_evaluation'])
+  assert.deepEqual(stages.map(({ key }) => key), ['create_review', 'configure_kpi', 'notify_employee', 'self_assessment', 'performance_evaluation'])
   assert.throws(() => previousStages('performance', 'self_assessment', 'supervisor'), { status: 403 })
 })
 

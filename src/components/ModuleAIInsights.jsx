@@ -114,15 +114,22 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
     }
   }
 
-  const latestGenerated = savedReports.find(r => r.generated_by_model) || null
+const latestGenerated = savedReports.find(r => r.generated_by_model) || null
   const hasGenerated = Boolean(latestGenerated)
   const status = hasGenerated ? 'Generated' : 'Ready to Generate'
   const previewEntries = metricsPreview ? Object.entries(metricsPreview).filter(([key]) => METRIC_LABELS[key]) : []
   const confidence = confidenceFromMetrics(latestGenerated?.metrics_json || metricsPreview)
   const dataSources = useMemo(() => {
-    if (!latestGenerated?.metrics_json) return []
-    return Object.keys(latestGenerated.metrics_json).filter(key => METRIC_LABELS[key])
-  }, [latestGenerated])
+    const json = latestGenerated?.metrics_json || metricsPreview || {}
+    return Object.keys(json).filter(key => METRIC_LABELS[key])
+  }, [latestGenerated, metricsPreview])
+
+  // Records analyzed = populated metric values (each represents queried DB rows).
+  const recordsAnalyzed = useMemo(() => {
+    const json = latestGenerated?.metrics_json || metricsPreview || {}
+    const keys = Object.keys(json).filter(key => METRIC_LABELS[key])
+    return keys.length
+  }, [latestGenerated, metricsPreview])
 
   const shownReport = viewingReport || latestGenerated
   const lastUpdated = workflowMeta?.updated_at || metricsPreview?.last_updated || latestGenerated?.created_at
@@ -137,13 +144,14 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
     </div>
     {error && <p className="ai-error">{error}</p>}
 
-    {/* Metrics Preview — calculated database values only, no AI */}
+{/* Metrics Preview — calculated database values only, no AI */}
     {previewEntries.length > 0 && !hasGenerated && (
       <section className="metrics-preview">
         <div className="metrics-preview-head">
           <b>Metrics Summary</b>
           <small>Calculated from database</small>
         </div>
+        <div className="metrics-ready-badge">✓ Metrics ready</div>
         <div className="metrics-preview-grid">
           {previewEntries.map(([key, value]) => (
             <article key={key}>
@@ -151,6 +159,9 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
               <b>{formatMetricValue(key, value)}</b>
             </article>
           ))}
+        </div>
+        <div className="metrics-stats-row">
+          <span><b>{recordsAnalyzed}</b> records analyzed</span>
         </div>
         {confidence && (
           <div className="metrics-confidence">
@@ -164,10 +175,11 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
     )}
 
     {/* Generated report metadata */}
-    {hasGenerated && (
+{hasGenerated && (
       <div className="report-meta">
         <span className="report-date">Generated {new Date(latestGenerated.created_at).toLocaleString()}</span>
         {latestGenerated.generated_by_model && <span className="model-chip">{latestGenerated.generated_by_model}</span>}
+        <span className="records-chip">{recordsAnalyzed} records analyzed</span>
         {confidence && <span className={`confidence-chip ${confidence.level.toLowerCase()}`}>{confidence.level} confidence ({confidence.score}%)</span>}
       </div>
     )}

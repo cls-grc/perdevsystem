@@ -14,14 +14,7 @@ hr: [
         { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
-    {
-      title: 'Development',
-      links: [
-        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
-        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
-      ]
-    },
-    {
+{
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
@@ -49,14 +42,7 @@ supervisor: [
         { to: '/employees', label: 'Employee Records', icon: 'users' }
       ]
     },
-    {
-      title: 'Development',
-      links: [
-        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
-        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
-      ]
-    },
-    {
+{
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Team Performance', icon: 'trend' },
@@ -97,14 +83,7 @@ operations_manager: [
         { to: '/employees', label: 'Employee Records', icon: 'users' }
       ]
     },
-    {
-      title: 'Development',
-      links: [
-        { to: '/goals', label: 'Goals & OKRs', icon: 'trend' },
-        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
-      ]
-    },
-    {
+{
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
@@ -126,14 +105,7 @@ employee: [
       title: 'Overview',
       links: [{ to: '/', label: 'My Dashboard', icon: 'grid' }]
     },
-    {
-      title: 'Development',
-      links: [
-        { to: '/goals', label: 'My Goals & OKRs', icon: 'trend' },
-        { to: '/feedback', label: '360° Feedback', icon: 'heart' }
-      ]
-    },
-    {
+{
       title: 'Operations',
       links: [
         { to: '/performance', label: 'My Performance', icon: 'trend' },

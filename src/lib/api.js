@@ -54,11 +54,12 @@ export const api = {
   resetPassword: (token, password) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   register: (token, password) => request('/api/auth/register', { method: 'POST', body: JSON.stringify({ token, password }) }),
   invite: (data) => request('/api/auth/invite', { method: 'POST', body: JSON.stringify(data) }),
-  workflows: (module, { page, limit } = {}) => {
+workflows: (module, { page, limit, status } = {}) => {
     const qs = new URLSearchParams()
     if (module) qs.set('module', module)
     if (page) qs.set('page', page)
     if (limit) qs.set('limit', limit)
+    if (status) qs.set('status', status)
     const queryStr = qs.toString()
     return request(`/api/workflows${queryStr ? `?${queryStr}` : ''}`)
   },
@@ -130,29 +131,7 @@ regenerateCertificate: (id) => request(`/api/certificates/${id}/regenerate`, { m
     const qs = new URLSearchParams(params).toString()
     return request(`/api/audit-logs${qs ? `?${qs}` : ''}`)
   },
-  // Workflow due dates & overdue
+// Workflow due dates & overdue
   setWorkflowDueDate: (id, dueDate) => request(`/api/workflows/${id}/due-date`, { method: 'POST', body: JSON.stringify({ dueDate }) }),
   overdueWorkflows: (days = 3) => request(`/api/workflows/overdue?days=${days}`),
-  // Goals / OKRs
-  goals: (params = {}) => {
-    const qs = new URLSearchParams(params).toString()
-    return request(`/api/goals${qs ? `?${qs}` : ''}`)
-  },
-  goal: (id) => request(`/api/goals/${id}`),
-  createGoal: (data) => request('/api/goals', { method: 'POST', body: JSON.stringify(data) }),
-  updateGoal: (id, data) => request(`/api/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteGoal: (id, reason = 'Cancelled') => request(`/api/goals/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
-  restoreGoal: (id) => request(`/api/goals/${id}/restore`, { method: 'POST', body: '{}' }),
-  verifyGoal: (id, comment = '') => request(`/api/goals/${id}/verify`, { method: 'POST', body: JSON.stringify({ comment }) }),
-  rejectGoal: (id, reason) => request(`/api/goals/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  goalHistory: (id) => request(`/api/goals/${id}/history`),
-  // 360° feedback
-  feedbackRequests: (params = {}) => {
-    const qs = new URLSearchParams(params).toString()
-    return request(`/api/feedback${qs ? `?${qs}` : ''}`)
-  },
-  pendingFeedback: () => request('/api/feedback/pending'),
-  createFeedbackRequest: (data) => request('/api/feedback', { method: 'POST', body: JSON.stringify(data) }),
-  submitFeedback: (id, data) => request(`/api/feedback/${id}/submit`, { method: 'POST', body: JSON.stringify(data) }),
-  closeFeedback: (id) => request(`/api/feedback/${id}/close`, { method: 'POST', body: '{}' }),
 }

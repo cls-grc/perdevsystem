@@ -14,6 +14,155 @@ export const FIELD_TYPES = {
 }
 
 // ---------------------------------------------------------------------------
+// Selection-first libraries — templates, dropdown lists, quick comments and
+// intelligent defaults so HR rarely needs to type. These power the new
+// selection-first field types (templateSelect, kpiLibrary, goalTemplate,
+// competencyTemplate, learningTemplate, aiGenerate, quickComments).
+// ---------------------------------------------------------------------------
+
+// Intelligent defaults auto-filled into forms (current date / quarter / year /
+// reviewer / period) so the only typing left is exceptional customization.
+export const INTELLIGENT_DEFAULTS = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const quarter = `Q${Math.floor(now.getMonth() / 3) + 1}`
+  const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}') } catch { return {} } })()
+  return {
+    currentDate: now.toISOString().slice(0, 10),
+    currentQuarter: quarter,
+    currentYear: String(year),
+    nextQuarter: `Q${(Math.floor(now.getMonth() / 3) + 2) % 4 || 1}`,
+    period: `${quarter} ${year}`,
+    reviewer: role.name || '',
+    department: role.department || '',
+  }
+}
+
+// Dropdown lists so fields become selections instead of free text.
+export const REVIEW_TYPES = ['Annual', 'Quarterly', 'Monthly', 'Probation', 'Promotion', 'Special Review']
+export const LEARNING_CATEGORIES = ['Leadership', 'Customer Service', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Communication', 'Sales', 'Technical Skills']
+export const COMPETENCY_CATEGORIES = ['Technical', 'Behavioral', 'Leadership', 'Communication', 'Management', 'Hospitality Service']
+export const TRAINING_CATEGORIES = ['Onboarding', 'Compliance', 'Technical', 'Leadership', 'Service Excellence', 'Safety']
+export const RECOGNITION_CATEGORIES = ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork', 'Safety Champion']
+export const COMPETENCY_LEVELS = ['Foundation', 'Developing', 'Proficient', 'Expert']
+export const SUCCESSION_READINESS = ['Ready Now', 'Ready in 1-2 Years', 'Potential', 'Not Ready']
+
+// KPI library — selecting one auto-fills name, description, weight, target,
+// measurement. HR only adjusts the weight/target values.
+export const KPI_LIBRARY = [
+  { name: 'Customer Satisfaction', description: 'Overall satisfaction as measured by post-service surveys.', weight: 25, target: '90', measurement: 'Survey score (%)' },
+  { name: 'Attendance', description: 'Consistent attendance and punctuality across the period.', weight: 15, target: '95', measurement: 'Attendance rate (%)' },
+  { name: 'Food Quality', description: 'Consistency and quality of food output against standards.', weight: 20, target: '90', measurement: 'Quality audit score (%)' },
+  { name: 'Service Speed', description: 'Speed of service delivery from order to completion.', weight: 15, target: '85', measurement: 'Avg service time (min)' },
+  { name: 'Revenue Target', description: 'Contribution to revenue targets for the period.', weight: 15, target: '100', measurement: 'Revenue achievement (%)' },
+  { name: 'Inventory Accuracy', description: 'Accuracy of inventory records and stock levels.', weight: 10, target: '95', measurement: 'Accuracy rate (%)' },
+  { name: 'Teamwork', description: 'Collaboration and contribution to team objectives.', weight: 10, target: '90', measurement: 'Peer review score (%)' },
+]
+
+// Learning template library — selecting one auto-fills title, description,
+// objectives, duration, category. Users only edit if needed.
+export const LEARNING_TEMPLATES = [
+  { title: 'Leadership Training', category: 'Leadership', duration: '8', description: 'Develop core leadership and people-management capabilities for emerging leaders.', objectives: 'Lead a team effectively; give constructive feedback; delegate and motivate; make decisions with confidence.' },
+  { title: 'Customer Service Excellence', category: 'Customer Service', duration: '4', description: 'Deliver memorable, service-first experiences that exceed guest expectations.', objectives: 'Handle guest requests proactively; resolve complaints with empathy; up-sell and cross-sell; maintain service standards.' },
+  { title: 'Kitchen Hygiene', category: 'Food Safety', duration: '3', description: 'Maintain strict kitchen hygiene and food-safety standards.', objectives: 'Follow HACCP guidelines; prevent cross-contamination; store food correctly; maintain a clean workstation.' },
+  { title: 'Food Safety', category: 'Food Safety', duration: '5', description: 'Understand and apply food-safety regulations across the operation.', objectives: 'Identify food-safety hazards; control critical points; document compliance; respond to incidents.' },
+  { title: 'Front Desk Excellence', category: 'Customer Service', duration: '4', description: 'Deliver a polished, professional front-desk experience.', objectives: 'Manage check-in/out smoothly; handle reservations; resolve guest issues; represent the brand.' },
+  { title: 'Conflict Resolution', category: 'Communication', duration: '3', description: 'Resolve workplace and guest conflicts constructively.', objectives: 'De-escalate tense situations; listen actively; find win-win outcomes; escalate appropriately.' },
+  { title: 'Cash Handling', category: 'Compliance', duration: '2', description: 'Handle cash and POS transactions accurately and securely.', objectives: 'Process payments correctly; reconcile the till; detect fraud; follow cash policies.' },
+  { title: 'Emergency Procedures', category: 'Compliance', duration: '2', description: 'Respond correctly to emergencies and safety incidents.', objectives: 'Know evacuation routes; use fire equipment; report incidents; protect guests and staff.' },
+]
+
+// Competency template library — selecting a position auto-loads required
+// competencies, suggested proficiency levels and weights.
+export const COMPETENCY_TEMPLATES = {
+  'Restaurant Manager': [
+    { competency: 'Operational Management', level: 'Expert', weight: 30 },
+    { competency: 'Financial Acumen', level: 'Proficient', weight: 20 },
+    { competency: 'Leadership', level: 'Expert', weight: 25 },
+    { competency: 'Customer Service', level: 'Proficient', weight: 15 },
+    { competency: 'Food Safety', level: 'Proficient', weight: 10 },
+  ],
+  'Front Desk Officer': [
+    { competency: 'Customer Service', level: 'Expert', weight: 30 },
+    { competency: 'Communication', level: 'Proficient', weight: 25 },
+    { competency: 'Reservation Management', level: 'Proficient', weight: 20 },
+    { competency: 'Conflict Resolution', level: 'Developing', weight: 15 },
+    { competency: 'Compliance', level: 'Foundation', weight: 10 },
+  ],
+  'Chef': [
+    { competency: 'Culinary Skill', level: 'Expert', weight: 30 },
+    { competency: 'Food Safety', level: 'Expert', weight: 25 },
+    { competency: 'Kitchen Operations', level: 'Proficient', weight: 20 },
+    { competency: 'Team Leadership', level: 'Proficient', weight: 15 },
+    { competency: 'Inventory Control', level: 'Developing', weight: 10 },
+  ],
+  'Waiter': [
+    { competency: 'Customer Service', level: 'Proficient', weight: 30 },
+    { competency: 'Service Speed', level: 'Proficient', weight: 25 },
+    { competency: 'Communication', level: 'Developing', weight: 20 },
+    { competency: 'Upselling', level: 'Developing', weight: 15 },
+    { competency: 'Food Safety', level: 'Foundation', weight: 10 },
+  ],
+  'HR Staff': [
+    { competency: 'Employee Relations', level: 'Proficient', weight: 25 },
+    { competency: 'Recruitment', level: 'Proficient', weight: 20 },
+    { competency: 'Compliance', level: 'Proficient', weight: 20 },
+    { competency: 'Communication', level: 'Developing', weight: 20 },
+    { competency: 'Data & Payroll', level: 'Developing', weight: 15 },
+  ],
+  'Housekeeping': [
+    { competency: 'Room Standards', level: 'Proficient', weight: 30 },
+    { competency: 'Hygiene & Safety', level: 'Proficient', weight: 25 },
+    { competency: 'Attention to Detail', level: 'Developing', weight: 20 },
+    { competency: 'Guest Service', level: 'Developing', weight: 15 },
+    { competency: 'Time Management', level: 'Foundation', weight: 10 },
+  ],
+}
+
+// SMART goal templates for the Goals module — user only edits target numbers.
+export const GOAL_TEMPLATES = [
+  { name: 'Increase Customer Satisfaction', description: 'Raise customer satisfaction score to the target level this period.', target: '90%', metric: 'Customer satisfaction score', unit: 'percentage' },
+  { name: 'Improve Attendance', description: 'Improve attendance and punctuality to the target rate.', target: '95%', metric: 'Attendance rate', unit: 'percentage' },
+  { name: 'Reduce Food Waste', description: 'Minimize food waste to the target percentage.', target: '5%', metric: 'Food waste', unit: 'percentage' },
+  { name: 'Improve Sales', description: 'Grow sales contribution to the target amount.', target: 'PHP 100,000', metric: 'Sales', unit: 'amount' },
+  { name: 'Improve Service Time', description: 'Reduce average service time to the target minutes.', target: '15', metric: 'Avg service time', unit: 'minutes' },
+  { name: 'Increase Training Completion', description: 'Boost training completion rate to the target.', target: '90%', metric: 'Training completion', unit: 'percentage' },
+]
+
+// Quick comments — clickable chips that build a note without typing.
+export const QUICK_COMMENTS = {
+  performance: ['Excellent performance', 'Needs coaching', 'Requires training', 'Promotion candidate', 'Leadership potential', 'Attendance concern', 'Customer complaint'],
+  competency: ['Strong core competencies', 'Skill gap identified', 'Developing toward target', 'Ready for advanced role', 'Needs focused coaching'],
+  learning: ['Completed all activities', 'High engagement', 'Progressing on track', 'Needs extra support', 'Ready for next path'],
+  training: ['Attended actively', 'Completed successfully', 'Strong understanding', 'Recommended follow-up', 'High effectiveness'],
+  succession: ['Strong leadership potential', 'Ready for succession', 'Needs development', 'High potential', 'Backup needed'],
+  recognition: ['Outstanding contribution', 'Excellent customer service', 'Great collaboration', 'Exceeds expectations', 'Deserves recognition'],
+}
+
+// AI-generation prompts used by the "Generate using AI" buttons on textareas.
+export const AI_GENERATORS = {
+  reviewTitle: 'Generate a professional review title for this period.',
+  description: 'Generate a clear, professional description.',
+  objectives: 'Generate measurable learning objectives.',
+  prioritySkills: 'Generate a list of priority skills.',
+  coachingNotes: 'Generate coaching notes based on the employees performance.',
+  planTitle: 'Generate a development plan title.',
+  rationale: 'Generate a nomination rationale.',
+  reason: 'Generate a recognition reason.',
+  approvalNotes: 'Generate professional approval notes.',
+  publishMessage: 'Generate a professional employee notification message.',
+  notes: 'Generate professional review notes.',
+  reviewNotes: 'Generate professional record notes.',
+  validationNotes: 'Generate professional validation notes.',
+  hrNotes: 'Generate professional HR notes.',
+  trainingObjectives: 'Generate measurable training objectives.',
+  feedback: 'Generate constructive performance feedback.',
+  reviewSummary: 'Generate a professional review summary.',
+  learningRecommendation: 'Generate a learning recommendation.',
+  developmentPlan: 'Generate a development plan.',
+}
+
+// ---------------------------------------------------------------------------
 // PERFORMANCE — Review Cycle · KPI Builder · Scorecards · Calibration · Results
 // ---------------------------------------------------------------------------
 const performance = {
@@ -31,30 +180,26 @@ const performance = {
     ],
   },
   stepForms: {
-    create_review: {
+create_review: {
       title: 'Create review cycle',
-      description: 'Set the cycle details before employees begin their self assessments.',
+      description: 'Select the employee to evaluate and set the cycle details before they begin their self assessment.',
       fields: [
-        { name: 'reviewTitle', label: 'Review title', type: 'text', required: true, placeholder: 'e.g. Q3 2026 Performance Review' },
+{ name: 'employee', label: 'Employee to evaluate', type: 'employee', required: true, hint: 'Select the subject of this review cycle' },
+        { name: 'reviewTitle', label: 'Review title', type: 'text', required: true, defaultValue: 'Performance Review', hint: 'Auto-generated from period — edit if needed' },
         { name: 'reviewPeriod', label: 'Review period', type: 'select', required: true, options: ['Q1', 'Q2', 'Q3', 'Q4', 'Annual'] },
-        { name: 'department', label: 'Department', type: 'employee', required: true, hint: 'Select department or All' },
-        { name: 'reviewType', label: 'Review type', type: 'select', required: true, options: ['Self + Manager', 'Manager only', '360°'] },
+        { name: 'reviewType', label: 'Review type', type: 'select', required: true, options: REVIEW_TYPES },
+        { name: 'department', label: 'Department', type: 'select', required: true, options: ['All', 'Front Office', 'Housekeeping', 'Food & Beverage', 'Kitchen', 'Engineering', 'Sales & Marketing', 'Human Resources', 'Finance', 'Security'], hint: 'Select the department for this review cycle' },
         { name: 'dueDate', label: 'Due date', type: 'date', required: true },
       ],
     },
     configure_kpi: {
       title: 'Configure KPIs',
-      description: 'Add the KPIs each employee will be evaluated against.',
-      builder: 'kpi',
+      description: 'Pick KPIs from the library — each auto-fills name, description, weight and target. Adjust values only if needed.',
+      builder: 'kpiLibrary',
     },
-    self_assessment: {
+self_assessment: {
       title: 'Employee self assessment',
       description: 'Rate yourself against each KPI and add supporting comments.',
-      builder: 'assessment',
-    },
-    supervisor_review: {
-      title: 'Supervisor review',
-      description: 'Review the employee self assessment and add your ratings.',
       builder: 'assessment',
     },
     performance_evaluation: {
@@ -107,10 +252,10 @@ const competency = {
     ],
   },
   stepForms: {
-    define_requirements: {
+define_requirements: {
       title: 'Define competency requirements',
-      description: 'Define the competencies required for each position.',
-      builder: 'competencyRequirement',
+      description: 'Pick a position template to auto-load required competencies, levels and weights.',
+      builder: 'competencyTemplate',
     },
     manage_resources: {
       title: 'Manage competency resources',
@@ -121,9 +266,9 @@ const competency = {
       title: 'Assign development plan',
       description: 'Create a development plan addressing each skill gap.',
       fields: [
-        { name: 'planTitle', label: 'Plan title', type: 'text', required: true },
+        { name: 'planTitle', label: 'Plan title', type: 'text', required: true, hint: 'Use AI to draft a title' },
         { name: 'duration', label: 'Duration (weeks)', type: 'number', required: true },
-        { name: 'prioritySkills', label: 'Priority skills', type: 'text', required: true, hint: 'Comma-separated skill names' },
+        { name: 'prioritySkills', label: 'Priority skills', type: 'chips', required: true, options: ['Leadership', 'Communication', 'Technical Skills', 'Customer Service', 'Compliance', 'Problem Solving', 'Financial Acumen', 'Teamwork'] },
         { name: 'coachingNotes', label: 'Coaching notes', type: 'textarea' },
       ],
     },
@@ -136,7 +281,7 @@ const competency = {
       title: 'Update competency record',
       description: 'Finalize the new competency scores and analytics.',
       fields: [
-        { name: 'newScore', label: 'Updated competency score (%)', type: 'number', required: true, min: 0, max: 100 },
+        { name: 'newScore', label: 'Updated competency score (%)', type: 'slider', required: true, min: 0, max: 100 },
         { name: 'reviewNotes', label: 'Record notes', type: 'textarea' },
       ],
     },
@@ -367,6 +512,98 @@ export const MODULE_CONFIG = { performance, competency, learning, training, succ
 
 export function configFor(moduleKey) {
   return MODULE_CONFIG[moduleKey] || { module: moduleKey, title: '', description: '', dashboard: { widgets: [] }, stepForms: {}, quickActions: [] }
+}
+
+// ---------------------------------------------------------------------------
+// Step guidance — per-stage "current task / required action / estimated time /
+// checklist" copy shown in the workflow step guidance card. Falls back to the
+// stage description when a stage is not listed here.
+// ---------------------------------------------------------------------------
+export const STAGE_GUIDES = {
+  performance: {
+    create_review: { task: 'Set up the review cycle', action: 'Enter cycle details and select scope', time: '~2 min', checklist: ['Add review title', 'Choose period', 'Set due date'] },
+    configure_kpi: { task: 'Configure the KPIs', action: 'Add evaluation KPIs and weights', time: '~3 min', checklist: ['Add at least one KPI', 'Set weights', 'Define targets'] },
+self_assessment: { task: 'Complete your self assessment', action: 'Rate yourself against each KPI', time: '~5 min', checklist: ['Rate all questions', 'Add supporting comments'] },
+    performance_evaluation: { task: 'Complete the evaluation', action: 'Review the self assessment and enter final ratings and evidence', time: '~5 min', checklist: ['Review each KPI', 'Fill final ratings', 'Add evidence'] },
+    calibration: { task: 'Calibrate the scores', action: 'Compare and decide', time: '~3 min', checklist: ['Review score gap', 'Choose decision'] },
+    final_approval: { task: 'Approve the results', action: 'Approve or reject the finalized review', time: '~1 min', checklist: ['Choose decision', 'Add notes (optional)'] },
+    published: { task: 'Publish results', action: 'Notify the employee of the outcome', time: '~1 min', checklist: ['Confirm notification', 'Add message'] },
+  },
+  competency: {
+    define_requirements: { task: 'Define competency requirements', action: 'Add position competency requirements', time: '~3 min', checklist: ['Add requirements', 'Set levels and weights'] },
+    manage_resources: { task: 'Link learning resources', action: 'Add references and guides', time: '~2 min', checklist: ['Add resources', 'Provide links'] },
+    assign_plan: { task: 'Assign development plan', action: 'Create a plan for the gaps', time: '~2 min', checklist: ['Add plan title', 'Set duration', 'List priority skills'] },
+    track_progress: { task: 'Track learning progress', action: 'Review progress against the plan', time: '~2 min', checklist: ['Confirm progress', 'Note any blockers'] },
+    update_record: { task: 'Update competency record', action: 'Finalize the new competency score', time: '~1 min', checklist: ['Enter new score', 'Add record notes'] },
+  },
+  learning: {
+    publish_resources: { task: 'Create a learning path', action: 'Add course details and objectives', time: '~3 min', checklist: ['Add title', 'Choose category', 'Set objectives'] },
+    enrollment: { task: 'Add learning materials', action: 'Attach resources for the path', time: '~2 min', checklist: ['Add resources', 'Provide links'] },
+    complete_activities: { task: 'Assign employees', action: 'Select learners for the path', time: '~2 min', checklist: ['Select employees'] },
+    assessment: { task: 'Track completion', action: 'Review learner progress', time: '~2 min', checklist: ['Confirm progress', 'Note completions'] },
+    update_competency: { task: 'Generate AI learning insights', action: 'Review the AI report and complete', time: '~1 min', checklist: ['Review AI insights', 'Confirm completion'] },
+  },
+  training: {
+    schedule: { task: 'Create a training session', action: 'Set session details', time: '~3 min', checklist: ['Add title', 'Set trainer', 'Choose venue and date'] },
+    invite: { task: 'Invite participants', action: 'Select participants', time: '~2 min', checklist: ['Select participants'] },
+    attendance: { task: 'Record attendance', action: 'Mark who attended', time: '~2 min', checklist: ['Mark present / absent'] },
+    effectiveness: { task: 'Measure effectiveness', action: 'Collect feedback and results', time: '~3 min', checklist: ['Rate effectiveness', 'Add comments'] },
+    published: { task: 'Generate AI training insights', action: 'Review the AI report and complete', time: '~1 min', checklist: ['Review AI insights', 'Confirm completion'] },
+  },
+  succession: {
+    initiate: { task: 'Create a succession cycle', action: 'Set scope and critical roles', time: '~2 min', checklist: ['Add cycle title', 'Choose scope', 'List critical roles'] },
+    review_readiness: { task: 'Review candidate readiness', action: 'Select the critical position', time: '~2 min', checklist: ['Review talent pool', 'Select candidates'] },
+    nominate: { task: 'Nominate candidates', action: 'Add candidates and rationale', time: '~3 min', checklist: ['Add candidates', 'Provide rationale'] },
+    approved: { task: 'Generate AI readiness analysis', action: 'Review the AI report and approve', time: '~1 min', checklist: ['Review AI insights', 'Choose decision'] },
+  },
+  recognition: {
+    submitted: { task: 'Submit a nomination', action: 'Nominate a colleague', time: '~2 min', checklist: ['Select employee', 'Choose category', 'Add reason'] },
+    supervisor_validation: { task: 'Validate the nomination', action: 'Verify the achievement', time: '~2 min', checklist: ['Review evidence', 'Choose validation'] },
+    hr_review: { task: 'Approve the award', action: 'Approve and issue the badge', time: '~1 min', checklist: ['Choose decision', 'Assign badge'] },
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Comment suggestion chips — quick selectable phrases that build a comment with
+// a single click instead of typing. Keyed by module.
+// ---------------------------------------------------------------------------
+export const COMMENT_SUGGESTIONS = {
+  performance: ['Consistently meets targets', 'Excellent communication', 'Strong teamwork', 'Needs improvement in attendance', 'Shows initiative and ownership', 'Areas for growth noted in KPIs'],
+  competency: ['Demonstrates strong core competencies', 'Skill gap identified in required area', 'Developing toward target level', 'Ready for advanced responsibility', 'Needs focused coaching'],
+  learning: ['Completed all assigned activities', 'High engagement with materials', 'Progressing on track', 'Needs additional support', 'Ready for next learning path'],
+  training: ['Attended and participated actively', 'Completed the training successfully', 'Good understanding of content', 'Recommended follow-up session', 'High training effectiveness'],
+  succession: ['Strong leadership potential', 'Ready for near-term succession', 'Requires development before readiness', 'High-potential candidate', 'Risk of vacancy without backup'],
+  recognition: ['Excellent contribution this period', 'Outstanding customer service', 'Great team collaboration', 'Consistently exceeds expectations', 'Deserves formal recognition'],
+}
+
+// ---------------------------------------------------------------------------
+// Quick decision presets — one-click approve / reject actions per module with
+// the auto-generated note that will be recorded.
+// ---------------------------------------------------------------------------
+export const QUICK_DECISIONS = {
+  performance: { approve: 'Approved by reviewer', reject: 'Returned for revision by reviewer' },
+  competency: { approve: 'Approved by reviewer', reject: 'Returned for revision' },
+  learning: { approve: 'Approved', reject: 'Returned for revision' },
+  training: { approve: 'Approved', reject: 'Returned for revision' },
+  succession: { approve: 'Approved', reject: 'Returned for revision' },
+  recognition: { approve: 'Approved', reject: 'Rejected' },
+}
+
+// Detect whether a workflow stage is an "approval" step. Approval steps should
+// present an "Approve & Continue" primary action (plus "Return for Revision")
+// instead of the generic "Complete Step", and should not show both together.
+const APPROVAL_HINTS = ['approve', 'validat', 'review', 'final_approval', 'hr_review', 'supervisor_validation', 'approved', 'publish']
+export function isApprovalStage(stageKey = '', formConfig) {
+  const key = String(stageKey || '').toLowerCase()
+  if (key && APPROVAL_HINTS.some(hint => key.includes(hint))) return true
+  // Heuristic: a form with a required select whose options include "Approve"
+  // is treated as an approval decision.
+  const fields = formConfig?.fields || []
+  return fields.some(field =>
+    field.type === 'select' &&
+    Array.isArray(field.options) &&
+    field.options.some(opt => /approve/i.test(opt)),
+  )
 }
 
 // Build a module-specific stats object from live API data.

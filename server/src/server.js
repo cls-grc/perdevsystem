@@ -9,8 +9,6 @@ import certificateRoutes from './routes/certificates.js'
 import notificationRoutes from './routes/notifications.js'
 import employeeRoutes from './routes/employees.js'
 import auditRoutes from './routes/audit.js'
-import goalRoutes from './routes/goals.js'
-import feedbackRoutes from './routes/feedback.js'
 import { errorHandler, notFound } from './middleware.js'
 import { pool } from './db.js'
 
@@ -27,8 +25,6 @@ app.use('/api/certificates', certificateRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/employees', employeeRoutes)
 app.use('/api/audit-logs', auditRoutes)
-app.use('/api/goals', goalRoutes)
-app.use('/api/feedback', feedbackRoutes)
 app.use(notFound)
 app.use(errorHandler)
 app.listen(config.port, () => console.log(`PDS API listening on port ${config.port}`))
