@@ -4,6 +4,7 @@ import ModuleAIInsights from './ModuleAIInsights'
 import WorkflowForms from './WorkflowForms'
 import WorkflowTimeline from './WorkflowTimeline'
 import ModuleDashboard from './ModuleDashboard'
+import ModuleBusinessView from './ModuleBusinessView'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import { configFor, computeModuleStats, STAGE_GUIDES, COMMENT_SUGGESTIONS, QUICK_DECISIONS, isApprovalStage } from '../workflowConfig'
@@ -20,6 +21,14 @@ const getRole = () => {
 const getUserId = () => {
   try {
     return JSON.parse(localStorage.getItem('pds-user') || '{}').id
+  } catch {
+    return undefined
+  }
+}
+
+const getEmployeeId = () => {
+  try {
+    return JSON.parse(localStorage.getItem('pds-user') || '{}').employeeId
   } catch {
     return undefined
   }
@@ -86,8 +95,9 @@ export default function WorkflowPage({
   itemIsEmployee = false,
   extraHeaderAction,
 }) {
-  const role = getRole()
+const role = getRole()
   const userId = getUserId()
+  const employeeId = getEmployeeId()
   const moduleKey = module || moduleKeys[title]
   const moduleCfg = useMemo(() => configFor(moduleKey), [moduleKey])
 const [workflow, setWorkflow] = useState(null)
@@ -108,8 +118,9 @@ const [workflow, setWorkflow] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
+const [detailsOpen, setDetailsOpen] = useState(false)
   const [detailsStage, setDetailsStage] = useState(null)
+const [bizOpen, setBizOpen] = useState(false)
   const [returnOpen, setReturnOpen] = useState(false)
   const [returnTarget, setReturnTarget] = useState('')
   const [returnNote, setReturnNote] = useState('')
@@ -180,13 +191,26 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
     return stages.map(normalizeStage).filter(Boolean)
   }, [definitions, stages])
 
-  const current = normalizedStages.find(stage => stage.key === workflow?.current_stage)
+const current = normalizedStages.find(stage => stage.key === workflow?.current_stage)
+  // Include stages the user can act on: their assigned-role stages, plus any
+  // employee-assigned stage where they are the workflow's subject.
   const roleStages = useMemo(
-    () => normalizedStages.filter(stage => stage.roles.includes(role)),
-    [normalizedStages, role],
+    () => normalizedStages.filter(stage =>
+      stage.roles.includes(role) ||
+      (workflow && stage.roles.length === 1 && stage.roles[0] === 'employee' && Boolean(employeeId && workflow.subject_employee_id && employeeId === workflow.subject_employee_id)),
+    ),
+    [normalizedStages, role, workflow?.subject_employee_id, employeeId],
   )
-  const canStart = Boolean(normalizedStages[0]?.roles.includes(role))
-  const canAct = Boolean(workflow && current?.roles.includes(role))
+const canStart = Boolean(normalizedStages[0]?.roles.includes(role))
+  // The actor may act if their role is assigned to the current stage, OR if the
+  // stage is employee-assigned and the actor IS the workflow's subject (so the
+  // subject can complete their own self-assessment regardless of role label).
+  const canAct = Boolean(
+    workflow &&
+    current &&
+    (current.roles.includes(role) ||
+      (current.roles.length === 1 && current.roles[0] === 'employee' && Boolean(employeeId && workflow.subject_employee_id && employeeId === workflow.subject_employee_id))),
+  )
   const assigned = itemIsEmployee
     ? people.find(person => person.full_name.toLowerCase() === selected[0].toLowerCase())
     : subject
@@ -251,17 +275,37 @@ const currentFormValue = useMemo(() => {
     }
   }, [evaluatingSubject, workflow, hasEmployeeField, currentFormValue?.employee]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the workflow moves to a new stage, seed a fresh initial value for the
+// When the workflow moves to a new stage, seed a fresh initial value for the
   // stage's form/builder so the step always has a valid controlled value.
   useEffect(() => {
     if (!workflow || !currentFormConfig) return
     const key = workflow.current_stage
     if (formData[key] !== undefined) return
     const initial = getInitialValue(currentFormConfig, role)
-    if (initial !== undefined) {
-      setFormData(prev => (prev[key] !== undefined ? prev : { ...prev, [key]: initial }))
+    // Auto-invite the workflow's subject on participant-invite steps (e.g. the
+    // training "Invite participants" step). The participant chosen when the
+    // cycle started is automatically included, so HR doesn't have to re-select
+    // them; additional participants can still be added on top.
+if (initial !== undefined) {
+      const inviteNames = (currentFormConfig.fields || []).find(f => f.name === 'invitees' || f.name === 'participants')
+      const isAssignBuilder = currentFormConfig.builder === 'assignEmployees'
+      const isNominationsBuilder = currentFormConfig.builder === 'nominations'
+      const subjectName = workflow?.subject_name
+      let seeded = initial
+      if (isNominationsBuilder && subjectName && Array.isArray(initial)) {
+        // Succession nomination: the candidate chosen when the cycle started is
+        // automatically pre-filled so the department head doesn't re-enter it.
+        const already = initial.some(row => row && row.employee === subjectName)
+        seeded = already ? initial : [...initial, { employee: subjectName, rationale: '', targetRole: '' }]
+      } else if (isAssignBuilder && subjectName && Array.isArray(initial)) {
+        seeded = initial.includes(subjectName) ? initial : [...initial, subjectName]
+      } else if (inviteNames && Array.isArray(initial[inviteNames.name])) {
+        const list = initial[inviteNames.name]
+        seeded = { ...initial, [inviteNames.name]: list.includes(subjectName) ? list : [...list, subjectName] }
+      }
+      setFormData(prev => (prev[key] !== undefined ? prev : { ...prev, [key]: seeded }))
     }
-  }, [workflow?.current_stage, currentFormConfig, role]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workflow?.current_stage, currentFormConfig, role, workflow?.subject_name]) // eslint-disable-line react-hooks/exhaustive-deps
 
 const setFormValue = useCallback((patchOrValue, meta) => {
     const key = workflow?.current_stage || ''
@@ -391,10 +435,14 @@ const start = async (options = {}) => {
 
 // Create a new workflow through the composer (employee pre-selected).
   const createFromComposer = () => {
-    if (!composerEmployee) return setError('Select an employee to start the workflow.')
+    // The selection may be stored in composerEmployee (clicked a result card)
+    // OR in evaluatingSubject (picked from the datalist dropdown, which clears
+    // composerEmployee). Accept either so a valid selection is never rejected.
+    const target = composerEmployee || evaluatingSubject
+    if (!target) return setError('Select an employee to start the workflow.')
     setError('')
-    setEvaluatingSubject(composerEmployee)
-    void start({ employee: composerEmployee })
+    setEvaluatingSubject(target)
+    void start({ employee: target })
   }
 
   const openAssignedAction = () => {
@@ -581,7 +629,7 @@ const chooseWorkflow = async id => {
     }
   }
 
-  // View a completed workflow's full history (RBAC-aware). HR / management /
+// View a completed workflow's full history (RBAC-aware). HR / management /
   // operations_manager / supervisor can view any completed workflow in their
   // module; employees can only view workflows where they are the subject.
   const viewCompletedWorkflow = async (id) => {
@@ -590,6 +638,9 @@ const chooseWorkflow = async id => {
       const result = await api.workflow(id)
       setCompletedView(result.workflow)
       setCompletedEvents(result.events || [])
+      // Feed the AI panel with the completed workflow's id so HR can generate
+      // (or regenerate) the AI insight report for it.
+      if (result.workflow) setLastCompleted(result.workflow)
     } catch (requestError) {
       setError(requestError.message)
     }
@@ -660,7 +711,7 @@ const chooseWorkflow = async id => {
     {notice && <Notice notice={notice} type={noticeType} onDismiss={() => setNotice('')} />}
     {error && <div className="module-error" role="alert"><span>{error}</span><button onClick={() => { setError(''); void load() }}>Retry</button></div>}
 
-    {/* Module-specific dashboard widgets */}
+{/* Module-specific dashboard widgets */}
     <ModuleDashboard
       moduleKey={moduleKey}
       data={analyticsData}
@@ -668,6 +719,32 @@ const chooseWorkflow = async id => {
       role={role}
       onQuickAction={quickAction}
     />
+
+{/* Module-specific business workspace — distinct identity per module,
+        driven entirely by live analytics + workflow data. Collapsible so the
+        workflow process stays front and center by default. */}
+    <section className="module-biz-collapsible">
+      <button
+        type="button"
+        className={`module-biz-toggle ${bizOpen ? 'open' : ''}`}
+        onClick={() => setBizOpen(o => !o)}
+        aria-expanded={bizOpen}
+      >
+        <span className="module-biz-toggle-icon">{bizOpen ? '▾' : '▸'}</span>
+        <span className="module-biz-toggle-label">Analytics overview</span>
+        <span className="module-biz-toggle-hint">{bizOpen ? 'Hide' : 'Show'}</span>
+      </button>
+      {bizOpen && (
+        <div className="module-biz-panel">
+          <ModuleBusinessView
+            moduleKey={moduleKey}
+            data={analyticsData}
+            workflows={workflows}
+            completedWorkflows={completedWorkflows}
+          />
+        </div>
+      )}
+    </section>
 
 <section className="module-metrics">
       {stats.map(([label, value], index) => <article key={label}><span>{index + 1}</span><div><small>{label}</small><b>{value}</b><em>Live database value</em></div></article>)}

@@ -499,8 +499,8 @@ const recognition = {
       ],
     },
   },
-  quickActions: [
-    { label: 'Submit nomination', stage: 'submitted', roles: ['employee'] },
+quickActions: [
+    { label: 'Submit nomination', stage: 'submitted', roles: ['employee', 'hr'] },
     { label: 'Review nomination', stage: 'hr_review', roles: ['hr'] },
   ],
 }

@@ -37,8 +37,8 @@ export const WORKFLOWS = {
     ['review_readiness', 'Review readiness assessments', ['hr']],
     ['approved', 'Management approval', ['management']],
   ],
-  recognition: [
-    ['submitted', 'Submit nomination', ['employee']],
+recognition: [
+    ['submitted', 'Submit nomination', ['employee', 'hr']],
     ['supervisor_validation', 'Supervisor validation', ['supervisor']],
     ['hr_review', 'HR review', ['hr']],
   ],
@@ -50,34 +50,52 @@ export function stagesFor(module) {
   return stages
 }
 
-export function nextStage(module, currentStage, role) {
+// Determine whether an actor may act on a stage. The actor may act if their
+// role is in the stage's assigned roles, OR if the stage is employee-assigned
+// and the actor IS the workflow's subject (so e.g. a department-head subject
+// can still complete their own self-assessment regardless of role label).
+export function canActOnStage(stageRoles, role, subjectEmployeeId, actorEmployeeId) {
+  if (stageRoles.includes(role)) return true
+  if (stageRoles.length === 1 && stageRoles[0] === 'employee') {
+    return Boolean(actorEmployeeId && subjectEmployeeId && actorEmployeeId === subjectEmployeeId)
+  }
+  return false
+}
+
+function assertStageOwner(currentLabel, currentRoles, role, subjectEmployeeId, actorEmployeeId) {
+  if (!canActOnStage(currentRoles, role, subjectEmployeeId, actorEmployeeId)) {
+    throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  }
+}
+
+export function nextStage(module, currentStage, role, subjectEmployeeId, actorEmployeeId) {
   const stages = stagesFor(module)
   const currentIndex = stages.findIndex(([key]) => key === currentStage)
   if (currentIndex < 0) throw Object.assign(new Error('Workflow has an invalid current stage.'), { status: 409 })
   const [, currentLabel, currentRoles] = stages[currentIndex]
-  if (!currentRoles.includes(role)) throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  assertStageOwner(currentLabel, currentRoles, role, subjectEmployeeId, actorEmployeeId)
   if (currentIndex === stages.length - 1) return null
   const [key, label, roles] = stages[currentIndex + 1]
   return { key, label, roles }
 }
 
 // Earlier stages that a current stage owner may return a workflow to.
-export function previousStages(module, currentStage, role) {
+export function previousStages(module, currentStage, role, subjectEmployeeId, actorEmployeeId) {
   const stages = stagesFor(module)
   const currentIndex = stages.findIndex(([key]) => key === currentStage)
   if (currentIndex < 0) throw Object.assign(new Error('Workflow has an invalid current stage.'), { status: 409 })
   const [, currentLabel, currentRoles] = stages[currentIndex]
-  if (!currentRoles.includes(role)) throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  assertStageOwner(currentLabel, currentRoles, role, subjectEmployeeId, actorEmployeeId)
   return stages.slice(0, currentIndex).map(([key, label, roles]) => ({ key, label, roles }))
 }
 
 // Return a workflow to an earlier stage. Without a target, returns one stage back.
-export function returnToStage(module, currentStage, role, targetStage) {
+export function returnToStage(module, currentStage, role, targetStage, subjectEmployeeId, actorEmployeeId) {
   const stages = stagesFor(module)
   const currentIndex = stages.findIndex(([key]) => key === currentStage)
   if (currentIndex < 0) throw Object.assign(new Error('Workflow has an invalid current stage.'), { status: 409 })
   const [, currentLabel, currentRoles] = stages[currentIndex]
-  if (!currentRoles.includes(role)) throw Object.assign(new Error(`${currentLabel} must be completed by ${currentRoles.join(' or ')}.`), { status: 403 })
+  assertStageOwner(currentLabel, currentRoles, role, subjectEmployeeId, actorEmployeeId)
   if (currentIndex === 0) throw Object.assign(new Error('This workflow is at its first stage and cannot be returned further.'), { status: 409 })
   let targetIndex
   if (targetStage) {

@@ -60,10 +60,10 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     const user = rows[0]
     if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid email or password.' })
     const tokens = await generateTokens(user, req)
-    res.json({
+res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, name: user.full_name },
+      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id },
     })
   } catch (error) { next(error) }
 })
@@ -221,7 +221,7 @@ router.post('/register', async (req, res, next) => {
       } catch {
         console.warn('[PDS] Could not persist refresh token during registration — sessions table may not exist yet.')
       }
-      return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name } }
+return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id } }
     })
     res.status(201).json(result)
   } catch (error) { next(error) }

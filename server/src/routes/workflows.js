@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { query, transaction } from '../db.js'
-import { stagesFor, nextStage, returnToStage } from '../workflow.js'
+import { stagesFor, nextStage, returnToStage, canActOnStage } from '../workflow.js'
 import { authenticate, authorize } from '../middleware.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 
@@ -99,8 +99,12 @@ router.post('/:id/notes', async (req, res, next) => {
     const workflow = rows[0]
     if (!workflow) return res.status(404).json({ error: 'Workflow not found.' })
     if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot update this workflow.' })
-    const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow.current_stage)
-    if (!currentStage?.[2].includes(req.user.role)) return res.status(403).json({ error: `This workflow action is assigned to ${currentStage?.[2].join(' or ') || 'another role'}.` })
+const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow.current_stage)
+    // Allow the workflow subject to add notes on employee-assigned stages so
+    // their self-assessment submission isn't blocked server-side.
+    if (!canActOnStage(currentStage?.[2] || [], req.user.role, workflow.subject_employee_id, req.user.employeeId)) {
+      return res.status(403).json({ error: `This workflow action is assigned to ${currentStage?.[2].join(' or ') || 'another role'}.` })
+    }
     if (input.data?.type === 'training_schedule' && req.user.role !== 'hr') return res.status(403).json({ error: 'Only HR can record a verified training schedule.' })
     await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
     await query('UPDATE workflows SET updated_at=NOW() WHERE id=$1', [workflow.id])
@@ -115,8 +119,8 @@ router.post('/:id/return', async (req, res, next) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
-      if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
-      const destination = returnToStage(workflow.module, workflow.current_stage, req.user.role, input.targetStage)
+if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
+      const destination = returnToStage(workflow.module, workflow.current_stage, req.user.role, input.targetStage, workflow.subject_employee_id, req.user.employeeId)
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'returned', req.user.sub, input.note || null, { ...input.data, returnedFrom: workflow.current_stage, targetStage: destination.key }])
       await notifyNextOwners(client, workflow, destination)
@@ -152,8 +156,8 @@ router.post('/:id/advance', async (req, res, next) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
-      if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
-const destination = nextStage(workflow.module, workflow.current_stage, req.user.role)
+if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
+const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
         await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])

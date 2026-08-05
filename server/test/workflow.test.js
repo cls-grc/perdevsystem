@@ -1,11 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { nextStage, stagesFor, returnToStage, previousStages } from '../src/workflow.js'
+import { nextStage, stagesFor, returnToStage, previousStages, canActOnStage } from '../src/workflow.js'
 import { calculatePerformance, calculateReadiness } from '../src/services/metrics.js'
 
 test('performance workflow advances only in its defined order', () => {
   assert.deepEqual(nextStage('performance', 'self_assessment', 'employee'), { key: 'performance_evaluation', label: 'Performance evaluation', roles: ['supervisor'] })
   assert.throws(() => nextStage('performance', 'self_assessment', 'supervisor'), { status: 403 })
+})
+
+test('the workflow subject may complete employee-assigned stages regardless of role', () => {
+  const subjectId = '11111111-1111-1111-1111-111111111111'
+  // A supervisor who is the subject may complete their own self-assessment.
+  assert.deepEqual(
+    nextStage('performance', 'self_assessment', 'supervisor', subjectId, subjectId),
+    { key: 'performance_evaluation', label: 'Performance evaluation', roles: ['supervisor'] },
+  )
+  // A supervisor who is NOT the subject still cannot complete it.
+  assert.throws(
+    () => nextStage('performance', 'self_assessment', 'supervisor', subjectId, '22222222-2222-2222-2222-222222222222'),
+    { status: 403 },
+  )
+  // A supervisor who is not the subject cannot complete it via canActOnStage either.
+  assert.equal(canActOnStage(['employee'], 'supervisor', subjectId, undefined), false)
+  assert.equal(canActOnStage(['employee'], 'employee', subjectId, subjectId), true)
 })
 
 test('only HR may complete the published performance stage', () => {
