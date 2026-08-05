@@ -15,7 +15,16 @@ import { pool } from './db.js'
 const app = express()
 app.disable('x-powered-by')
 app.use(helmet())
-app.use(cors({ origin: config.clientOrigin, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization'] }))
+app.use(cors({
+  origin: [
+    "https://perdevsystem.vercel.app",
+    "http://localhost:5173",
+    config.clientOrigin
+  ],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}))
 app.use(express.json({ limit: '12mb' }))
 app.get('/health', async (_req, res, next) => { try { await pool.query('SELECT 1'); res.json({ status: 'ok' }) } catch (error) { next(error) } })
 app.use('/api/auth', authRoutes)
