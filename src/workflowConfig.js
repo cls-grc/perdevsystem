@@ -366,10 +366,9 @@ const training = {
   stepForms: {
     schedule: {
       title: 'Create training',
-      description: 'Set the session details: trainer, venue, date, capacity and budget.',
+      description: 'Set the session details: venue, date, capacity and budget.',
       fields: [
         { name: 'title', label: 'Title', type: 'text', required: true },
-        { name: 'trainer', label: 'Trainer', type: 'text', required: true },
         { name: 'venue', label: 'Venue', type: 'text', required: true },
         { name: 'date', label: 'Date', type: 'date', required: true },
         { name: 'capacity', label: 'Capacity', type: 'number', required: true, min: 1 },
@@ -544,7 +543,7 @@ self_assessment: { task: 'Complete your self assessment', action: 'Rate yourself
     update_competency: { task: 'Generate AI learning insights', action: 'Review the AI report and complete', time: '~1 min', checklist: ['Review AI insights', 'Confirm completion'] },
   },
   training: {
-    schedule: { task: 'Create a training session', action: 'Set session details', time: '~3 min', checklist: ['Add title', 'Set trainer', 'Choose venue and date'] },
+schedule: { task: 'Create a training session', action: 'Set session details', time: '~3 min', checklist: ['Add title', 'Choose venue and date'] },
     invite: { task: 'Invite participants', action: 'Select participants', time: '~2 min', checklist: ['Select participants'] },
     attendance: { task: 'Record attendance', action: 'Mark who attended', time: '~2 min', checklist: ['Mark present / absent'] },
     effectiveness: { task: 'Measure effectiveness', action: 'Collect feedback and results', time: '~3 min', checklist: ['Rate effectiveness', 'Add comments'] },

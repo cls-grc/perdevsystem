@@ -46,6 +46,9 @@ function confidenceFromMetrics(metricsJson) {
 export default function ModuleAIInsights({ module, stage, workflowId }) {
   const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role } catch { return '' } })()
   const isHr = role === 'hr'
+  // Employees can generate their own AI insight for their own validated
+  // workflows; HR can generate for any workflow. Other roles are read-only.
+  const canGenerateOwn = role === 'employee' || isHr
   const [savedReports, setSavedReports] = useState([])
   const [metricsPreview, setMetricsPreview] = useState(null)
   const [workflowMeta, setWorkflowMeta] = useState(null)
@@ -80,8 +83,8 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
     return () => { cancelled = true }
   }, [workflowId])
 
-  const generate = async () => {
-    if (!isHr || !workflowId) return
+const generate = async () => {
+    if (!canGenerateOwn || !workflowId) return
     setGenerating(true); setError('')
     try {
       const result = await api.generateWorkflowReport(workflowId)
@@ -96,7 +99,7 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
     }
   }
 
-  const downloadPdf = async report => {
+const downloadPdf = async report => {
     if (!report?.id) return
     try {
       const blob = await api.downloadReportPdf(report.id)
@@ -136,9 +139,9 @@ const latestGenerated = savedReports.find(r => r.generated_by_model) || null
 
   return <aside className="module-insights insight-panel">
     <div className="insight-title">
-      <div>
+<div>
         <h2>AI Insights</h2>
-        <p>{isHr ? 'HR can generate / regenerate reports' : 'Read-only view'}</p>
+        <p>{canGenerateOwn ? (isHr ? 'HR can generate / regenerate reports' : 'You can generate your own AI insight') : 'Read-only view'}</p>
       </div>
       <span className={`report-status-badge ${hasGenerated ? 'generated' : 'ready'}`}>{status}</span>
     </div>
@@ -199,18 +202,20 @@ const latestGenerated = savedReports.find(r => r.generated_by_model) || null
         )}
       </div>
     ) : (
-      <div className="insight-empty">
-        <b>{isHr ? 'Ready to Generate AI Report' : 'No AI report yet'}</b>
-        <p>{isHr
-          ? 'Metrics have been calculated and saved. Generate the AI report when ready.'
-          : 'An AI report has not been generated for this workflow yet. Only HR can generate reports.'}</p>
+<div className="insight-empty">
+        <b>{canGenerateOwn ? 'Ready to Generate AI Insight' : 'No AI insight yet'}</b>
+        <p>{canGenerateOwn
+          ? (isHr
+              ? 'Metrics have been calculated and saved. Generate the AI report when ready.'
+              : 'Metrics for your validated workflow have been calculated. Generate your own AI insight when ready.')
+          : 'An AI insight has not been generated for this workflow yet.'}</p>
       </div>
     )}
 
-    {isHr && workflowId && (
+    {canGenerateOwn && workflowId && (
       <div className="module-actions report-actions">
         <button className="ai-generate" onClick={generate} disabled={generating}>
-          {generating ? 'Generating...' : hasGenerated ? 'Regenerate' : 'Generate AI Report'}
+          {generating ? 'Generating...' : hasGenerated ? 'Regenerate' : isHr ? 'Generate AI Report' : 'Generate My AI Insight'}
         </button>
         {hasGenerated && (
           <div className="report-button-row">

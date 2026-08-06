@@ -82,11 +82,19 @@ const reports = await getReportsForWorkflow(req.params.id)
   } catch (error) { next(error) }
 })
 
-// POST /:id/generate-report - HR only. Generate an AI report on demand for a
-// completed workflow. Creates a new immutable report row; previous reports stay
-// in history. The newest report appears first.
-router.post('/:id/generate-report', authorize('hr'), async (req, res, next) => {
+// POST /:id/generate-report - Generate an AI report on demand for a completed
+// workflow. HR can generate for any workflow; an employee can generate for
+// their OWN workflow only. Creates a new immutable report row; previous reports
+// stay in history. The newest report appears first.
+router.post('/:id/generate-report', authorize('hr', 'employee'), async (req, res, next) => {
   try {
+    const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [req.params.id])
+    const workflow = rows[0]
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found.' })
+    // Employees may only generate AI insights for their own validated workflows.
+    if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) {
+      return res.status(403).json({ error: 'You can only generate AI insights for your own workflows.' })
+    }
     const report = await generateOnDemand(req.params.id, req.user.sub)
     res.status(201).json({ report })
   } catch (error) { next(error) }

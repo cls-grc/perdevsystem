@@ -49,6 +49,55 @@ const MODULE_METRIC_QUERIES = {
     FROM workflows WHERE module='recognition'`,
 }
 
+// Employee-scoped metric queries — used when the report is generated for a
+// specific employee (e.g. an employee generating their OWN AI insight for a
+// completed workflow). These return the individual's personal metrics and
+// their own module activity, NOT the org-wide averages.
+const EMPLOYEE_METRIC_QUERIES = {
+  performance: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='performance' AND w.subject_employee_id=e.id AND w.status='completed') AS completed_count,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='performance' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    FROM employees e WHERE e.id=$1 AND e.is_active=true`,
+  competency: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='competency' AND w.subject_employee_id=e.id AND w.status='completed') AS completed_count,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='competency' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    FROM employees e WHERE e.id=$1 AND e.is_active=true`,
+  learning: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    (CASE WHEN e.learning_progress >= 100 THEN 1 ELSE 0 END)::int AS completed_count,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='learning' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    FROM employees e WHERE e.id=$1 AND e.is_active=true`,
+  training: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='training' AND w.subject_employee_id=e.id AND w.status='completed') AS completed_count,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='training' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    FROM employees e WHERE e.id=$1 AND e.is_active=true`,
+  succession: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    coalesce(s.readiness_score,0)::int AS readiness_score,
+    coalesce(s.readiness_band,'none') AS readiness_band
+    FROM employees e LEFT JOIN succession_profiles s ON s.employee_id=e.id WHERE e.id=$1 AND e.is_active=true`,
+  recognition: `SELECT e.full_name AS employee_name, e.department, e.job_title,
+    coalesce(e.performance_score,0)::int AS performance_score,
+    coalesce(e.competency_score,0)::int AS competency_score,
+    coalesce(e.learning_progress,0)::int AS learning_progress,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='recognition' AND w.subject_employee_id=e.id AND w.status='completed') AS completed_count,
+    (SELECT count(*)::int FROM workflows w WHERE w.module='recognition' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    FROM employees e WHERE e.id=$1 AND e.is_active=true`,
+}
+
 const EXECUTIVE_METRIC_QUERIES = {
   workforce: `SELECT count(*)::int AS employee_count,
     coalesce(round(avg(performance_score))::int,0) AS average_performance,
@@ -259,17 +308,191 @@ function buildExecutiveSections(metrics) {
   const perf = pct(m.workforce.average_performance)
   const comp = pct(m.workforce.average_competency)
   const learn = pct(m.workforce.learning_completion)
-  sections.push({ heading: 'Workforce Overview', body: `The organization has **${n(m.workforce.employee_count)}** active employee records with an average performance score of **${perf}**, average competency of **${comp}**, and learning completion of **${learn}**. The relationship among these three averages reveals whether capability development is keeping pace with performance expectations.` })
-  sections.push({ heading: 'Department Analysis', body: m.departments.length ? m.departments.map(d => `- **${d.department}**: ${n(d.employees)} employee(s), performance **${pct(d.performance)}**, competency **${pct(d.competency)}**, learning **${pct(d.learning)}**.`).join('\n') + '\n\nDepartments with lower performance than their competency may need better role alignment; lower competency than learning suggests learning is not yet translating into capability.' : 'Insufficient records exist to analyze departments; no departmental comparison can yet be drawn.' })
-  sections.push({ heading: 'Performance Analysis', body: `Average performance is **${perf}**. Compared with competency (**${comp}**), a performance score below competency indicates the workforce may not be fully applying its capabilities, while performance above competency suggests capacity may be under challenge.` })
-  sections.push({ heading: 'Competency Analysis', body: `Average competency is **${comp}**. The gap to full proficiency (**${100 - n(m.workforce.average_competency)}** points) defines the capability-building opportunity that training and learning should target.` })
-  sections.push({ heading: 'Learning Analysis', body: `Average learning completion is **${learn}**. Where learning completion trails competency, employees are acquiring knowledge faster than it is being converted into verified capability.` })
-  sections.push({ heading: 'Training Analysis', body: `Training activity includes **${n(m.training.completed_count)}** completed and **${n(m.training.active_count)}** active training workflows. The completion ratio indicates how much of the training pipeline has reached delivery maturity.` })
-  sections.push({ heading: 'Succession Readiness', body: `**${n(m.succession.ready_now_count)}** profile(s) are Ready Now, **${n(m.succession.ready_later_count)}** Ready in 1–2 years, and **${n(m.succession.development_count)}** Development Needed. The balance across these bands shows the organization's resilience to key-role turnover.` })
-  sections.push({ heading: 'Recognition Analysis', body: `Recognition activity includes **${n(m.recognition.completed_count)}** completed and **${n(m.recognition.active_count)}** active recognition workflow(s). Strong recognition completion relative to activity signals a healthy culture of acknowledgement.` })
-  sections.push({ heading: 'Organizational Strengths', body: `Completed training and recognition workflows, together with Ready Now succession profiles, indicate that formal people processes are being carried through to documented outcomes. These reflect operational discipline in people management.` })
-  sections.push({ heading: 'Areas Requiring Attention', body: m.activeWorkflows.length ? `The largest active workflow queue is at **${m.activeWorkflows[0].current_stage.replaceAll('_', ' ')}** with **${n(m.activeWorkflows[0].count)}** record(s). Resolving these stages can reduce delays across performance, learning, training, succession, and recognition.` : 'No active workflow queue is currently recorded; the focus should be on sustaining the documented processes.' })
-  sections.push({ heading: 'Executive Recommendations', body: `Prioritize closing the largest active workflow queues and target the widest competency gap (**${100 - n(m.workforce.average_competency)}** points). Where performance trails competency, realign roles or expectations; where learning trails competency, convert learning into applied capability. Recommendations should be validated by authorized reviewers.` })
+  const activeWorkflowsTotal = (m.activeWorkflows || []).reduce((s, r) => s + Number(r.count || 0), 0)
+  const trainingTotal = n(m.training?.completed_count || 0) + n(m.training?.active_count || 0)
+  const trainingRate = trainingTotal > 0 ? Math.round((n(m.training?.completed_count || 0) / trainingTotal) * 100) : 0
+  const compGap = 100 - n(m.workforce.average_competency)
+  const perfCompDelta = n(m.workforce.average_performance) - n(m.workforce.average_competency)
+  const learningShortfall = 100 - n(m.workforce.learning_completion)
+
+  // Workforce Overview — one concise paragraph on overall workforce health.
+  sections.push({
+    heading: 'Workforce Overview',
+    body: `The organization has **${n(m.workforce.employee_count)}** active employees with average performance of **${perf}**, competency of **${comp}**, and learning completion of **${learn}**, supported by **${activeWorkflowsTotal}** active workflow(s). Overall workforce health is ${perfCompDelta >= 0 ? 'sound, with performance meeting or exceeding the capability base.' : 'mixed, with performance trailing established competency.'}`,
+  })
+
+  // Department Performance & Competency Analysis — 3-5 concise bullets.
+  const deptBullets = []
+  if (m.departments.length) {
+    const avgPerf = m.departments.reduce((s, d) => s + Number(d.performance || 0), 0) / m.departments.length
+    const above = m.departments.filter(d => Number(d.performance) >= avgPerf)
+    const below = m.departments.filter(d => Number(d.performance) < avgPerf)
+    if (above.length) deptBullets.push(`Departments performing above average (${pct(Math.round(avgPerf))}): **${above.map(d => d.department).join(', ')}**.`)
+    if (below.length) deptBullets.push(`Departments needing attention (below average): **${below.map(d => d.department).join(', ')}**.`)
+    const gaps = m.departments.filter(d => Number(d.performance) > 0 && Number(d.competency) > 0 && (Number(d.competency) - Number(d.performance)) >= 10)
+    if (gaps.length) deptBullets.push(`Capability gaps: **${gaps.map(d => d.department).join(', ')}** show competency exceeding performance by 10+ points, indicating under-applied capability.`)
+    else if (m.departments.length) deptBullets.push('No department shows a 10+ point gap between competency and performance.')
+  } else {
+    deptBullets.push('Insufficient records are available to generate this insight.')
+  }
+  sections.push({
+    heading: 'Department Performance & Competency Analysis',
+    body: deptBullets.slice(0, 5).map(b => `- ${b}`).join('\n'),
+  })
+
+  // Learning & Training Effectiveness — one short paragraph + 2 bullets.
+  const trainingNote = trainingTotal > 0
+    ? `Training delivery is **${trainingRate}%** complete (**${n(m.training.completed_count)}** of **${trainingTotal}** workflows).`
+    : 'Insufficient training records are available to assess training effectiveness.'
+  const learningBullets = []
+  learningBullets.push(m.workforce.learning_completion > 0
+    ? `Learning completion of **${learn}** reflects employee engagement; the **${learningShortfall}**-point shortfall to full completion is the primary development gap.`
+    : 'Insufficient learning records are available to assess development progress.')
+  learningBullets.push(trainingTotal > 0
+    ? `Training participation spans **${n(m.training.active_count)}** active and **${n(m.training.completed_count)}** completed workflow(s); prioritize the active queue to raise completion.`
+    : 'No training participation is recorded; assign training workflows before assessing effectiveness.')
+  sections.push({
+    heading: 'Learning & Training Effectiveness',
+    body: `Employees are at **${learn}** learning completion on average. ${trainingNote}\n${learningBullets.map(b => `- ${b}`).join('\n')}`,
+  })
+
+  // Succession & Recognition Analysis — one short paragraph + 2 bullets.
+  const successionNote = n(m.succession.ready_now_count) > 0 || n(m.succession.ready_later_count) > 0 || n(m.succession.development_count) > 0
+    ? `The leadership pipeline holds **${n(m.succession.ready_now_count)}** Ready Now, **${n(m.succession.ready_later_count)}** Ready in 1–2 years, and **${n(m.succession.development_count)}** Development Needed profile(s).`
+    : 'Insufficient succession records are available to assess leadership readiness.'
+  const successionBullets = []
+  successionBullets.push(n(m.succession.ready_now_count) > 0
+    ? `Leadership readiness: **${n(m.succession.ready_now_count)}** profile(s) are immediately ready for expanded responsibility.`
+    : 'No Ready Now profiles are recorded; leadership readiness cannot be confirmed.')
+  successionBullets.push(n(m.recognition.completed_count) > 0
+    ? `Recognition is active with **${n(m.recognition.completed_count)}** completed and **${n(m.recognition.active_count)}** pending workflow(s), indicating ongoing engagement.`
+    : 'Insufficient recognition records are available to assess recognition trends.')
+  sections.push({
+    heading: 'Succession & Recognition Analysis',
+    body: `${successionNote} Recognition activity totals **${n(m.recognition.completed_count)}** completed and **${n(m.recognition.active_count)}** active. ${n(m.recognition.completed_count) > 0 ? 'A healthy completed-to-active ratio indicates people processes are being carried through to outcomes.' : 'Recognition engagement is not yet confirmed.'}\n${successionBullets.map(b => `- ${b}`).join('\n')}`,
+  })
+
+  // Organizational Strengths — exactly 3 bullets derived from top metrics.
+  const strengths = []
+  if (comp >= 70) strengths.push(`High average competency (**${comp}**) provides a solid capability base.`)
+  else strengths.push('Average competency is being tracked as a capability baseline.')
+  if (n(m.succession.ready_now_count) > 0) strengths.push(`Strong leadership readiness with **${n(m.succession.ready_now_count)}** Ready Now profile(s).`)
+  else if (m.departments.length && m.departments.every(d => Number(d.performance) >= 70)) strengths.push('Consistent performance across departments.')
+  if (n(m.training.completed_count) > 0 || n(m.recognition.completed_count) > 0) strengths.push(`Completed recognition (**${n(m.recognition.completed_count)}**) and training (**${n(m.training.completed_count)}**) workflows show disciplined people-process execution.`)
+  while (strengths.length < 3) strengths.push('People processes are being documented through the workflow system for ongoing visibility.')
+  sections.push({
+    heading: 'Organizational Strengths',
+    body: strengths.slice(0, 3).map(s => `- ${s}`).join('\n'),
+  })
+
+  // Priority Actions & Executive Recommendations — exactly 5 data-backed bullets.
+  const recommendations = []
+  const topQueue = m.activeWorkflows[0]
+  if (topQueue) recommendations.push(`Clear the largest workflow queue at **${topQueue.current_stage.replaceAll('_', ' ')}** (**${n(topQueue.count)}** record(s)) to unblock progress across modules.`)
+  else recommendations.push('Establish active workflow queues to keep development processes moving.')
+  if (compGap > 0) recommendations.push(`Target the **${compGap}**-point competency gap through prioritized development plans.`)
+  else recommendations.push('Sustain current competency levels with continued development investment.')
+  if (perfCompDelta < 0) recommendations.push(`Realign roles or expectations where performance (**${perf}**) trails competency (**${comp}**).`)
+  recommendations.push(learningShortfall > 0
+    ? `Convert learning into capability by closing the **${learningShortfall}**-point learning completion shortfall.`
+    : 'Maintain full learning completion to sustain the capability pipeline.')
+  recommendations.push(n(m.succession.development_count) > 0
+    ? `Build pipeline depth for the **${n(m.succession.development_count)}** Development Needed succession profile(s).`
+    : trainingTotal > 0 ? `Raise training completion (**${trainingRate}%**) by clearing active training workflows.` : 'Assign training workflows to build a measurable training baseline.')
+  sections.push({
+    heading: 'Priority Actions & Executive Recommendations',
+    body: recommendations.slice(0, 5).map(r => `- ${r}`).join('\n'),
+  })
+
+  return sections
+}
+
+// Employee-scoped report builder. Generates a PERSONAL AI insight for a single
+// employee based on their own metrics and their own module activity. This is
+// used when an employee (or HR viewing a specific individual) generates an AI
+// insight for a completed workflow — so the report is about THAT employee, not
+// the whole organization.
+function buildEmployeeSections(module, m = {}) {
+  const sections = []
+  const name = m.employee_name || 'This employee'
+  const perf = pct(m.performance_score)
+  const comp = pct(m.competency_score)
+  const learn = pct(m.learning_progress)
+  const completed = n(m.completed_count || 0)
+  const active = n(m.active_count || 0)
+
+  // Employee Overview — one concise paragraph.
+  const overview = m.department ? `${name} (${m.department}${m.job_title ? ` — ${m.job_title}` : ''})` : name
+  sections.push({
+    heading: 'Overview',
+    body: `${overview} has performance of **${perf}**, competency of **${comp}**, and learning completion of **${learn}**. In the **${module}** module, there ${active === 1 ? 'is' : 'are'} **${active}** active and **${completed}** completed workflow(s).`,
+  })
+
+  // Module-specific analysis — one short paragraph + 2 bullets.
+  if (module === 'training') {
+    const total = active + completed
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0
+    sections.push({
+      heading: 'Module Analysis',
+      body: `${name} has **${completed}** completed and **${active}** active training workflow${active === 1 ? '' : 's'}. ${total > 0 ? `This reflects a **${rate}%** personal completion rate for recorded training activity.` : 'No personal training activity is currently recorded.'}`,
+    })
+  } else if (module === 'performance') {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `Personal performance is **${perf}** against a competency base of **${comp}**. ${Number(m.performance_score) >= Number(m.competency_score) ? 'Performance is at or above the recorded competency base, indicating capability is being applied.' : 'Performance trails recorded competency, suggesting capability may not yet be fully applied in role.'}`,
+    })
+  } else if (module === 'competency') {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `Personal competency is **${comp}**, leaving a **${Math.max(0, 100 - Number(m.competency_score))}**-point gap to full proficiency. ${completed > 0 ? `${completed} competency workflow(s) have been completed.` : 'No competency workflows have been completed yet.'}`,
+    })
+  } else if (module === 'learning') {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `Personal learning completion is **${learn}**, leaving a **${Math.max(0, 100 - Number(m.learning_progress))}**-point shortfall to full completion. ${completed > 0 ? 'The learning target has been reached.' : 'The learning target has not yet been fully reached.'}`,
+    })
+  } else if (module === 'succession') {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `Personal readiness score is **${pct(m.readiness_score)}** with a readiness band of **${(m.readiness_band || 'none').replaceAll('_', ' ')}**. ${m.readiness_band === 'ready_now' ? 'This indicates readiness for immediate expanded responsibility.' : m.readiness_band === 'ready_in_1_2_years' ? 'This indicates readiness within 1–2 years with continued development.' : 'This indicates development is still needed before succession readiness.'}`,
+    })
+  } else if (module === 'recognition') {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `${name} has **${completed}** completed and **${active}** active recognition workflow${active === 1 ? '' : 's'}. ${completed > 0 ? 'Completed recognition records indicate recognized contributions.' : 'No completed recognition records are available for this employee.'}`,
+    })
+  } else {
+    sections.push({
+      heading: 'Module Analysis',
+      body: `${name} has **${completed}** completed and **${active}** active workflow(s) in the **${module}** module.`,
+    })
+  }
+
+  // Personal strengths — 2 bullets.
+  const strengths = []
+  if (Number(m.performance_score) >= 70) strengths.push(`Strong personal performance (**${perf}**).`)
+  if (Number(m.competency_score) >= 70) strengths.push(`Solid competency base (**${comp}**).`)
+  if (Number(m.learning_progress) >= 70) strengths.push(`Good learning engagement (**${learn}**).`)
+  if (completed > 0) strengths.push(`Demonstrated completion of **${completed}** ${module} workflow(s).`)
+  while (strengths.length < 2) strengths.push('Personal metrics are being tracked through the workflow system.')
+  sections.push({
+    heading: 'Strengths',
+    body: strengths.slice(0, 2).map(s => `- ${s}`).join('\n'),
+  })
+
+  // Personal recommended actions — 2-3 data-backed bullets.
+  const actions = []
+  if (Number(m.competency_score) < 70) actions.push(`Build capability by closing the **${Math.max(0, 100 - Number(m.competency_score))}**-point competency gap.`)
+  if (Number(m.performance_score) < Number(m.competency_score)) actions.push('Seek coaching or role alignment where performance trails competency.')
+  if (Number(m.learning_progress) < 100) actions.push(`Continue learning to close the **${Math.max(0, 100 - Number(m.learning_progress))}**-point learning completion shortfall.`)
+  if (active > 0) actions.push(`Complete the **${active}** active ${module} workflow(s) to keep personal progress moving.`)
+  if (module === 'succession' && Number(m.readiness_score) < 70) actions.push('Focus development on readiness to move toward the Ready Now band.')
+  while (actions.length < 2) actions.push('Maintain current personal progress within the module.')
+  sections.push({
+    heading: 'Recommended Actions',
+    body: actions.slice(0, 3).map(a => `- ${a}`).join('\n'),
+  })
+
   return sections
 }
 
@@ -293,6 +516,11 @@ function buildSummary(module, metrics, details = {}) {
 // ------------------------------ Metric queries ------------------------------
 
 export async function calculateMetrics(module, { employeeId = null } = {}) {
+  // Employee-scoped metrics — used for a single employee's PERSONAL AI insight.
+  if (employeeId) {
+    const generation = await query(EMPLOYEE_METRIC_QUERIES[module], [employeeId])
+    return { metrics: generation.rows[0], details: {} }
+  }
   if (module === 'executive') {
     const [workforce, departments, workflows, succession, recognition, training] = await Promise.all([
       query(EXECUTIVE_METRIC_QUERIES.workforce),
@@ -415,14 +643,62 @@ export async function generateAndSaveForWorkflow(client, workflow, createdBy) {
 // Generate an AI report for a workflow using the metrics already saved for it.
 // Used by the HR-only on-demand "Generate AI Report" action. Creates a new
 // immutable report row; previous reports remain in history.
+// Build a deterministic PERSONAL summary for a single employee on a given module.
+function buildEmployeeSummary(module, metrics) {
+  const name = metrics?.employee_name || 'This employee'
+  const title = `${name} — ${module[0].toUpperCase()}${module.slice(1)} AI Insight`
+  const sections = buildEmployeeSections(module, metrics || {})
+  const summary = sections.map(s => `## ${s.heading}\n${s.body}`).join('\n\n')
+  return { title, summary, sections }
+}
+
+// Generate a PERSONAL AI insight for a specific employee + module. This differs
+// from generateAI (org-wide) by using the employee-scoped metrics and building
+// the report around that individual's own performance/competency/learning and
+// their own module workflow activity.
+export async function generateEmployeeAI(module, metrics, details = {}) {
+  const built = buildEmployeeSummary(module, metrics)
+  let content = built.summary
+  try {
+    const insights = await generateInsights({
+      moduleWorkflow: { module, stage: 'completed', scope: 'employee-specific' },
+      moduleMetrics: metrics,
+      moduleDetails: details,
+      executiveMetrics: metrics,
+      employeeMetrics: metrics,
+      dataContext: { datasets: [{ label: 'Personal records', count: 1 }], confidence: 100, completeness: 'high' },
+    })
+    if (insights[0]?.summary) content = insights[0].summary
+  } catch (error) {
+    console.warn('[aiReports] LLM enrichment failed for employee AI insight, using structured summary:', error.message)
+  }
+  return { title: built.title, summary: built.summary, content, sections: built.sections, dataContext: { datasets: [{ label: 'Personal records', count: 1 }], confidence: 100, completeness: 'high' } }
+}
+
+// Generate an AI report for a workflow using the metrics already saved for it.
+// Used by the HR-only on-demand "Generate AI Report" action. Creates a new
+// immutable report row; previous reports remain in history.
+//
+// When the workflow has a subject employee (employee-specific), the report is
+// built as a PERSONAL AI insight about THAT employee, not the org-wide module
+// report. If no subject employee exists, the org-wide module report is used.
 export async function generateOnDemand(workflowId, createdBy) {
   const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [workflowId])
   const workflow = rows[0]
   if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
   if (workflow.status !== 'completed') throw Object.assign(new Error('AI reports can only be generated for completed workflows.'), { status: 409 })
 
-  const { metrics, details } = await calculateMetrics(workflow.module)
-  const report = await generateAI(workflow.module, metrics, details)
+  let report
+  let metrics
+  if (workflow.subject_employee_id) {
+    // Build a PERSONAL insight for the workflow's subject employee.
+    metrics = (await calculateMetrics(workflow.module, { employeeId: workflow.subject_employee_id })).metrics
+    report = await generateEmployeeAI(workflow.module, metrics)
+  } else {
+    const calc = await calculateMetrics(workflow.module)
+    metrics = calc.metrics
+    report = await generateAI(workflow.module, metrics, calc.details)
+  }
   const saved = await saveReportForWorkflow({ query }, { ...report, metricsJson: metrics }, workflow, createdBy, metrics)
   return saved
 }

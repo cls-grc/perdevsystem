@@ -5,7 +5,7 @@ const sectionsByRole = {
 hr: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+      links: [{ to: '/', label: 'AI-Assisted Performance & Learning Analytics', icon: 'grid' }]
     },
     {
       title: 'Administration',
@@ -75,7 +75,7 @@ supervisor: [
 operations_manager: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI Analytic Dashboard', icon: 'grid' }]
+      links: [{ to: '/', label: 'AI-Assisted Performance & Learning Analytics', icon: 'grid' }]
     },
     {
       title: 'Administration',

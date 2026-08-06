@@ -71,6 +71,56 @@ function moduleInsights({ moduleWorkflow, moduleMetrics: m = {}, moduleDetails: 
   return reports[moduleWorkflow.module]
 }
 
+// PERSONAL AI insight for a single employee generated from their OWN metrics
+// (performance, competency, learning, and their own module activity). This must
+// never surface org-wide averages — it is scoped to the employee only.
+function employeeInsights({ moduleWorkflow, employeeMetrics: m = {} }) {
+  const module = moduleWorkflow?.module || 'development'
+  const name = m.employee_name || 'This employee'
+  const perf = pct(m.performance_score)
+  const comp = pct(m.competency_score)
+  const learn = pct(m.learning_progress)
+  const completed = n(m.completed_count)
+  const active = n(m.active_count)
+  const overview = m.department ? `${name} (${m.department}${m.job_title ? ` — ${m.job_title}` : ''})` : name
+
+  const analysis = module === 'training'
+    ? `${name} has **${completed}** completed and **${active}** active training workflow(s). ${(completed + active) > 0 ? `This reflects a **${Math.round((completed / (completed + active)) * 100)}%** personal completion rate for recorded training activity.` : 'No personal training activity is currently recorded.'}`
+    : module === 'performance'
+      ? `Personal performance is **${perf}** against a competency base of **${comp}**. ${n(m.performance_score) >= n(m.competency_score) ? 'Performance is at or above the recorded competency base, indicating capability is being applied.' : 'Performance trails recorded competency, suggesting capability may not yet be fully applied in role.'}`
+      : module === 'competency'
+        ? `Personal competency is **${comp}**, leaving a **${Math.max(0, 100 - n(m.competency_score))}**-point gap to full proficiency. ${completed > 0 ? 'Competency workflow(s) have been completed.' : 'No competency workflows have been completed yet.'}`
+        : module === 'learning'
+          ? `Personal learning completion is **${learn}**, leaving a **${Math.max(0, 100 - n(m.learning_progress))}**-point shortfall to full completion. ${completed > 0 ? 'The learning target has been reached.' : 'The learning target has not yet been fully reached.'}`
+          : module === 'succession'
+            ? `Personal readiness score is **${pct(m.readiness_score)}** with a readiness band of **${(m.readiness_band || 'none').replaceAll('_', ' ')}**.`
+            : module === 'recognition'
+              ? `${name} has **${completed}** completed and **${active}** active recognition workflow(s). ${completed > 0 ? 'Completed recognition records indicate recognized contributions.' : 'No completed recognition records are available for this employee.'}`
+              : `${name} has **${completed}** completed and **${active}** active workflow(s) in the **${module}** module.`
+
+  const strengths = []
+  if (n(m.performance_score) >= 70) strengths.push(`Strong personal performance (**${perf}**).`)
+  if (n(m.competency_score) >= 70) strengths.push(`Solid competency base (**${comp}**).`)
+  if (n(m.learning_progress) >= 70) strengths.push(`Good learning engagement (**${learn}**).`)
+  if (completed > 0) strengths.push(`Demonstrated completion of **${completed}** ${module} workflow(s).`)
+  while (strengths.length < 2) strengths.push('Personal metrics are being tracked through the workflow system.')
+
+  const actions = []
+  if (n(m.competency_score) < 70) actions.push(`Build capability by closing the **${Math.max(0, 100 - n(m.competency_score))}**-point competency gap.`)
+  if (n(m.performance_score) < n(m.competency_score)) actions.push('Seek coaching or role alignment where performance trails competency.')
+  if (n(m.learning_progress) < 100) actions.push(`Continue learning to close the **${Math.max(0, 100 - n(m.learning_progress))}**-point learning completion shortfall.`)
+  if (active > 0) actions.push(`Complete the **${active}** active ${module} workflow(s) to keep personal progress moving.`)
+  if (module === 'succession' && n(m.readiness_score) < 70) actions.push('Focus development on readiness to move toward the Ready Now band.')
+  while (actions.length < 2) actions.push('Maintain current personal progress within the module.')
+
+  return [report(`${overview} — Personal AI Insight`, [
+    `Personal overview. ${overview} has performance of **${perf}**, competency of **${comp}**, and learning completion of **${learn}**. In the **${module}** module, there ${active === 1 ? 'is' : 'are'} **${active}** active and **${completed}** completed workflow(s).`,
+    analysis,
+    'Strengths. ' + strengths.slice(0, 2).join(' '),
+    'Recommended actions. ' + actions.slice(0, 3).join(' '),
+  ])]
+}
+
 function dashboardInsights({ workforce = {}, departments = [], activeWorkflows = [], succession = {}, recognition = {}, employee }) {
   if (employee) return [report('Employee HR Analytics Report', [
     `Workforce overview. ${employee.full_name} has recorded performance of ${pct(employee.performance_score)}, competency of ${pct(employee.competency_score)}, and learning progress of ${pct(employee.learning_progress)}.`,
@@ -79,12 +129,27 @@ function dashboardInsights({ workforce = {}, departments = [], activeWorkflows =
   ])]
   const best = departments.reduce((current, row) => !current || n(row.performance) > n(current.performance) ? row : current, null)
   const leading = activeWorkflows[0]
-  return [report('Executive HR Analytics Report', [
-    `Workforce overview. ${n(workforce.employee_count)} active employee records show average performance of ${pct(workforce.average_performance)}, competency of ${pct(workforce.average_competency)}, and learning progress of ${pct(workforce.learning_completion)}. Together, these values provide a current cross-module picture of workforce performance and development.`,
-    `Department and workforce findings. ${best ? `${best.department} has the highest recorded department performance average at ${pct(best.performance)} across ${n(best.employees)} employee records.` : 'Department performance records are not available.'} The organization also has ${n(succession.ready_now_count)} Ready Now succession profile(s) and ${n(recognition.completed_count)} completed recognition workflow(s), which are current indicators of talent readiness and recognition delivery.`,
-    `Data interpretation and organizational strengths. The relationship among performance, competency, and learning averages helps HR assess whether workforce development is broadly aligned. ${leading ? `${n(leading.count)} active workflow(s) are currently at ${leading.current_stage.replaceAll('_', ' ')}, making it the largest active queue for review.` : 'No active workflow queue is currently recorded.'} Completed recognition workflows and Ready Now profiles are positive indicators of formal people processes being carried through.`,
-    'Areas requiring attention. The largest active workflow queue should be reviewed because unresolved stages can delay performance, learning, training, succession, or recognition activity. Workforce averages should be interpreted with department and employee evidence before identifying any individual development priorities.',
-    `Executive HR recommendations. ${leading ? `Prioritize review of the ${leading.current_stage.replaceAll('_', ' ')} queue, then use department and workforce metrics to guide coaching, learning, competency, succession, and recognition discussions.` : 'Use the current workforce and department metrics to prioritize the next HR review cycle.'} Recommendations should be validated by authorized HR and management reviewers before action is taken.`,
+  const compGap = 100 - n(workforce.average_competency)
+  const perfCompDelta = n(workforce.average_performance) - n(workforce.average_competency)
+  const learningShortfall = 100 - n(workforce.learning_completion)
+  const strengths = []
+  if (n(workforce.average_competency) >= 70) strengths.push(`High average competency (**${pct(workforce.average_competency)}**) provides a solid capability base.`)
+  if (n(succession.ready_now_count) > 0) strengths.push(`Strong leadership readiness with **${n(succession.ready_now_count)}** Ready Now profile(s).`)
+  if (n(recognition.completed_count) > 0 || n(workforce.employee_count) > 0) strengths.push(`Completed recognition (**${n(recognition.completed_count)}**) workflows show disciplined people-process execution.`)
+  while (strengths.length < 3) strengths.push('People processes are being documented through the workflow system for ongoing visibility.')
+  const recommendations = []
+  if (leading) recommendations.push(`Clear the largest workflow queue at **${leading.current_stage.replaceAll('_', ' ')}** (**${n(leading.count)}** record(s)) to unblock progress across modules.`)
+  else recommendations.push('Establish active workflow queues to keep development processes moving.')
+  if (compGap > 0) recommendations.push(`Target the **${compGap}**-point competency gap through prioritized development plans.`)
+  if (perfCompDelta < 0) recommendations.push(`Realign roles or expectations where performance (**${pct(workforce.average_performance)}**) trails competency (**${pct(workforce.average_competency)}**).`)
+  if (learningShortfall > 0) recommendations.push(`Convert learning into capability by closing the **${learningShortfall}**-point learning completion shortfall.`)
+  if (n(succession.development_count) > 0) recommendations.push(`Build pipeline depth for the **${n(succession.development_count)}** Development Needed succession profile(s).`)
+  return [report('Executive Workforce Analytics Report', [
+    `Workforce overview. ${n(workforce.employee_count)} active employee records show average performance of **${pct(workforce.average_performance)}**, competency of **${pct(workforce.average_competency)}**, and learning completion of **${pct(workforce.learning_completion)}**. Overall workforce health is ${perfCompDelta >= 0 ? 'sound, with performance meeting or exceeding the capability base.' : 'mixed, with performance trailing established competency.'}`,
+    `Department and competency findings. ${best ? `**${best.department}** is the top-performing department at **${pct(best.performance)}** across **${n(best.employees)}** employee records.` : 'Department performance records are not available.'} ${n(succession.ready_now_count) > 0 ? `**${n(succession.ready_now_count)}** profile(s) are Ready Now.` : 'No Ready Now profiles are recorded.'}`,
+    `Department performance & competency analysis. Departments performing above average stand out as model areas, while those below average warrant closer attention. Capability gaps arise where competency exceeds performance by 10+ points, indicating under-applied skill. Learning completion of **${pct(workforce.learning_completion)}** reflects employee engagement, and training activity completes the learning picture. Succession readiness spans Ready Now, Ready in 1–2 years, and Development Needed profiles, balanced by **${n(recognition.completed_count)}** completed recognition workflows.`,
+    'Organizational strengths. ' + strengths.slice(0, 3).join(' '),
+    'Priority actions and executive recommendations. ' + recommendations.slice(0, 5).join(' '),
   ])]
 }
 
@@ -103,9 +168,37 @@ const MODULE_SECTIONS = {
   recognition: ['Recognition Trends', 'Frequently Recognized Employees', 'Team Engagement', 'Employees Needing Recognition', 'Recognition Distribution'],
 }
 
-const EXECUTIVE_SECTIONS = ['Workforce Overview', 'Department Analysis', 'Performance Analysis', 'Competency Analysis', 'Learning Analysis', 'Training Analysis', 'Succession Readiness', 'Recognition Analysis', 'Organizational Strengths', 'Areas Requiring Attention', 'Executive Recommendations']
+const EXECUTIVE_SECTIONS = ['Workforce Overview', 'Department Performance & Competency Analysis', 'Learning & Training Effectiveness', 'Succession & Recognition Analysis', 'Organizational Strengths', 'Priority Actions & Executive Recommendations']
 
 function buildPrompt(context) {
+  // Employee-specific scope — build a PERSONAL AI insight prompt from the
+  // employee's own metrics, never the org-wide module/executive report.
+  if (context.employeeMetrics && context.moduleWorkflow?.scope === 'employee-specific') {
+    const m = context.employeeMetrics || {}
+    const module = context.moduleWorkflow.module
+    const name = m.employee_name || 'This employee'
+    return {
+      system: 'You are a personal HR development coach for a hospitality employee. You analyze the employee\'s OWN recorded metrics and produce a concise, personal, actionable AI insight. Never reference organization-wide averages or other employees.',
+      user: `Generate a concise PERSONAL AI insight for ${name}, scoped only to their own records. Use only the data provided below; do not invent values and do not mention org-wide data.
+
+Use this structure with Markdown headings:
+# ${name} — Personal AI Insight
+## Overview
+## Module Analysis
+## Strengths
+## Recommended Actions
+
+Rules:
+- Scope every statement to this employee only (their performance, competency, learning, and their own "${module}" workflow activity).
+- Base every claim strictly on the provided personal metrics.
+- Keep it concise and actionable — no org-wide statistics.
+- If a personal metric has no record, explicitly state that insufficient records exist for that area.
+- Keep the report under 300 words.
+
+Here is the employee's personal context (JSON):
+${serializeContext(m)}`,
+    }
+  }
   if (context.moduleWorkflow) {
     const moduleLabel = context.moduleWorkflow.module
     const stage = context.moduleWorkflow.stage
@@ -150,8 +243,8 @@ ${serializeContext(context.employee)}`,
     }
   }
   return {
-    system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce structured, evidence-based executive workforce analytics reports.',
-    user: `Generate an Executive Workforce Analytics Report for the organization. Use only data provided below; do not invent values.
+    system: 'You are an expert HR workforce analytics assistant for a hospitality organization. You analyze live workforce database values and produce concise, evidence-based executive workforce analytics reports for HR Directors and Senior Managers.',
+    user: `Generate a concise Executive Workforce Analytics Report for the organization. Use only data provided below; do not invent values.
 
 Use this exact structure with Markdown headings:
 # Executive Workforce Analytics Report
@@ -159,11 +252,15 @@ ${EXECUTIVE_SECTIONS.map(s => `## ${s}`).join('\n')}
 
 Rules:
 - Base every claim strictly on the provided data and actual numbers.
-- Interpret relationships between metrics across modules rather than only reporting numbers — explain how performance compares to competency, how learning completion relates to capability, and how active workflow queues affect readiness.
-- Explain the meaning of each metric in professional HR language.
+- Merge related analyses into concise executive summaries; do not repeat statistics across sections.
+- Workforce Overview: one short paragraph on overall workforce health.
+- Department Performance & Competency Analysis: 3-5 concise bullets comparing departments, flagging above/below average, and linking competency to performance.
+- Learning & Training Effectiveness: one short paragraph + 2 bullets. If training data lacks records, state that insufficient records exist to assess training effectiveness.
+- Succession & Recognition Analysis: one short paragraph + 2 bullets on leadership readiness and recognition trends.
+- Organizational Strengths: exactly 3 bullets listing only the top strengths.
+- Priority Actions & Executive Recommendations: exactly 5 data-backed bullets using current metrics, workflow queues, department performance, competency gaps, and learning completion. Never recommend anything unsupported by data.
 - If a dataset has no records, explicitly state that insufficient records exist for that area.
-- Recommendations must be grounded in the calculated metrics.
-- Keep the report under 600 words.
+- Keep the report under 350 words.
 
 Here is the current workforce context (JSON):
 ${serializeContext(context)}`,
@@ -220,15 +317,22 @@ function normalize(content, fallbackTitle) {
  * @returns {Promise<Array<{title: string, summary: string}>>} Insights array.
  */
 export async function generateInsights(context) {
+  // Employee-specific scope: generate a PERSONAL AI insight from the employee's
+  // own metrics, never the org-wide module/executive report.
+  const isEmployeeScope = Boolean(context.employeeMetrics && context.moduleWorkflow?.scope === 'employee-specific')
+
   // If no OpenRouter API key is configured, use the deterministic template
   // reports so the application continues to work offline / in demos.
   if (!config.openRouterApiKey) {
+    if (isEmployeeScope) return employeeInsights(context)
     return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
   }
 
   try {
     const fallbackTitle = context.moduleWorkflow
-      ? `${context.moduleWorkflow.module[0].toUpperCase()}${context.moduleWorkflow.module.slice(1)} Management Report`
+      ? (isEmployeeScope
+          ? `${context.employeeMetrics?.employee_name || 'Employee'} — Personal AI Insight`
+          : `${context.moduleWorkflow.module[0].toUpperCase()}${context.moduleWorkflow.module.slice(1)} Management Report`)
       : context.employee
         ? 'Employee HR Analytics Report'
         : 'Executive HR Analytics Report'
@@ -238,6 +342,7 @@ export async function generateInsights(context) {
     // Graceful degradation: fall back to the template report so the UI never
     // breaks when the LLM service is unavailable.
     console.warn('[openrouter] Falling back to template insights:', error.message)
+    if (isEmployeeScope) return employeeInsights(context)
     return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
   }
 }

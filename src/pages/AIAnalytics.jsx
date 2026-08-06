@@ -66,7 +66,7 @@ export default function AIAnalytics() {
   const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
 
   return <main className="ai-dashboard">
-    <div className="ai-heading"><div><h1>AI Analytic Dashboard</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div>{isHr && <div className="ai-actions"><button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button></div>}</div>
+<div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div>{isHr && <div className="ai-actions"><button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button></div>}</div>
     {error && <p className="ai-service-note">{error}</p>}
     <section className="ai-content">
       <div className="ai-main">

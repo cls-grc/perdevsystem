@@ -144,6 +144,10 @@ const [confirmOpen, setConfirmOpen] = useState(false)
   // HR can generate a report immediately after completion. It is NOT the
   // active workflow and never appears in the active workspace.
   const [lastCompleted, setLastCompleted] = useState(null)
+  // The most recently selected workflow id from the completed history, used to
+  // target the AI Insights panel so its "Generate AI Insight" button acts on
+  // that specific employee/module workflow. Selecting it never auto-generates.
+  const [aiTargetWorkflowId, setAiTargetWorkflowId] = useState(null)
 
   const roleAction = typeof action === 'string' ? action : action?.[role]
   const itemOptions = useMemo(
@@ -632,15 +636,18 @@ const chooseWorkflow = async id => {
 // View a completed workflow's full history (RBAC-aware). HR / management /
   // operations_manager / supervisor can view any completed workflow in their
   // module; employees can only view workflows where they are the subject.
+  // Selecting a workflow only targets the AI Insights panel — it does NOT
+  // auto-generate. AI generation happens ONLY when the user clicks the
+  // explicit "Generate AI Insight" button inside the AI Insights panel.
   const viewCompletedWorkflow = async (id) => {
     setError('')
     try {
       const result = await api.workflow(id)
       setCompletedView(result.workflow)
       setCompletedEvents(result.events || [])
-      // Feed the AI panel with the completed workflow's id so HR can generate
-      // (or regenerate) the AI insight report for it.
-      if (result.workflow) setLastCompleted(result.workflow)
+      // Target the AI Insights panel at this specific completed workflow so HR
+      // (or the employee owner) can generate its insight from the panel button.
+      setAiTargetWorkflowId(id)
     } catch (requestError) {
       setError(requestError.message)
     }
@@ -651,7 +658,7 @@ const chooseWorkflow = async id => {
     setCompletedEvents([])
   }
 
-  const saveSchedule = async () => {
+const saveSchedule = async () => {
     if (!schedule.date) return setError('Select a training date.')
     if (!workflow) {
       setScheduleOpen(false)
@@ -953,7 +960,7 @@ const chooseWorkflow = async id => {
           )}
         </div>
       </section>
-<ModuleAIInsights module={moduleKey} stage={display} workflowId={workflow?.id || lastCompleted?.id} />
+      <ModuleAIInsights module={moduleKey} stage={display} workflowId={aiTargetWorkflowId || workflow?.id || lastCompleted?.id} />
     </section>
 
     {/* Stage details modal */}
