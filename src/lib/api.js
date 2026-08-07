@@ -131,6 +131,28 @@ regenerateCertificate: (id) => request(`/api/certificates/${id}/regenerate`, { m
     const qs = new URLSearchParams(params).toString()
     return request(`/api/audit-logs${qs ? `?${qs}` : ''}`)
   },
+// Learning Resource / Course Library
+  learningResources: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.category) qs.set('category', params.category)
+    if (params.providerType) qs.set('providerType', params.providerType)
+    if (params.competency) qs.set('competency', params.competency)
+    if (params.includeArchived) qs.set('includeArchived', 'true')
+    const queryStr = qs.toString()
+    return request(`/api/learning${queryStr ? `?${queryStr}` : ''}`)
+  },
+  createLearningResource: (data) => request('/api/learning', { method: 'POST', body: JSON.stringify(data) }),
+  updateLearningResource: (id, data) => request(`/api/learning/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  archiveLearningResource: (id) => request(`/api/learning/${id}`, { method: 'DELETE' }),
+  learningCompetencies: () => request('/api/learning/competencies'),
+  assignLearning: (data) => request('/api/learning/assign', { method: 'POST', body: JSON.stringify(data) }),
+  learningAssignments: () => request('/api/learning/assignments'),
+  // Self-reported progress + status: employee drives their own study progress
+  // (0-100) and a status flag (not_started / studying / completed / need_help).
+updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${id}/progress`, { method: 'PATCH', body: JSON.stringify({ progress }) }),
+  updateLearningStatus: (id, status) => request(`/api/learning/assignments/${id}/progress`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  recordLearningCompletion: (data) => request('/api/learning/completions', { method: 'POST', body: JSON.stringify(data) }),
+  learningCompletions: () => request('/api/learning/completions'),
 // Workflow due dates & overdue
   setWorkflowDueDate: (id, dueDate) => request(`/api/workflows/${id}/due-date`, { method: 'POST', body: JSON.stringify({ dueDate }) }),
   overdueWorkflows: (days = 3) => request(`/api/workflows/overdue?days=${days}`),

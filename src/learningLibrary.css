@@ -1,0 +1,257 @@
+/* ---------------------------------------------------------------------------
+   Learning Management — Course Library styles
+   Aligned with the shared .module-* design system (index.css): indigo/violet
+   accents, white cards with #ecebf0 borders, small 9-11px labels, Inter.
+--------------------------------------------------------------------------- */
+.learning-workspace { max-width: 1500px; color: #282631; }
+
+/* Tabs — simple underline tabs matching the light/airy module chrome */
+.learning-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #ecebf0;
+  margin: 8px 0 20px;
+  overflow-x: auto;
+}
+.learning-tabs button {
+  background: none;
+  border: none;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 11px;
+  color: #8e8b95;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color .18s ease, border-color .18s ease;
+}
+.learning-tabs button.active { color: #654bd2; border-bottom-color: #654bd2; }
+.learning-tabs button:hover { color: #654bd2; }
+
+.learning-section { animation: learningFade 0.2s ease; }
+@keyframes learningFade { from { opacity: 0 } to { opacity: 1 } }
+
+.learning-block-title { font-size: 13px; margin: 0 0 12px; }
+
+/* Toolbar */
+.learning-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.learning-toolbar select, .learning-toolbar .learning-search {
+  padding: 8px 10px;
+  border: 1px solid #e4e3e8;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font-size: 11px;
+}
+.learning-toolbar .learning-search { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 220px; }
+.learning-search input { border: none; outline: none; background: none; flex: 1; color: inherit; font-size: 11px; }
+.learning-search button { border: none; background: none; cursor: pointer; color: #8e8b95; font-size: 16px; }
+.learning-archived { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8e8b95; }
+
+/* Course grid */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.course-card {
+  background: #fff;
+  border: 1px solid #ecebf0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 3px 10px rgba(40,34,70,.025);
+}
+.dark .course-card { background: #242428; border-color: #3c3b42; }
+.course-top { display: flex; justify-content: space-between; align-items: center; }
+.course-badge { font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.04em; }
+.course-badge.internal { background: #eaf7ef; color: #41966b; }
+.course-badge.external { background: #efecff; color: #654bd2; }
+.course-category { font-size: 10px; color: #8e8b95; font-weight: 600; }
+.course-card h3 { margin: 0; font-size: 14px; letter-spacing: -.02em; }
+.course-provider { margin: 0; font-size: 11px; color: #8e8b95; }
+.course-desc { margin: 0; font-size: 11px; color: #5e5b6c; line-height: 1.5; }
+.dark .course-desc { color: #bbb8c2; }
+.course-objectives b { display: block; font-size: 10px; margin-bottom: 2px; color: #4b4a5e; }
+.dark .course-objectives b { color: #d1d1d8; }
+.course-objectives ul { margin: 0; padding-left: 16px; font-size: 11px; color: #5e5b6c; }
+.dark .course-objectives ul { color: #bbb8c2; }
+.course-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.course-tags span { background: #f3f1f8; border-radius: 20px; padding: 3px 10px; font-size: 10px; color: #4b4a5e; }
+.dark .course-tags span { background: #3c3b42; color: #d1d1d8; }
+.course-link { font-size: 11px; color: #654bd2; text-decoration: none; font-weight: 600; }
+.course-stats { display: flex; gap: 14px; font-size: 10px; color: #8e8b95; margin-top: auto; }
+.course-actions { display: flex; gap: 8px; }
+.course-actions button {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid #e4e1f7;
+  background: #fbfbff;
+  color: #3f3d56;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  transition: background .18s ease;
+}
+.course-actions button:hover { background: #f4f2ff; }
+.dark .course-actions button { background: #303035; border-color: #505058; color: #eee; }
+.course-actions button.danger { color: #b06948; border-color: #f0dcd1; }
+.dark .course-actions button.danger { color: #e0a08a; }
+
+.learning-empty { text-align: center; color: #8e8b95; padding: 40px 20px; grid-column: 1 / -1; font-size: 11px; }
+
+/* Assign layout */
+.assign-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.assign-col { background: #fff; border: 1px solid #ecebf0; border-radius: 10px; padding: 14px; }
+.dark .assign-col { background: #242428; border-color: #3c3b42; }
+.assign-col h2 { font-size: 12px; margin: 0 0 12px; }
+.assign-courses { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.assign-course {
+  text-align: left;
+  padding: 10px;
+  border: 1px solid #ecebf0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+.dark .assign-course { background: #1c1c1f; border-color: #3c3b42; }
+.assign-course:hover { border-color: #d9d5ff; }
+.assign-course.selected { border-color: #7254e5; background: #f5f1ff; }
+.dark .assign-course.selected { background: #302d3d; }
+.assign-course b { display: block; font-size: 11px; }
+.assign-course small { color: #8e8b95; font-size: 10px; }
+.assign-emp-search { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.assign-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; cursor: pointer; }
+.assign-row:hover { background: #f5f4ff; }
+.dark .assign-row:hover { background: #34303f; }
+.assign-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #7659d5; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 10px; flex-shrink: 0;
+}
+.assign-row div { display: flex; flex-direction: column; }
+.assign-row b { font-size: 11px; }
+.assign-row small { color: #8e8b95; font-size: 10px; }
+.assign-summary { margin: 14px 0; padding: 12px; background: #fbfbff; border: 1px solid #eceaf3; border-radius: 8px; font-size: 11px; }
+.dark .assign-summary { background: #2d2d32; border-color: #46454c; }
+.assign-summary p { margin: 4px 0; }
+.assign-col label { display: grid; gap: 6px; font-size: 10px; color: #5e5b6c; margin: 0 0 12px; }
+.assign-col input[type="date"] { border: 1px solid #dfdce6; border-radius: 8px; padding: 8px 10px; background: #fbfbff; font-size: 11px; color: inherit; }
+.dark .assign-col input[type="date"] { background: #2d2d32; border-color: #4a4950; color: #eee; }
+.assign-col .module-primary { width: 100%; }
+
+/* Assignments */
+.assignment-list, .completion-list { display: flex; flex-direction: column; gap: 10px; }
+.assignment-row {
+  display: flex; align-items: center; gap: 16px;
+  background: #fff; border: 1px solid #ecebf0; border-radius: 10px; padding: 12px 14px;
+}
+.dark .assignment-row { background: #242428; border-color: #3c3b42; }
+.assignment-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.assignment-info b { font-size: 12px; }
+.assignment-info small { color: #8e8b95; font-size: 10px; }
+.assignment-progress { display: flex; align-items: center; gap: 8px; width: 180px; }
+.assignment-progress .bar { flex: 1; height: 7px; background: #eeeaf3; border-radius: 20px; overflow: hidden; }
+.dark .assignment-progress .bar { background: #3c3b42; }
+.assignment-progress .bar em { display: block; height: 100%; background: linear-gradient(90deg,#7254e5,#8f7bf0); border-radius: 20px; }
+.assignment-progress span { font-size: 11px; font-weight: 700; width: 40px; text-align: right; }
+.assignment-progress-input { display: flex; flex-direction: column; font-size: 10px; color: #8e8b95; gap: 4px; }
+.assignment-progress-input input { accent-color: #7254e5; }
+.pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+.pill.complete { background: #eaf7ef; color: #41966b; }
+.pill.verified { background: #efecff; color: #654bd2; }
+.pill.fail { background: #fff0ee; color: #b23a2f; }
+
+/* Self-reported study status pills */
+.pill.status { font-weight: 700; }
+.pill.status.not-started { background: #f1f0f3; color: #6c6972; }
+.pill.status.studying { background: #e9f0ff; color: #3b6fd4; }
+.pill.status.completed { background: #eaf7ef; color: #41966b; }
+.pill.status.need-help { background: #fff0ee; color: #b23a2f; }
+
+/* Employee self-report controls */
+.assignment-actions { display: flex; flex-direction: column; gap: 8px; min-width: 190px; }
+.assignment-status-select { display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: #8e8b95; }
+.assignment-status-select select {
+  padding: 7px 8px;
+  border: 1px solid #dfdce6;
+  border-radius: 8px;
+  background: #fbfbff;
+  color: inherit;
+  font-size: 11px;
+}
+.dark .assignment-status-select select { background: #2d2d32; border-color: #4a4950; color: #eee; }
+
+/* Completions */
+.completion-note { background: #f8f6ff; border: 1px solid #ddd6ff; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+.dark .completion-note { background: #282531; border-color: #4b435f; }
+.completion-note b { color: #654bd2; font-size: 11px; }
+.completion-note p { margin: 4px 0 0; font-size: 11px; color: #5d5966; }
+.completion-row {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid #ecebf0; border-radius: 10px; padding: 12px 14px;
+}
+.dark .completion-row { background: #242428; border-color: #3c3b42; }
+.completion-row div { flex: 1; display: flex; flex-direction: column; }
+.completion-row b { font-size: 12px; }
+.completion-row small { color: #8e8b95; font-size: 10px; }
+.completion-date { font-size: 11px; color: #8e8b95; }
+
+/* Modal form — reuses settings-backdrop / schedule-dialog from index.css */
+.learning-form {
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.learning-form .learning-fields { flex: 1 1 auto; }
+/* Hide the scrollbar visually but keep the modal scrollable */
+.learning-form { scrollbar-width: none; -ms-overflow-style: none; }
+.learning-form::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.learning-form .module-actions {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 14px 0 0;
+  margin-top: 18px;
+  border-top: 1px solid #eceaf3;
+  z-index: 1;
+}
+.dark .learning-form .module-actions { background: #242428; border-top-color: #3c3b42; }
+.learning-modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.learning-modal-head h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.02em; }
+.learning-modal-head p { margin: 0; color: #817e88; font-size: 11px; }
+.learning-modal-head button { background: none; border: none; font-size: 22px; cursor: pointer; color: #6c6972; }
+.learning-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.learning-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 10px; font-weight: 600; color: #5d5964; }
+.learning-fields label.full { grid-column: 1 / -1; }
+.learning-fields input, .learning-fields select, .learning-fields textarea {
+  padding: 9px 10px; border: 1px solid #dfdce6; border-radius: 8px; font-size: 12px; background: #fbfbff; color: inherit;
+}
+.dark .learning-fields input, .dark .learning-fields select, .dark .learning-fields textarea { background: #2d2d32; border-color: #4a4950; color: #eee; }
+.learning-fields textarea { min-height: 70px; resize: vertical; }
+.learning-competencies-block > b { font-size: 10px; color: #5d5964; }
+.comp-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.comp-picker label {
+  flex-direction: row; align-items: center; gap: 6px; font-weight: 500;
+  border: 1px solid #e4e3e8; border-radius: 20px; padding: 5px 12px; cursor: pointer; font-size: 11px; color: #4b4a5e;
+}
+.comp-picker label.selected { background: #f5f1ff; border-color: #7254e5; color: #654bd2; }
+.comp-picker input { accent-color: #7254e5; }
+
+@media (max-width: 900px) {
+  .assign-layout { grid-template-columns: 1fr; }
+  .learning-fields { grid-template-columns: 1fr; }
+  .assignment-row { flex-wrap: wrap; }
+}

@@ -31,10 +31,12 @@ const MODULE_METRIC_QUERIES = {
     (SELECT count(*)::int FROM workflows WHERE module='competency' AND status='active') AS active_count,
     (SELECT count(*)::int FROM workflows WHERE module='competency' AND status='completed') AS completed_count
     FROM employees WHERE is_active=true`,
-  learning: `SELECT count(*)::int AS employee_count,
-    coalesce(round(avg(learning_progress))::int,0) AS average_score,
-    count(*) FILTER (WHERE learning_progress>=100)::int AS completed_count
-    FROM employees WHERE is_active=true`,
+learning: `SELECT
+    (SELECT count(*)::int FROM learning_resources WHERE is_active=true) AS resource_count,
+    (SELECT count(*)::int FROM learning_assignments) AS assigned_count,
+    (SELECT count(*)::int FROM learning_completions) AS completed_count,
+    (SELECT count(*)::int FROM learning_assignments WHERE status='in_progress') AS active_count,
+    (SELECT coalesce(round(avg(la.progress))::int,0) AS p FROM learning_assignments la) AS average_score`,
   training: `SELECT count(*) FILTER (WHERE w.status='active')::int AS active_count,
     count(*) FILTER (WHERE w.status='completed')::int AS completed_count
     FROM workflows w WHERE w.module='training'`,
@@ -143,9 +145,11 @@ const MODULE_DATA_CONTEXT = {
     ['Employee competency records', 'employee_count'],
     ['Active development workflows', 'active_count'],
   ],
-  learning: [
-    ['Employee learning records', 'employee_count'],
-    ['Completed learning paths', 'completed_count'],
+learning: [
+    ['Learning resources in library', 'resource_count'],
+    ['Course assignments', 'assigned_count'],
+    ['Confirmed completions', 'completed_count'],
+    ['Active / in-progress assignments', 'active_count'],
   ],
   training: [
     ['Completed training workflows', 'completed_count'],
@@ -241,12 +245,16 @@ function buildCompetencySections(metrics, details = {}) {
 
 function buildLearningSections(metrics) {
   const sections = []
-  const avg = pct(metrics.average_score)
-  const employees = n(metrics.employee_count || 0)
+  const resources = n(metrics.resource_count || 0)
+  const assigned = n(metrics.assigned_count || 0)
   const completed = n(metrics.completed_count || 0)
-  sections.push({ heading: 'Completion Analysis', body: `Learning progress averages **${avg}** across **${employees}** active employee records, with **${completed}** record(s) at full completion. This means ${completed > 0 ? 'a portion of the workforce has reached their learning target while others are still in progress' : 'no employee has reached full completion yet'}.` })
-  sections.push({ heading: 'Learning Engagement', body: `Engagement is reflected by the average progress (**${avg}**). The gap between this average and full completion (**${completed}** records at 100%) shows how much learning activity remains and where engagement is lowest.` })
-  sections.push({ heading: 'Weak Learning Areas', body: `Records below full completion warrant review of their workflow stage. The difference between the average (**${avg}**) and the completion target highlights the learning areas that need the most reinforcement.` })
+  const active = n(metrics.active_count || 0)
+  const avg = pct(metrics.average_score)
+  const progressable = assigned + active
+  const rate = progressable > 0 ? Math.round((completed / (assigned + completed)) * 100) : 0
+  sections.push({ heading: 'Course Library', body: `The learning library holds **${resources}** active course resource(s). **${assigned}** course assignment(s) have been made to employees, of which **${completed}** have a confirmed completion record.` })
+  sections.push({ heading: 'Completion Analysis', body: `Of the assigned courses, **${completed}** record(s) have a confirmed completion in the database. The confirmed completion rate is **${rate}%**. No employee is reported as completing a course without a corresponding completion record.` })
+  sections.push({ heading: 'Learning Engagement', body: `Average progress across assignments is **${avg}**, with **${active}** assignment(s) currently in progress. The gap between average progress and full completion shows how much learning activity remains.` })
   sections.push({ heading: 'Learning Effectiveness', body: `Completed records (**${completed}**) demonstrate that learning activities can reach completion, supporting the effectiveness of assigned learning paths. Higher completion generally correlates with more effective learning design.` })
   sections.push({ heading: 'Suggested Next Courses', body: `Recommend next courses based on the gap between current progress (**${avg}**) and the completion target. Learners furthest from completion should be prioritized for the next relevant course in their path.` })
   return sections
