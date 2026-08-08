@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
+import { downloadCsv } from '../lib/exportUtils'
 
 const roleLabels = { employee: 'Employee', supervisor: 'Supervisor', management: 'Management', hr: 'HR', operations_manager: 'Ops Manager' }
 
@@ -114,6 +115,23 @@ export default function EmployeeManagement() {
   const activeCount = employees.filter(e => e.is_active).length
   const deptCount = new Set(employees.map(e => e.department_name || e.department).filter(Boolean)).size
 
+  const exportCsv = async () => {
+    try {
+      const rows = await api.exportEmployeesCsv()
+      const formatted = rows.map(e => ({
+        'Employee Number': e.employee_number,
+        'Full Name': e.full_name,
+        'Department': e.department_name || e.department || '',
+        'Job Title': e.job_title || '',
+        'Performance Score': e.performance_score || 0,
+        'Competency Score': e.competency_score || 0,
+        'Learning Progress': e.learning_progress || 0,
+        'Status': e.is_active ? 'Active' : 'Inactive',
+      }))
+      downloadCsv(formatted, `employees-${new Date().toISOString().slice(0,10)}.csv`)
+    } catch (e) { setError(e.message) }
+  }
+
   return (
     <main className="er-workspace">
       <div className="er-heading">
@@ -123,6 +141,7 @@ export default function EmployeeManagement() {
           <p>Manage the employee lifecycle, organizational assignments, and system access.</p>
         </div>
         <div className="er-heading-actions">
+          <button className="module-secondary" onClick={exportCsv} title="Export all employee records to CSV">⬇ Export CSV</button>
           <button className="module-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>
           <button className="module-primary" onClick={() => { resetForm(); setShowForm(true) }}>+ Add employee</button>
         </div>

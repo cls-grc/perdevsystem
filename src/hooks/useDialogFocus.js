@@ -6,17 +6,18 @@ import { useEffect, useRef } from 'react'
  * Features:
  *  - Focus trap: Tab/Shift+Tab cycle is confined to the dialog content.
  *  - Escape-to-close: pressing Escape invokes onClose (and refocuses opener).
- *  - Focus restore: on open, focuses the first focusable element; on close,
+ *  - Focus restore: on open, focuses the first input or focusable element; on close,
  *    returns focus to the element that opened the dialog.
  *  - Background scroll lock while open.
- *
- * @param {boolean} open       Whether the dialog is open.
- * @param {() => void} onClose Called when Escape is pressed.
- * @param {{ focusFirstOnOpen?: boolean }} options
  */
 export default function useDialogFocus(open, onClose, { focusFirstOnOpen = true } = {}) {
   const containerRef = useRef(null)
   const previouslyFocusedRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return undefined
@@ -27,14 +28,18 @@ export default function useDialogFocus(open, onClose, { focusFirstOnOpen = true 
     // Remember what had focus before the dialog opened.
     previouslyFocusedRef.current = document.activeElement
 
-    // Focus the first focusable element inside the dialog (or the container itself).
+    // Focus the first input/textarea or first focusable element inside the dialog.
     if (focusFirstOnOpen) {
-      const focusable = container.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      )
-      const first = focusable[0]
-      if (first) {
-        first.focus()
+      const focusable = Array.from(
+        container.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null)
+
+      // Prefer focusing the first input/textarea over a close button
+      const target = focusable.find(el => el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') || focusable[0]
+      if (target) {
+        target.focus()
       } else {
         container.setAttribute('tabindex', '-1')
         container.focus()
@@ -49,7 +54,7 @@ export default function useDialogFocus(open, onClose, { focusFirstOnOpen = true 
       // Escape closes the dialog.
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onClose?.()
+        onCloseRef.current?.()
         return
       }
 
@@ -93,8 +98,7 @@ export default function useDialogFocus(open, onClose, { focusFirstOnOpen = true 
         previouslyFocused.focus()
       }
     }
-  }, [open, onClose, focusFirstOnOpen])
+  }, [open, focusFirstOnOpen])
 
   return containerRef
 }
-

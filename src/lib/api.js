@@ -99,6 +99,7 @@ notifications: ({ page, limit } = {}) => {
     return request(`/api/notifications${queryStr ? `?${queryStr}` : ''}`)
   },
   readNotifications: () => request('/api/notifications/read', { method: 'POST', body: '{}' }),
+  emailOutbox: () => request('/api/notifications/outbox'),
   certificateTemplates: () => request('/api/certificates/templates'),
   createCertificateTemplate: (data) => request('/api/certificates/templates', { method: 'POST', body: JSON.stringify(data) }),
   updateCertificateTemplate: (id, data) => request(`/api/certificates/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -145,7 +146,13 @@ regenerateCertificate: (id) => request(`/api/certificates/${id}/regenerate`, { m
   createLearningResource: (data) => request('/api/learning', { method: 'POST', body: JSON.stringify(data) }),
   updateLearningResource: (id, data) => request(`/api/learning/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   archiveLearningResource: (id) => request(`/api/learning/${id}`, { method: 'DELETE' }),
-  learningCompetencies: () => request('/api/learning/competencies'),
+learningCompetencies: () => request('/api/learning/competencies'),
+  learningSkillGaps: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.employeeId) qs.set('employeeId', params.employeeId)
+    const queryStr = qs.toString()
+    return request(`/api/learning/skill-gaps${queryStr ? `?${queryStr}` : ''}`)
+  },
   assignLearning: (data) => request('/api/learning/assign', { method: 'POST', body: JSON.stringify(data) }),
   learningAssignments: () => request('/api/learning/assignments'),
   // Self-reported progress + status: employee drives their own study progress
@@ -157,4 +164,17 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
 // Workflow due dates & overdue
   setWorkflowDueDate: (id, dueDate) => request(`/api/workflows/${id}/due-date`, { method: 'POST', body: JSON.stringify({ dueDate }) }),
   overdueWorkflows: (days = 3) => request(`/api/workflows/overdue?days=${days}`),
+  // Database-grounded AI Chat Assistant
+  chatAssistant: (data) => request('/api/chat', { method: 'POST', body: JSON.stringify(data) }),
+  // CSV exports (client-side from fetched data — no extra endpoint needed)
+  exportEmployeesCsv: async () => {
+    const result = await request('/api/employees/all')
+    return result.employees || []
+  },
+  exportAuditLogsCsv: async (params = {}) => {
+    const qs = new URLSearchParams({ ...params, limit: 1000 }).toString()
+    const result = await request(`/api/audit-logs${qs ? '?' + qs : ''}`)
+    return result.logs || []
+  },
 }
+

@@ -171,6 +171,7 @@
 .pill.complete { background: #eaf7ef; color: #41966b; }
 .pill.verified { background: #efecff; color: #654bd2; }
 .pill.fail { background: #fff0ee; color: #b23a2f; }
+.pill.gap-sourced { background: #fff3e0; color: #b06948; }
 
 /* Self-reported study status pills */
 .pill.status { font-weight: 700; }
@@ -178,6 +179,29 @@
 .pill.status.studying { background: #e9f0ff; color: #3b6fd4; }
 .pill.status.completed { background: #eaf7ef; color: #41966b; }
 .pill.status.need-help { background: #fff0ee; color: #b23a2f; }
+
+/* Gap lifecycle stepper */
+.lifecycle-step {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #f1f0f3;
+  color: #6c6972;
+  margin-right: 4px;
+  display: inline-block;
+  transition: background .18s ease, color .18s ease;
+}
+.lifecycle-step.done {
+  background: #eaf7ef;
+  color: #41966b;
+}
+.lifecycle-step.current {
+  border: 1px solid #654bd2;
+  background: #f5f1ff;
+  color: #654bd2;
+}
+
 
 /* Employee self-report controls */
 .assignment-actions { display: flex; flex-direction: column; gap: 8px; min-width: 190px; }

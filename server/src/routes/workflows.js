@@ -80,15 +80,45 @@ router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, r
       gapScore: input.gapScore || 0,
       assignedBy: req.user.sub,
     }
-    const { rows } = await query(
-      'INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, metadata) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      ['learning', title, input.subjectEmployeeId, initialStage[0], req.user.sub, metadata]
-    )
-    await query(
-      'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details) VALUES ($1,$2,$3,$4,$5,$6)',
-      [rows[0].id, initialStage[0], 'created', req.user.sub, `Assigned to resolve skill gap in ${input.competencyName || 'Competency'}`, metadata]
-    )
-    res.status(201).json({ workflow: rows[0], assigned: true })
+    const result = await transaction(async client => {
+      const employee = await client.query('SELECT id, full_name FROM employees WHERE id=$1 AND is_active=true', [input.subjectEmployeeId])
+      if (!employee.rows[0]) throw Object.assign(new Error('Employee not found or inactive.'), { status: 404 })
+
+      // Reuse an existing library resource with the matching title, or create a
+      // real learning_resource so the Learning module genuinely tracks it.
+      let resource = (await client.query('SELECT * FROM learning_resources WHERE title=$1 AND is_active=true LIMIT 1', [input.courseTitle])).rows[0]
+      if (!resource) {
+        const inserted = await client.query(
+          `INSERT INTO learning_resources (title, description, category, provider, provider_type, duration_hours, objectives, url, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+          [input.courseTitle, `Assigned to resolve the skill gap in ${input.competencyName || 'Competency'}.`, 'Skill Development', 'Company Training', 'internal', 4, '', '', req.user.sub],
+        )
+        resource = inserted.rows[0]
+        if (input.competencyName) {
+          await client.query('INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2) ON CONFLICT DO NOTHING', [resource.id, input.competencyName])
+        }
+      }
+
+      // Create/link a real learning_assignment for the employee so the Learning
+      // module shows the course and can track progress + verified completion.
+      await client.query(
+        `INSERT INTO learning_assignments (resource_id, employee_id, assigned_by, status, progress)
+         VALUES ($1,$2,$3,'not_started',0)
+         ON CONFLICT (resource_id, employee_id) DO UPDATE SET assigned_by=EXCLUDED.assigned_by, status='not_started', progress=0`,
+        [resource.id, employee.rows[0].id, req.user.sub],
+      )
+
+      const { rows } = await client.query(
+        'INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, metadata) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+        ['learning', title, input.subjectEmployeeId, initialStage[0], req.user.sub, metadata]
+      )
+      await client.query(
+        'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details) VALUES ($1,$2,$3,$4,$5,$6)',
+        [rows[0].id, initialStage[0], 'created', req.user.sub, `Assigned to resolve skill gap in ${input.competencyName || 'Competency'}`, metadata]
+      )
+      return { workflow: rows[0], resource }
+    })
+    res.status(201).json({ workflow: result.workflow, resource: result.resource, assigned: true })
   } catch (error) { next(error) }
 })
 
@@ -200,13 +230,31 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
       if (!destination) {
         await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])
-        // Score write-back: when a performance/competency/learning workflow completes, update the employee's scores
+// Score write-back: when a performance/competency/learning workflow completes, update the employee's scores
         if (workflow.subject_employee_id) {
           if (workflow.module === 'learning' && (workflow.metadata?.assignedFromCompetencyGap || input.data?.formData?.assignedFromCompetencyGap)) {
             await client.query(
               'UPDATE employees SET competency_score = LEAST(100, competency_score + 10), learning_progress = 100, updated_at = NOW() WHERE id = $1',
               [workflow.subject_employee_id]
             )
+            // Competency improvement: raise the SPECIFIC competency that had the
+            // gap (stored on the workflow metadata when the gap was assigned).
+            const gapCompetency = workflow.metadata?.competencyName || input.data?.formData?.competencyName
+            if (gapCompetency) {
+              await client.query(
+                `INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
+                 VALUES ($1,$2,
+                   LEAST(100, COALESCE((SELECT score FROM competency_assessments WHERE employee_id=$1 AND competency=$2), 60) + 10),
+                   COALESCE((SELECT required_score FROM competency_assessments WHERE employee_id=$1 AND competency=$2), 80),
+                   'learning_completion')
+                 ON CONFLICT (employee_id, competency)
+                 DO UPDATE SET score = LEAST(100, competency_assessments.score + 10),
+                               source = 'learning_completion',
+                               assessed_at = NOW(),
+                               updated_at = NOW()`,
+                [workflow.subject_employee_id, gapCompetency]
+              )
+            }
           } else if (input.scores) {
             const scoreUpdates = []
             if (input.scores.performanceScore !== undefined) scoreUpdates.push('performance_score = $1')

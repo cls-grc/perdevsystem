@@ -205,7 +205,7 @@ export default function LearningManagement() {
     </section>
 
     <nav className="learning-tabs" aria-label="Learning views">
-      {[['library', 'Course Library'], ['assign', 'Assign Courses'], ['progress', 'My Progress'], ['completions', 'Verified Completions'], ['ai', 'AI Insights']].map(([key, label]) => (
+      {[['library', 'Course Library'], ['assign', 'Assign Courses'], ['progress', 'My Progress'], ['gaps', '🎯 Skill Gap Assignments'], ['completions', 'Verified Completions'], ['ai', 'AI Insights']].map(([key, label]) => (
         <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>
       ))}
     </nav>
@@ -290,11 +290,12 @@ export default function LearningManagement() {
         {!employee && <div className="completion-note"><b>Live status badges</b><p>Each assignment shows the employee's self-reported study status (Not started / Studying / Completed / Need help) and their progress. "Need help" is highlighted so you can follow up quickly.</p></div>}
         <div className="assignment-list">
           {assignments.map(a => <article className="assignment-row" key={a.id}>
-            <div className="assignment-info">
+<div className="assignment-info">
               <b>{a.resource_title}</b>
               <small>{employee ? a.category : `${a.employee_name} · ${a.department}`}{a.due_date ? ` · due ${new Date(a.due_date).toLocaleDateString()}` : ''}</small>
               <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
               {a.is_completed && <span className="pill verified">✓ Verified</span>}
+              {a.fromCompetencyGap && <span className="pill gap-sourced" title="Assigned from a detected competency gap">🎯 From competency gap</span>}
             </div>
             <div className="assignment-progress">
               <div className="bar"><em style={{ width: `${a.progress || 0}%` }} /></div>
@@ -327,6 +328,63 @@ export default function LearningManagement() {
       </section>
     )}
 
+    {tab === 'gaps' && (() => {
+      // Gap-sourced assignments: those whose course carries at least one competency tag.
+      const gapAssignments = assignments.filter(a => (a.competencies || []).length > 0)
+      const gapVerified = completions.filter(c =>
+        gapAssignments.some(a => a.resource_id === c.resource_id && a.employee_id === c.employee_id)
+      ).length
+      const gapActive = gapAssignments.filter(a => !a.is_completed).length
+      return (
+        <section className="learning-section">
+          <div className="completion-note">
+            <b>Skill Gap Assignments</b>
+            <p>These courses were assigned directly from detected competency skill gaps. Verifying completion here triggers a +10 pt improvement on the linked competency score.</p>
+          </div>
+
+          {/* Gap summary strip */}
+          <section className="module-metrics" style={{ marginBottom: 16 }}>
+            {[
+              ['Gap assignments', gapAssignments.length],
+              ['In progress / not started', gapActive],
+              ['Verified completions', gapVerified],
+            ].map(([label, val], i) => (
+              <article key={label}><span>{i + 1}</span><div><small>{label}</small><b>{val}</b><em>Live value</em></div></article>
+            ))}
+          </section>
+
+          <div className="assignment-list">
+            {gapAssignments.map(a => (
+              <article className="assignment-row" key={a.id}>
+                <div className="assignment-info">
+                  <b>{a.resource_title}</b>
+                  <small>{employee ? '' : `${a.employee_name} · ${a.department} · `}{a.category}{a.due_date ? ` · due ${new Date(a.due_date).toLocaleDateString()}` : ''}</small>
+                  {/* Competency tags — shows which gap this closes */}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                    {(a.competencies || []).map(c => (
+                      <span key={c} className="pill gap-sourced" title={`Closes gap in ${c}`}>🎯 {c}</span>
+                    ))}
+                  </div>
+                  <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
+                  {a.is_completed && <span className="pill verified">✓ Verified — competency improved</span>}
+                </div>
+                <div className="assignment-progress">
+                  <div className="bar"><em style={{ width: `${a.progress || 0}%` }} /></div>
+                  <span>{a.progress || 0}%</span>
+                </div>
+                {!a.is_completed && canAssign && (
+                  <button className="module-secondary small" onClick={() => setCompleteTarget(a)}>Verify completion</button>
+                )}
+              </article>
+            ))}
+            {!gapAssignments.length && (
+              <div className="learning-empty">No skill-gap assignments yet. Assign a course from a detected gap in <b>Competency Management → Skill Gaps &amp; Learning</b>.</div>
+            )}
+          </div>
+        </section>
+      )
+    })()}
+
     {tab === 'completions' && (
       <section className="learning-section">
         <div className="completion-note">
@@ -344,6 +402,7 @@ export default function LearningManagement() {
         </div>
       </section>
     )}
+
 
     {tab === 'ai' && (
       <section className="learning-section">

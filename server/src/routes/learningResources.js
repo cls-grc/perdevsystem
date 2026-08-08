@@ -62,9 +62,69 @@ router.get('/competencies', async (_req, res, next) => {
     const { rows } = await query(
       `SELECT DISTINCT competency FROM learning_resource_competencies ORDER BY competency`,
     )
-    const base = ['Customer Service', 'Leadership', 'Communication', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Conflict Resolution', 'Technical Skills', 'Reservation Management', 'Upselling', 'Operational Management', 'Financial Acumen', 'Teamwork']
+const base = ['Customer Service', 'Leadership', 'Communication', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Conflict Resolution', 'Technical Skills', 'Reservation Management', 'Upselling', 'Operational Management', 'Financial Acumen', 'Teamwork']
     const tags = [...new Set([...base, ...rows.map(r => r.competency)])].sort()
     res.json({ competencies: tags })
+  } catch (error) { next(error) }
+})
+
+// Skill-gap detection — real per-competency data from competency_assessments.
+// Returns each gap (current score < required score) with the employee's
+// aggregate competency score and any learning resources that already carry the
+// matching competency tag. Accessible to HR, supervisors and the employee
+// themselves (their own gaps only).
+router.get('/skill-gaps', async (req, res, next) => {
+  try {
+    const { employeeId } = req.query
+    let where = 'WHERE 1=1'
+    const params = []
+    // Employees may only view their own gaps.
+    if (req.user.role === 'employee') {
+      params.push(req.user.employeeId)
+      where += ` AND ca.employee_id = $${params.length}`
+    } else if (employeeId) {
+      params.push(employeeId)
+      where += ` AND ca.employee_id = $${params.length}`
+    }
+    const { rows } = await query(
+      `SELECT ca.employee_id, ca.competency, ca.score, ca.required_score,
+              (ca.required_score - ca.score)::int AS gap,
+              e.full_name AS employee_name, e.job_title, e.department,
+              e.competency_score AS aggregate_competency_score
+       FROM competency_assessments ca
+       JOIN employees e ON e.id = ca.employee_id
+       ${where}
+       ORDER BY (ca.required_score - ca.score) DESC`,
+      params,
+    )
+    const gaps = rows
+      .filter(r => Number(r.score) < Number(r.required_score))
+      .map(r => ({ ...r, score: Number(r.score), required_score: Number(r.required_score), gap: Number(r.gap) }))
+
+    // Attach matching library courses per gap competency (already-existing
+    // resources tagged with that competency).
+    const comps = [...new Set(gaps.map(g => g.competency))]
+    const courseResult = comps.length
+      ? await query(
+          `SELECT r.id, r.title, r.category, r.provider, r.duration_hours, r.description,
+                  COALESCE((SELECT array_agg(lrc.competency ORDER BY lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies
+           FROM learning_resources r
+           WHERE r.is_active = true
+             AND r.id IN (SELECT resource_id FROM learning_resource_competencies WHERE competency = ANY($1::text[]))
+           ORDER BY r.title`,
+          [comps],
+        )
+      : { rows: [] }
+    const byCompetency = {}
+    for (const course of courseResult.rows) {
+      for (const comp of course.competencies || []) {
+        byCompetency[comp] = byCompetency[comp] || []
+        byCompetency[comp].push(course)
+      }
+    }
+    for (const gap of gaps) gap.courses = byCompetency[gap.competency] || []
+
+    res.json({ gaps, employeeId: req.user.employeeId })
   } catch (error) { next(error) }
 })
 
@@ -180,10 +240,11 @@ router.get('/assignments', async (req, res, next) => {
       params.push(req.user.employeeId)
       where += ` AND la.employee_id = $${params.length}`
     }
-    const { rows } = await query(
+const { rows } = await query(
       `SELECT la.*, r.title AS resource_title, r.category, r.provider, r.provider_type, r.duration_hours,
         e.full_name AS employee_name, e.department,
-        (lc.id IS NOT NULL) AS is_completed, lc.completed_at, lc.assessment_result
+        (lc.id IS NOT NULL) AS is_completed, lc.completed_at, lc.assessment_result,
+        COALESCE((SELECT array_agg(lrc.competency ORDER BY lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies
        FROM learning_assignments la
        JOIN learning_resources r ON r.id = la.resource_id
        JOIN employees e ON e.id = la.employee_id
@@ -192,7 +253,9 @@ router.get('/assignments', async (req, res, next) => {
        ORDER BY la.assigned_at DESC`,
       params,
     )
-    res.json({ assignments: rows })
+    // Tag assignments that were created from a competency gap (their resource
+    // carries a competency tag, meaning it was linked via the gap workflow).
+    res.json({ assignments: rows.map(a => ({ ...a, fromCompetencyGap: (a.competencies || []).length > 0 })) })
   } catch (error) { next(error) }
 })
 

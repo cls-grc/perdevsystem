@@ -1,9 +1,12 @@
 import { Router } from 'express'
-import { query } from '../db.js'
-import { authenticate } from '../middleware.js'
+import { authenticate, authorize } from '../middleware.js'
+import { getOutboxQueue } from '../services/email.js'
 
 const router = Router()
 router.use(authenticate)
+
+// GET /api/notifications — user's workflow notifications
+import { query } from '../db.js'
 
 router.get('/', async (req, res, next) => {
   try {
@@ -24,4 +27,11 @@ router.post('/read', async (req, res, next) => {
     res.json({ saved: true })
   } catch (error) { next(error) }
 })
+
+// GET /api/notifications/outbox — Live email outbox inspector (HR & management only)
+router.get('/outbox', authorize('hr', 'management'), (req, res) => {
+  const queue = getOutboxQueue()
+  res.json({ emails: queue, total: queue.length })
+})
+
 export default router

@@ -9,8 +9,19 @@ import { authenticate, authorize } from '../middleware.js'
 import { sendEmail } from '../services/email.js'
 
 const router = Router()
-const credentials = z.object({ email: z.string().email(), password: z.string().min(8).max(128) })
-const registerSchema = z.object({ token: z.string().uuid(), password: z.string().min(8).max(128) })
+
+// Password strength validation rule (min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_\-+={}\[\]:;<>,.?/~`]).{8,128}$/
+const strongPassword = z.string()
+  .min(8, 'Password must be at least 8 characters long.')
+  .max(128)
+  .refine(
+    val => passwordRegex.test(val),
+    'Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.'
+  )
+
+const credentials = z.object({ email: z.string().email(), password: z.string().min(1).max(128) })
+const registerSchema = z.object({ token: z.string().uuid(), password: strongPassword })
 const inviteSchema = z.object({
   email: z.string().email(),
   role: z.enum(['employee', 'supervisor', 'management', 'hr', 'operations_manager']).default('employee'),
@@ -18,17 +29,17 @@ const inviteSchema = z.object({
   departmentId: z.string().uuid().nullable().optional(),
   employeeId: z.string().uuid().nullable().optional(),
 })
-const refreshSchema = z.object({ refreshToken: z.string().min(1) })
+const refreshSchema = z.object({ refreshToken: z.string().min(1).optional() })
 const forgotSchema = z.object({ email: z.string().email() })
-const resetSchema = z.object({ token: z.string().min(1), password: z.string().min(8).max(128) })
+const resetSchema = z.object({ token: z.string().min(1), password: strongPassword })
 
-// Rate limiting: max 5 login attempts per IP per minute
+// Security Rate Limiting: max 5 login attempts per IP per 2 minutes (perfect for presentation testing)
 const loginLimiter = rateLimit({
-  windowMs: 60 * 1000,
+  windowMs: 2 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many login attempts. Please try again in a minute.' },
+  message: { error: 'Security Rate Limit: Too many failed login attempts (5 limit reached). Please wait 2 minutes before trying again.' },
 })
 
 // Helper: generate access token (15min) + refresh token (7d)
@@ -46,13 +57,12 @@ async function generateTokens(user, req) {
       [user.id, refreshToken, req.headers['user-agent'] || null, req.ip || null, expiresAt]
     )
   } catch {
-    // If sessions table doesn't exist yet (migration not run), fall back gracefully
     console.warn('[PDS] Could not persist refresh token — sessions table may not exist yet. Run `npm run migrate`.')
   }
   return { accessToken, refreshToken }
 }
 
-// POST /api/auth/login — rate-limited, returns access + refresh tokens
+// POST /api/auth/login — rate-limited (5 attempts / 2 mins), returns tokens
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentials.parse(req.body)
@@ -60,7 +70,16 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     const user = rows[0]
     if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid email or password.' })
     const tokens = await generateTokens(user, req)
-res.json({
+    
+    // Set secure HttpOnly cookie for production browsers while retaining body token for API clients
+    res.cookie('pds_refresh_token', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 86400000,
+    })
+
+    res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id },
@@ -71,7 +90,10 @@ res.json({
 // POST /api/auth/refresh — exchange refresh token for new access token
 router.post('/refresh', async (req, res, next) => {
   try {
-    const { refreshToken } = refreshSchema.parse(req.body)
+    const body = refreshSchema.parse(req.body || {})
+    const refreshToken = body.refreshToken || req.cookies?.pds_refresh_token
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token is required.' })
+
     const result = await transaction(async (client) => {
       const { rows } = await client.query(
         'SELECT s.*, u.email, u.role, u.full_name, u.employee_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.refresh_token = $1 AND s.is_revoked = false AND s.expires_at > NOW()',
@@ -95,10 +117,16 @@ router.post('/refresh', async (req, res, next) => {
       )
       return { accessToken: newAccessToken, refreshToken: newRefreshToken }
     })
+
+    res.cookie('pds_refresh_token', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 86400000,
+    })
+
     res.json({ token: result.accessToken, refreshToken: result.refreshToken })
   } catch (error) {
-    // If the sessions table doesn't exist, the table query itself will throw.
-    // Detect that case and return a clear message.
     if (error?.code === '42P01' || error?.message?.includes('relation "sessions" does not exist')) {
       return res.status(503).json({ error: 'Session management is not available. Please run the database migration (009_auth_session.sql).' })
     }
@@ -106,17 +134,19 @@ router.post('/refresh', async (req, res, next) => {
   }
 })
 
-// POST /api/auth/logout — revoke refresh token
+// POST /api/auth/logout — revoke refresh token & clear cookies
 router.post('/logout', async (req, res, next) => {
   try {
-    const { refreshToken } = refreshSchema.parse(req.body || { refreshToken: '' })
+    const body = refreshSchema.parse(req.body || {})
+    const refreshToken = body.refreshToken || req.cookies?.pds_refresh_token
     if (refreshToken) {
       try {
         await query('UPDATE sessions SET is_revoked = true WHERE refresh_token = $1', [refreshToken])
       } catch {
-        // sessions table may not exist yet — that's fine, logout is best-effort
+        // best effort
       }
     }
+    res.clearCookie('pds_refresh_token')
     res.json({ saved: true })
   } catch (error) { next(error) }
 })
@@ -138,12 +168,11 @@ router.post('/forgot-password', async (req, res, next) => {
         text: `You requested a password reset. Open this link to set a new password (valid for 1 hour):\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
       })
     }
-    // Always return success to avoid user enumeration
     res.json({ message: 'If that email is registered, a password reset link has been sent.' })
   } catch (error) { next(error) }
 })
 
-// POST /api/auth/reset-password — complete password reset
+// POST /api/auth/reset-password — complete password reset (strong password enforced)
 router.post('/reset-password', async (req, res, next) => {
   try {
     const input = resetSchema.parse(req.body)
@@ -189,7 +218,7 @@ router.post('/invite', authenticate, authorize('hr'), async (req, res, next) => 
   } catch (error) { next(error) }
 })
 
-// POST /api/auth/register — complete signup using an invitation token
+// POST /api/auth/register — complete signup using an invitation token (strong password enforced)
 router.post('/register', async (req, res, next) => {
   try {
     const input = registerSchema.parse(req.body)
@@ -219,9 +248,9 @@ router.post('/register', async (req, res, next) => {
           [user.id, refreshToken, req.headers['user-agent'] || null, req.ip || null, expiresAt]
         )
       } catch {
-        console.warn('[PDS] Could not persist refresh token during registration — sessions table may not exist yet.')
+        console.warn('[PDS] Could not persist refresh token during registration.')
       }
-return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id } }
+      return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id } }
     })
     res.status(201).json(result)
   } catch (error) { next(error) }

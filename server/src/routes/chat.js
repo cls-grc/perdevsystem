@@ -1,0 +1,340 @@
+import { Router } from 'express'
+import { z } from 'zod'
+import { query } from '../db.js'
+import { authenticate } from '../middleware.js'
+import { config } from '../config.js'
+
+const router = Router()
+router.use(authenticate)
+
+const chatSchema = z.object({
+  message: z.string().min(1).max(1000),
+  history: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+  })).optional().default([]),
+})
+
+/**
+ * AI CHAT DATA PIPELINE & RBAC ENGINE
+ * 
+ * Pipeline:
+ * User Question -> Authentication -> RBAC Check -> Determine Scope -> 
+ * Retrieve Database Data -> Send Structured Data to AI -> Grounded Answer
+ */
+router.post('/', async (req, res, next) => {
+  try {
+    const { message, history } = chatSchema.parse(req.body || {})
+    const { id: userId, role, employeeId } = req.user
+    const textLower = message.toLowerCase()
+
+    // -------------------------------------------------------------------------
+    // STEP 1 & 2: RBAC CHECK & SCOPE DETERMINATION
+    // -------------------------------------------------------------------------
+    let userDepartment = null
+    let employeeProfile = null
+
+    if (employeeId) {
+      try {
+        const empRes = await query(
+          'SELECT id, full_name, job_title, department, performance_score, competency_score, learning_progress FROM employees WHERE id=$1',
+          [employeeId]
+        )
+        employeeProfile = empRes.rows[0] || null
+        userDepartment = employeeProfile?.department || null
+      } catch (err) {
+        console.warn('[chat-route] Could not load user employee profile:', err.message)
+      }
+    }
+
+    // Explicit Employee RBAC Guard:
+    // If role is employee and they ask about coworkers or other departments, block immediately.
+    const isCoworkerQuery = (
+      textLower.includes('coworker') ||
+      textLower.includes('colleague') ||
+      textLower.includes('other employee') ||
+      textLower.includes('highest performance') ||
+      textLower.includes('top employee') ||
+      textLower.includes('who had') ||
+      textLower.includes('everyone') ||
+      textLower.includes('organization') ||
+      textLower.includes('department average')
+    )
+
+    if (role === 'employee' && isCoworkerQuery) {
+      return res.json({
+        answer: 'Authorization notice: As an employee, you are authorized to access only your own personal performance, competency, and learning records. Organizational and peer data is restricted to HR and management.',
+        dataContextSummary: 'Access Blocked — Scope Violation',
+        grounded: true,
+      })
+    }
+
+    // Manager / Supervisor RBAC Scope check:
+    const isSupervisorOrOpManager = role === 'supervisor' || role === 'operations_manager'
+    if (isSupervisorOrOpManager && !userDepartment) {
+      return res.status(403).json({ error: 'Your account requires an assigned department to use the AI assistant.' })
+    }
+
+    // -------------------------------------------------------------------------
+    // STEP 3: DATABASE DATA RETRIEVAL (EXACT TABLE COLUMN SCHEMA)
+    // -------------------------------------------------------------------------
+    let employeeWhere = ''
+    let queryParams = []
+
+    if (role === 'employee') {
+      employeeWhere = ' WHERE e.id = $1 '
+      queryParams = [employeeId]
+    } else if (isSupervisorOrOpManager) {
+      employeeWhere = ' WHERE e.department = $1 '
+      queryParams = [userDepartment]
+    } else {
+      // HR or Management — organization-wide
+      employeeWhere = ' WHERE e.is_active = true '
+      queryParams = []
+    }
+
+    const subWhereClause = role === 'employee' ? ' WHERE e.id = $1 ' : isSupervisorOrOpManager ? ' WHERE e.department = $1 ' : ''
+    const subQueryParams = role === 'employee' ? [employeeId] : isSupervisorOrOpManager ? [userDepartment] : []
+
+    // Safely query all database tables matching exact migrations schema
+    const [{ rows: employees }, { rows: gaps }, { rows: assignments }, { rows: resources }, { rows: succession }] = await Promise.all([
+      query(`
+        SELECT e.id, e.full_name, e.job_title, e.department, e.performance_score, e.competency_score, e.learning_progress 
+        FROM employees e
+        ${employeeWhere}
+        ORDER BY e.performance_score DESC
+      `, queryParams).catch(() => ({ rows: [] })),
+      
+      query(`
+        SELECT ca.competency, ca.score, ca.required_score, (ca.required_score - ca.score) AS gap,
+               e.full_name, e.department
+        FROM competency_assessments ca
+        JOIN employees e ON ca.employee_id = e.id
+        ${subWhereClause}
+        ORDER BY gap DESC
+      `, subQueryParams).catch(() => ({ rows: [] })),
+
+      query(`
+        SELECT lr.title AS resource_title, la.status, la.progress, (la.status = 'completed' OR la.progress >= 100) AS is_completed, la.due_date,
+               e.full_name, e.department
+        FROM learning_assignments la
+        JOIN learning_resources lr ON la.resource_id = lr.id
+        JOIN employees e ON la.employee_id = e.id
+        ${subWhereClause}
+        ORDER BY la.assigned_at DESC
+      `, subQueryParams).catch(() => ({ rows: [] })),
+
+      query(`
+        SELECT id, title, category, duration_hours, provider
+        FROM learning_resources
+        WHERE is_active = true
+        ORDER BY title ASC
+      `).catch(() => ({ rows: [] })),
+
+      query(`
+        SELECT sp.readiness_band, sp.readiness_score, e.full_name, e.department, e.job_title
+        FROM succession_profiles sp
+        JOIN employees e ON sp.employee_id = e.id
+        ${subWhereClause}
+        ORDER BY sp.readiness_score DESC
+      `, subQueryParams).catch(() => ({ rows: [] })),
+    ])
+
+    // Calculate aggregated metrics for grounded context
+    const avgPerf = employees.length ? Math.round(employees.reduce((acc, e) => acc + (Number(e.performance_score) || 0), 0) / employees.length) : 0
+    const avgComp = employees.length ? Math.round(employees.reduce((acc, e) => acc + (Number(e.competency_score) || 0), 0) / employees.length) : 0
+    const avgLearn = employees.length ? Math.round(employees.reduce((acc, e) => acc + (Number(e.learning_progress) || 0), 0) / employees.length) : 0
+    const readyNowCount = succession.filter(s => s.readiness_band === 'ready_now').length
+
+    const dataContext = {
+      userRole: role,
+      userScope: role === 'employee' ? 'self_only' : isSupervisorOrOpManager ? `department_${userDepartment}` : 'organization_wide',
+      currentUser: employeeProfile ? employeeProfile.full_name : 'System User',
+      metrics: {
+        totalEmployees: employees.length,
+        averagePerformance: avgPerf,
+        averageCompetency: avgComp,
+        averageLearningProgress: avgLearn,
+        successionReadyNowCount: readyNowCount,
+        totalLearningResources: resources.length,
+      },
+      employees: employees.map(e => ({
+        name: e.full_name,
+        role: e.job_title,
+        department: e.department,
+        performanceScore: `${e.performance_score}%`,
+        competencyScore: `${e.competency_score}%`,
+        learningProgress: `${e.learning_progress}%`,
+      })),
+      topCompetencyGaps: gaps.slice(0, 10).map(g => ({
+        employee: g.full_name,
+        competency: g.competency,
+        currentScore: `${g.score}%`,
+        targetScore: `${g.required_score}%`,
+        gap: `${g.gap}%`,
+        department: g.department,
+      })),
+      incompleteLearningActivities: assignments.filter(a => !a.is_completed).map(a => ({
+        employee: a.full_name,
+        course: a.resource_title,
+        progress: `${a.progress}%`,
+        status: a.status,
+        department: a.department,
+      })),
+      learningResourcesLibrary: resources.map(r => ({
+        title: r.title,
+        category: r.category,
+        durationHours: r.duration_hours,
+        provider: r.provider || 'Internal',
+      })),
+      successionPipeline: succession.map(s => ({
+        employee: s.full_name,
+        jobTitle: s.job_title,
+        department: s.department,
+        readinessBand: s.readiness_band,
+        readinessScore: `${s.readiness_score}%`,
+      })),
+    }
+
+    // Filter conversation history to avoid duplicating current user message
+    const filteredHistory = history
+      .filter(h => !(h.role === 'user' && h.content === message))
+      .slice(-4)
+
+    // -------------------------------------------------------------------------
+    // STEP 4: AI GENERATION WITH STRICT GROUNDING IN DATABASE DATA
+    // -------------------------------------------------------------------------
+    let answerText = ''
+
+    if (config.openRouterApiKey) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.openRouterApiKey}`,
+            'HTTP-Referer': config.clientOrigin,
+            'X-Title': 'PerDevSys AI Assistant',
+          },
+          body: JSON.stringify({
+            model: config.openRouterModel,
+            messages: [
+              {
+                role: 'system',
+                content: `You are the database-grounded AI Assistant for PerDevSys (Performance & Capability Development System).
+STRICT GROUNDING RULES:
+1. You MUST ONLY answer using the authorized database records provided in the context below.
+2. NEVER fabricate employee names, performance scores, courses, gaps, or succession bands.
+3. If data is not present in the provided JSON context, explicitly state: "Based on available system records, that information is not recorded in the database."
+4. Always respect the user's scope (${dataContext.userScope}).
+5. Distinguish between current scores and target scores when explaining competency gaps.
+6. Provide direct, helpful, professional responses formatted cleanly with Markdown.
+7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).`
+              },
+              {
+                role: 'system',
+                content: `AUTHORIZED DATABASE CONTEXT (JSON):\n${JSON.stringify(dataContext, null, 2)}`
+              },
+              ...filteredHistory,
+              { role: 'user', content: message }
+            ],
+            temperature: 0.2,
+            max_tokens: 600,
+          }),
+        })
+
+        if (response.ok) {
+          const payload = await response.json()
+          answerText = payload?.choices?.[0]?.message?.content || ''
+        } else {
+          console.warn('[chat-route] OpenRouter status:', response.status, await response.text().catch(() => ''))
+        }
+      } catch (llmErr) {
+        console.warn('[chat-route] OpenRouter API call failed, using deterministic grounding:', llmErr.message)
+      }
+    }
+
+    // Fallback Grounded Generator (when API key is absent, invalid, or offline)
+    if (!answerText) {
+      answerText = generateGroundedFallback(message, dataContext)
+    }
+
+    res.json({
+      answer: answerText,
+      dataContextSummary: `${dataContext.employees.length} employee record(s) in scope (${dataContext.userScope})`,
+      grounded: true,
+    })
+
+  } catch (error) {
+    console.error('[chat-route-error]', error)
+    next(error)
+  }
+})
+
+/**
+ * Deterministic Grounded Generator for offline / demo environments
+ */
+function generateGroundedFallback(prompt, ctx) {
+  const p = prompt.toLowerCase()
+  const empList = ctx.employees || []
+  const gaps = ctx.topCompetencyGaps || []
+  const learning = ctx.incompleteLearningActivities || []
+  const resources = ctx.learningResourcesLibrary || []
+  const succession = ctx.successionPipeline || []
+
+  // Highest performance
+  if (p.includes('highest performance') || p.includes('top performance') || p.includes('best score')) {
+    if (!empList.length) return 'Based on available records, no employee performance data is present in your scope.'
+    const top = empList[0]
+    return `Based on current database records, **${top.name}** (${top.role} · ${top.department}) has the highest recorded performance score at **${top.performanceScore}**.`
+  }
+
+  // Department largest gap / average
+  if (p.includes('largest competency gap') || p.includes('department gap') || p.includes('competency gap') || p.includes('priority')) {
+    if (!gaps.length) return 'Based on available records, no active competency gaps are currently detected across assessed employees.'
+    const topGap = gaps[0]
+    return `Based on available competency records, the largest skill gap is detected for **${topGap.employee}** (${topGap.department}) in **${topGap.competency}** with a gap of **${topGap.gap}** (Current: ${topGap.currentScore}, Target: ${topGap.targetScore}). Across all records, the average competency level is **${ctx.metrics.averageCompetency}%**.`
+  }
+
+  // Incomplete learning activities
+  if (p.includes('incomplete learning') || p.includes('learning activities') || p.includes('unfinished course') || p.includes('need to complete')) {
+    if (!learning.length) return 'Based on available learning records, there are currently no incomplete learning activities recorded for your authorized scope.'
+    const items = learning.slice(0, 5).map(l => `• **${l.employee}**: "${l.course}" (${l.progress} complete, Status: ${l.status})`).join('\n')
+    return `Based on available database records, the following incomplete learning activities were found:\n\n${items}`
+  }
+
+  // Ready Now succession
+  if (p.includes('ready now') || p.includes('succession ready') || p.includes('successor')) {
+    const readyNow = succession.filter(s => s.readinessBand === 'ready_now')
+    if (!readyNow.length) return 'Based on current succession records, there are no employees currently categorized in the **Ready Now** band.'
+    const items = readyNow.map(s => `• **${s.employee}** (${s.jobTitle} · ${s.department}) — Readiness Score: ${s.readinessScore}`).join('\n')
+    return `Based on current database records, there ${readyNow.length === 1 ? 'is 1 employee' : `are ${readyNow.length} employees`} in the **Ready Now** succession band:\n\n${items}`
+  }
+
+  // Learning resources
+  if (p.includes('learning resource') || p.includes('course') || p.includes('customer service')) {
+    const csResources = resources.filter(r => 
+      r.category.toLowerCase().includes('customer service') ||
+      r.title.toLowerCase().includes('customer service')
+    )
+    const count = csResources.length
+    if (p.includes('customer service')) {
+      if (count === 0) return 'There are currently 0 learning resources related to Customer Service in the available system records.'
+      const items = csResources.map(r => `• **${r.title}** (${r.durationHours || 2} hrs, Provider: ${r.provider})`).join('\n')
+      return `There are currently **${count}** learning resources related to Customer Service in the available system records:\n\n${items}`
+    }
+    return `The system currently contains **${resources.length}** learning resources in the database library.`
+  }
+
+  // Personal score query (for employee)
+  if (p.includes('my last performance') || p.includes('my performance') || p.includes('my score') || p.includes('my competency') || p.includes('my record')) {
+    if (!empList.length) return 'No employee record found for your account.'
+    const self = empList[0]
+    return `Based on your official system records:\n\n• **Employee**: ${self.name}\n• **Role**: ${self.role} (${self.department})\n• **Performance Score**: ${self.performanceScore}\n• **Competency Score**: ${self.competencyScore}\n• **Learning Progress**: ${self.learningProgress}`
+  }
+
+  // General grounded summary fallback
+  return `Based on current authorized database records (${ctx.userScope}):\n\n• **Monitored Employees**: ${ctx.metrics.totalEmployees}\n• **Average Performance**: ${ctx.metrics.averagePerformance}%\n• **Average Competency**: ${ctx.metrics.averageCompetency}%\n• **Learning Completion**: ${ctx.metrics.averageLearningProgress}%\n• **Succession Ready Now**: ${ctx.metrics.successionReadyNowCount} employee(s)\n\nYou can ask specific questions about top performance, skill gaps, learning activities, or succession readiness.`
+}
+
+export default router

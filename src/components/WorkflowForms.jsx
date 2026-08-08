@@ -689,24 +689,56 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
 // ------------------- Builder: Skill Gap & Learning Plan -------------------
 
 function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
-  const [selectedCompetency, setSelectedCompetency] = useState('Customer Service')
-  const [assignedCourseTitle, setAssignedCourseTitle] = useState('')
+  const [selectedCompetency, setSelectedCompetency] = useState('')
+  // Per-competency map of { [competencyName]: courseTitle } for assigned courses
+  // so the badge persists correctly when switching between gap cards.
+  const [assignedMap, setAssignedMap] = useState({})
   const [assigning, setAssigning] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [gaps, setGaps] = useState([])
+  const [loadingGaps, setLoadingGaps] = useState(false)
 
   const subjectEmp = subject || (people.length > 0 ? people[0] : null)
   const employeeId = subjectEmp?.id || subjectEmp?.employee_id
   const subjectName = subjectEmp?.full_name || 'Employee'
 
-  const sampleGaps = [
-    { competency: 'Customer Service', score: 65, required: 90, gap: 25 },
-    { competency: 'Food Safety', score: 60, required: 85, gap: 25 },
-    { competency: 'Leadership', score: 68, required: 80, gap: 12 },
-    { competency: 'Compliance', score: 70, required: 90, gap: 20 },
-  ]
+  // Load (or reload) REAL skill gaps from the database for the selected subject.
+  const loadGaps = async (cancelled = { current: false }) => {
+    if (!employeeId) return
+    setLoadingGaps(true)
+    setError('')
+    try {
+      const result = await api.learningSkillGaps({ employeeId })
+      if (cancelled.current) return
+      const list = result.gaps || []
+      setGaps(list)
+      // Default-select the first gap if none selected yet, or keep current
+      // selection if it's still present in the new list.
+      setSelectedCompetency(prev =>
+        list.some(g => g.competency === prev) ? prev : (list[0]?.competency || '')
+      )
+    } catch (err) {
+      if (!cancelled.current) setError(err.message || 'Could not load skill gaps.')
+    } finally {
+      if (!cancelled.current) setLoadingGaps(false)
+    }
+  }
 
-  const recommendedCourses = useMemo(() => getRecommendedCoursesForGap(selectedCompetency, 65), [selectedCompetency])
+  useEffect(() => {
+    const cancelled = { current: false }
+    void loadGaps(cancelled)
+    return () => { cancelled.current = true }
+  }, [employeeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recommended courses: prefer real library courses already tagged with the
+  // competency (attached by the server), then fall back to the curated
+  // competency→learning template map.
+  const recommendedCourses = useMemo(() => {
+    const gap = gaps.find(g => g.competency === selectedCompetency)
+    if (gap?.courses?.length) return gap.courses
+    return getRecommendedCoursesForGap(selectedCompetency, gap?.score || 0)
+  }, [gaps, selectedCompetency])
 
   const handleAssignCourse = async (course) => {
     if (!employeeId) {
@@ -720,22 +752,36 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
         subjectEmployeeId: employeeId,
         courseTitle: course.title,
         competencyName: selectedCompetency,
-        gapScore: 25,
+        gapScore: gaps.find(g => g.competency === selectedCompetency)?.gap || 0,
       })
-      setAssignedCourseTitle(course.title)
-      setNotice(`Learning path "${course.title}" has been successfully assigned to ${subjectName}!`)
+      // Persist the assignment badge per competency so it survives tab switches.
+      setAssignedMap(prev => ({ ...prev, [selectedCompetency]: course.title }))
+      setNotice(`Learning path "${course.title}" assigned to ${subjectName} to close the ${selectedCompetency} gap.`)
       onChange({
         ...value,
         planTitle: value.planTitle || `Dev Plan: ${selectedCompetency}`,
         assignedCourse: course.title,
-        prioritySkills: Array.isArray(value.prioritySkills) ? [...new Set([...value.prioritySkills, selectedCompetency])] : [selectedCompetency],
-        assignedFromCompetencyGap: true
+        prioritySkills: Array.isArray(value.prioritySkills)
+          ? [...new Set([...value.prioritySkills, selectedCompetency])]
+          : [selectedCompetency],
+        assignedFromCompetencyGap: true,
+        competencyName: selectedCompetency,
       })
+      // Reload gaps — the server may have created a new library resource which
+      // will now appear in the courses list for this competency.
+      await loadGaps()
     } catch (err) {
       setError(err.message || 'Could not assign course.')
     } finally {
       setAssigning(false)
     }
+  }
+
+  // Clear transient notices when the user switches to a different gap.
+  const handleSelectCompetency = (comp) => {
+    setSelectedCompetency(comp)
+    setNotice('')
+    setError('')
   }
 
   const set = patch => onChange({ ...value, ...patch })
@@ -749,61 +795,75 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
           <span className="section-hint">Click a skill gap to view recommended learning courses</span>
         </div>
 
-        <div className="gap-cards-grid">
-          {sampleGaps.map(g => (
-            <button
-              key={g.competency}
-              type="button"
-              className={`gap-card ${selectedCompetency === g.competency ? 'active' : ''}`}
-              onClick={() => setSelectedCompetency(g.competency)}
-            >
-              <div className="gap-card-head">
-                <span className="gap-competency">{g.competency}</span>
-                <span className="gap-pill">-{g.gap}% gap</span>
-              </div>
-              <div className="gap-score-bar">
-                <div className="score-fill" style={{ width: `${g.score}%` }} />
-              </div>
-              <div className="gap-card-foot">
-                <small>Current: {g.score}%</small>
-                <small>Target: {g.required}%</small>
-              </div>
-            </button>
-          ))}
-        </div>
+        {loadingGaps ? (
+          <p className="empty-hint">Loading skill gaps…</p>
+        ) : gaps.length === 0 ? (
+          <p className="empty-hint">No skill gaps detected for this employee. All competencies meet their required level.</p>
+        ) : (
+          <div className="gap-cards-grid">
+            {gaps.map(g => (
+              <button
+                key={g.competency}
+                type="button"
+                className={`gap-card ${selectedCompetency === g.competency ? 'active' : ''}${assignedMap[g.competency] ? ' assigned' : ''}`}
+                onClick={() => handleSelectCompetency(g.competency)}
+              >
+                <div className="gap-card-head">
+                  <span className="gap-competency">{g.competency}</span>
+                  {assignedMap[g.competency]
+                    ? <span className="gap-pill assigned-pill">✓ Course assigned</span>
+                    : <span className="gap-pill">-{g.gap}% gap</span>
+                  }
+                </div>
+                <div className="gap-score-bar">
+                  <div className="score-fill" style={{ width: `${g.score}%` }} />
+                </div>
+                <div className="gap-card-foot">
+                  <small>Current: {g.score}%</small>
+                  <small>Target: {g.required_score}%</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recommended Learning Courses */}
-      <div className="recommended-learning-section">
-        <h4>Recommended Courses for "{selectedCompetency}"</h4>
-        <p className="field-hint">Select a course to auto-create and assign a Learning Path workflow for {subjectName}:</p>
+      {selectedCompetency && (
+        <div className="recommended-learning-section">
+          <h4>Recommended Courses for "{selectedCompetency}"</h4>
+          <p className="field-hint">Select a course to auto-create and assign a Learning Path workflow for {subjectName}:</p>
 
-        {notice && <div className="assigned-success-notice">{notice}</div>}
-        {error && <p className="form-error">{error}</p>}
+          {notice && <div className="assigned-success-notice">{notice}</div>}
+          {error && <p className="form-error">{error}</p>}
 
-        <div className="recommended-courses-grid">
-          {recommendedCourses.map(course => (
-            <div className="recommended-course-card" key={course.title}>
-              <div className="course-card-head">
-                <span className="course-category-tag">{course.category}</span>
-                <span className="course-duration">⏱ {course.duration} hrs</span>
+          <div className="recommended-courses-grid">
+            {recommendedCourses.map(course => (
+              <div className="recommended-course-card" key={course.title}>
+                <div className="course-card-head">
+                  <span className="course-category-tag">{course.category}</span>
+                  <span className="course-duration">⏱ {course.duration_hours || course.duration || '-'} hrs</span>
+                </div>
+                <h5 className="course-title">{course.title}</h5>
+                <p className="course-desc">{course.description}</p>
+                {course.objectives && <small className="course-objectives"><b>Objectives:</b> {course.objectives}</small>}
+
+                <button
+                  type="button"
+                  className="assign-course-btn"
+                  disabled={assigning || assignedMap[selectedCompetency] === course.title}
+                  onClick={() => handleAssignCourse(course)}
+                >
+                  {assignedMap[selectedCompetency] === course.title
+                    ? '✓ Learning Path Assigned'
+                    : assigning ? 'Assigning…' : '⚡ Assign Learning Path'}
+                </button>
               </div>
-              <h5 className="course-title">{course.title}</h5>
-              <p className="course-desc">{course.description}</p>
-              {course.objectives && <small className="course-objectives"><b>Objectives:</b> {course.objectives}</small>}
-
-              <button
-                type="button"
-                className="assign-course-btn"
-                disabled={assigning || assignedCourseTitle === course.title}
-                onClick={() => handleAssignCourse(course)}
-              >
-                {assignedCourseTitle === course.title ? '✓ Learning Path Assigned' : assigning ? 'Assigning…' : '⚡ Assign Learning Path'}
-              </button>
-            </div>
-          ))}
+            ))}
+            {recommendedCourses.length === 0 && <p className="empty-hint">No recommended courses found for this competency.</p>}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Optional Plan Notes */}
       <div className="plan-notes-section">

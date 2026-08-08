@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
+import { printElementAsPdf, downloadCsv } from '../lib/exportUtils'
 
 const initials = name => name.split(' ').map(part => part[0]).join('').slice(0, 2)
 const percent = value => `${Number(value || 0)}%`
@@ -66,7 +67,7 @@ export default function AIAnalytics() {
   const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
 
   return <main className="ai-dashboard">
-<div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div>{isHr && <div className="ai-actions"><button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button></div>}</div>
+<div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div><div className="ai-actions">{isHr && <button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button>}{(report || insights) && <button onClick={() => printElementAsPdf('ai-report-content', 'PerDevSys Executive Report')} style={{ background: '#f0edff', color: '#5f48c5', border: '1px solid #d5cefc' }} title="Export report as PDF">⬇ PDF Export</button>}<button onClick={async () => { try { const rows = await api.exportEmployeesCsv(); const fmt = rows.map(e => ({'Employee Number': e.employee_number, 'Full Name': e.full_name, 'Department': e.department_name || e.department || '', 'Job Title': e.job_title || '', 'Performance Score': e.performance_score || 0, 'Learning Progress': e.learning_progress || 0, 'Status': e.is_active ? 'Active' : 'Inactive'})); downloadCsv(fmt, `employees-${new Date().toISOString().slice(0,10)}.csv`) } catch {}}} style={{ background: '#eef9f2', color: '#2d7f53', border: '1px solid #b8e8ce' }} title="Export all employee records to CSV">⬇ CSV Export</button></div></div>
     {error && <p className="ai-service-note">{error}</p>}
     <section className="ai-content">
       <div className="ai-main">
@@ -81,14 +82,14 @@ export default function AIAnalytics() {
       </div>
       <aside className="insight-panel ai-results-panel"><div className="insight-title"><div><h2>{selected ? `${selected.full_name} analytics` : 'AI Insights'}</h2><p>{selected ? 'Individual hospitality profile' : report ? 'Saved executive report' : 'Organization view'}</p></div><span className="live-badge">{isHr ? 'AI ready' : 'Read only'}</span></div>
         {report && !selected && !insights ? (
-          <div className="insight-results">
+          <div className="insight-results" id="ai-report-content">
 <div className="report-meta">
               <span className="report-date">Generated {new Date(report.created_at).toLocaleString()}{report.generated_by_name ? ` by ${report.generated_by_name}` : ''}</span>
               {report.metrics_json && <span className="data-backed-chip" title="Report is based on calculated database metrics">✓ Data-backed</span>}
             </div>
             <AIReport content={report.content} title={report.title} />
           </div>
-        ) : insights ? <div className="insight-results"><AIReport insights={insights}/></div> : <div className="insight-empty"><b>{canGenerate ? 'AI workforce brief ready' : 'Monitoring access'}</b><p>{canGenerate ? 'Generate a workforce analytics report from the current database values.' : 'View current workforce metrics and workflow activity. Executive report generation is restricted to HR.'}</p>{canGenerate && <button className="insight-cta" onClick={() => generate()} disabled={generating}>Create workforce brief</button>}</div>}
+        ) : insights ? <div className="insight-results" id="ai-report-content"><AIReport insights={insights}/></div> : <div className="insight-empty"><b>{canGenerate ? 'AI workforce brief ready' : 'Monitoring access'}</b><p>{canGenerate ? 'Generate a workforce analytics report from the current database values.' : 'View current workforce metrics and workflow activity. Executive report generation is restricted to HR.'}</p>{canGenerate && <button className="insight-cta" onClick={() => generate()} disabled={generating}>Create workforce brief</button>}</div>}
       </aside>
     </section>
   </main>
