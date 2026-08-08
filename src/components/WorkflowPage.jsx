@@ -868,6 +868,7 @@ const saveSchedule = async () => {
                     people={people}
                     suggestions={currentSuggestions}
                     events={events}
+                    subject={workflow ? { id: workflow.subject_employee_id, full_name: workflow.subject_name } : evaluatingSubject}
                   />
                 </div>
               )}

@@ -61,6 +61,37 @@ router.post('/', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+const assignGapSchema = z.object({
+  subjectEmployeeId: z.string().uuid(),
+  courseTitle: z.string().min(2).max(140),
+  competencyName: z.string().optional(),
+  gapScore: z.number().optional(),
+})
+
+router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, res, next) => {
+  try {
+    const input = assignGapSchema.parse(req.body)
+    const [initialStage] = stagesFor('learning')
+    const title = `Learning Path: ${input.courseTitle}`
+    const metadata = {
+      courseTitle: input.courseTitle,
+      assignedFromCompetencyGap: true,
+      competencyName: input.competencyName || '',
+      gapScore: input.gapScore || 0,
+      assignedBy: req.user.sub,
+    }
+    const { rows } = await query(
+      'INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, metadata) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      ['learning', title, input.subjectEmployeeId, initialStage[0], req.user.sub, metadata]
+    )
+    await query(
+      'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details) VALUES ($1,$2,$3,$4,$5,$6)',
+      [rows[0].id, initialStage[0], 'created', req.user.sub, `Assigned to resolve skill gap in ${input.competencyName || 'Competency'}`, metadata]
+    )
+    res.status(201).json({ workflow: rows[0], assigned: true })
+  } catch (error) { next(error) }
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id=w.subject_employee_id WHERE w.id=$1', [req.params.id])
@@ -170,14 +201,21 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
         await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])
         // Score write-back: when a performance/competency/learning workflow completes, update the employee's scores
-        if (workflow.subject_employee_id && input.scores) {
-          const scoreUpdates = []
-          if (input.scores.performanceScore !== undefined) scoreUpdates.push('performance_score = $1')
-          if (input.scores.competencyScore !== undefined) scoreUpdates.push('competency_score = $2')
-          if (input.scores.learningProgress !== undefined) scoreUpdates.push('learning_progress = $3')
-          if (scoreUpdates.length > 0) {
-            const scoreParams = [input.scores.performanceScore, input.scores.competencyScore, input.scores.learningProgress, workflow.subject_employee_id]
-            await client.query(`UPDATE employees SET ${scoreUpdates.join(', ')}, updated_at = NOW() WHERE id = $4`, scoreParams)
+        if (workflow.subject_employee_id) {
+          if (workflow.module === 'learning' && (workflow.metadata?.assignedFromCompetencyGap || input.data?.formData?.assignedFromCompetencyGap)) {
+            await client.query(
+              'UPDATE employees SET competency_score = LEAST(100, competency_score + 10), learning_progress = 100, updated_at = NOW() WHERE id = $1',
+              [workflow.subject_employee_id]
+            )
+          } else if (input.scores) {
+            const scoreUpdates = []
+            if (input.scores.performanceScore !== undefined) scoreUpdates.push('performance_score = $1')
+            if (input.scores.competencyScore !== undefined) scoreUpdates.push('competency_score = $2')
+            if (input.scores.learningProgress !== undefined) scoreUpdates.push('learning_progress = $3')
+            if (scoreUpdates.length > 0) {
+              const scoreParams = [input.scores.performanceScore, input.scores.competencyScore, input.scores.learningProgress, workflow.subject_employee_id]
+              await client.query(`UPDATE employees SET ${scoreUpdates.join(', ')}, updated_at = NOW() WHERE id = $4`, scoreParams)
+            }
           }
         }
 // AI-assisted analytics: calculate and save the module metrics so the

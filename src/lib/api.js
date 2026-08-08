@@ -71,6 +71,7 @@ workflows: (module, { page, limit, status } = {}) => {
   returnWorkflow: (id, data = {}) => request(`/api/workflows/${id}/return`, { method: 'POST', body: JSON.stringify(data) }),
   cancelWorkflow: (id, reason) => request(`/api/workflows/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   addWorkflowNote: (id, data) => request(`/api/workflows/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),
+  assignLearningGap: (data) => request('/api/workflows/assign-learning-gap', { method: 'POST', body: JSON.stringify(data) }),
   analytics: () => request('/api/analytics/dashboard'),
   analyticsMe: () => request('/api/analytics/me'),
   generateInsights: (employeeName) => request('/api/analytics/insights', { method: 'POST', body: JSON.stringify(employeeName ? { employeeName } : {}) }),

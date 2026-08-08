@@ -72,6 +72,44 @@ export const LEARNING_TEMPLATES = [
   { title: 'Emergency Procedures', category: 'Compliance', duration: '2', description: 'Respond correctly to emergencies and safety incidents.', objectives: 'Know evacuation routes; use fire equipment; report incidents; protect guests and staff.' },
 ]
 
+// Mapping linking competency categories/names to recommended learning template categories
+export const COMPETENCY_LEARNING_MAP = {
+  'Customer Service': ['Customer Service Excellence', 'Front Desk Excellence'],
+  'Hospitality Service': ['Customer Service Excellence'],
+  'Guest Service': ['Customer Service Excellence', 'Front Desk Excellence'],
+  'Leadership': ['Leadership Training', 'Conflict Resolution'],
+  'Team Leadership': ['Leadership Training', 'Conflict Resolution'],
+  'Operational Management': ['Leadership Training', 'Conflict Resolution'],
+  'Food Safety': ['Kitchen Hygiene', 'Food Safety'],
+  'Culinary Skill': ['Kitchen Hygiene', 'Food Safety'],
+  'Kitchen Operations': ['Kitchen Hygiene', 'Food Safety'],
+  'Hygiene & Safety': ['Kitchen Hygiene', 'Food Safety'],
+  'Compliance': ['Emergency Procedures', 'Cash Handling'],
+  'Financial Acumen': ['Cash Handling'],
+  'Communication': ['Conflict Resolution', 'Front Desk Excellence'],
+  'Conflict Resolution': ['Conflict Resolution'],
+}
+
+export function getRecommendedCoursesForGap(competencyName, score = 0) {
+  const norm = String(competencyName || '').trim()
+  const matchedTitles = COMPETENCY_LEARNING_MAP[norm] || []
+  
+  let matches = LEARNING_TEMPLATES.filter(t => matchedTitles.includes(t.title))
+  if (matches.length === 0) {
+    // Partial search fallback
+    matches = LEARNING_TEMPLATES.filter(t => 
+      t.category.toLowerCase().includes(norm.toLowerCase()) || 
+      t.title.toLowerCase().includes(norm.toLowerCase()) ||
+      norm.toLowerCase().includes(t.category.toLowerCase())
+    )
+  }
+  if (matches.length === 0) {
+    // Default fallback course
+    matches = [LEARNING_TEMPLATES[1]]
+  }
+  return matches
+}
+
 // Competency template library — selecting a position auto-loads required
 // competencies, suggested proficiency levels and weights.
 export const COMPETENCY_TEMPLATES = {
@@ -263,14 +301,9 @@ define_requirements: {
       builder: 'resources',
     },
     assign_plan: {
-      title: 'Assign development plan',
-      description: 'Create a development plan addressing each skill gap.',
-      fields: [
-        { name: 'planTitle', label: 'Plan title', type: 'text', required: true, hint: 'Use AI to draft a title' },
-        { name: 'duration', label: 'Duration (weeks)', type: 'number', required: true },
-        { name: 'prioritySkills', label: 'Priority skills', type: 'chips', required: true, options: ['Leadership', 'Communication', 'Technical Skills', 'Customer Service', 'Compliance', 'Problem Solving', 'Financial Acumen', 'Teamwork'] },
-        { name: 'coachingNotes', label: 'Coaching notes', type: 'textarea' },
-      ],
+      title: 'Assign development plan & course',
+      description: 'Review detected skill gaps, pick recommended learning courses, and assign learning paths.',
+      builder: 'skillGapPlan',
     },
     track_progress: {
       title: 'Track learning progress',
