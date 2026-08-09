@@ -7,6 +7,7 @@ import { query, transaction } from '../db.js'
 import { config } from '../config.js'
 import { authenticate, authorize } from '../middleware.js'
 import { sendEmail } from '../services/email.js'
+import { logActivity } from '../services/activity.js'
 
 const router = Router()
 
@@ -67,9 +68,15 @@ router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentials.parse(req.body)
     const { rows } = await query('SELECT id, email, password_hash, role, full_name, employee_id FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase()])
-    const user = rows[0]
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid email or password.' })
+const user = rows[0]
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      // Record failed login attempt for the audit trail (actor may be unresolved).
+      await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'login.failed', category: 'auth', description: `Failed login attempt for ${email.toLowerCase()}` })
+      return res.status(401).json({ error: 'Invalid email or password.' })
+    }
     const tokens = await generateTokens(user, req)
+    // Record successful login for the audit trail.
+    await logActivity({ req, user: { sub: user.id, role: user.role, name: user.full_name }, action: 'login.success', category: 'auth', description: `${user.full_name} signed in` })
     
     // Set secure HttpOnly cookie for production browsers while retaining body token for API clients
     res.cookie('pds_refresh_token', tokens.refreshToken, {
@@ -125,6 +132,7 @@ router.post('/refresh', async (req, res, next) => {
       maxAge: 7 * 86400000,
     })
 
+await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'refresh', category: 'auth', description: 'Access token refreshed' })
     res.json({ token: result.accessToken, refreshToken: result.refreshToken })
   } catch (error) {
     if (error?.code === '42P01' || error?.message?.includes('relation "sessions" does not exist')) {
@@ -146,7 +154,18 @@ router.post('/logout', async (req, res, next) => {
         // best effort
       }
     }
-    res.clearCookie('pds_refresh_token')
+res.clearCookie('pds_refresh_token')
+    // Record logout (best-effort; user may be unknown if token already cleared).
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, '')
+    let actor = req.user || null
+    if (!actor && token) {
+      try {
+        const decoded = jwt.verify(token, config.jwtSecret)
+        if (decoded.exp && decoded.exp - decoded.iat > 3600) decoded = null
+        actor = decoded
+      } catch { /* best-effort */ }
+    }
+    await logActivity({ req, user: actor, action: 'logout', category: 'auth', description: actor ? `${actor.name || 'User'} signed out` : 'User signed out' })
     res.json({ saved: true })
   } catch (error) { next(error) }
 })
@@ -168,6 +187,7 @@ router.post('/forgot-password', async (req, res, next) => {
         text: `You requested a password reset. Open this link to set a new password (valid for 1 hour):\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
       })
     }
+await logActivity({ req, user: rows[0] ? { sub: rows[0].id, role: null, name: null } : { sub: null, role: null, name: null }, action: 'password.forgot', category: 'auth', description: `Password reset requested for ${email.toLowerCase()}` })
     res.json({ message: 'If that email is registered, a password reset link has been sent.' })
   } catch (error) { next(error) }
 })
@@ -186,7 +206,8 @@ router.post('/reset-password', async (req, res, next) => {
       await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, rows[0].user_id])
       await client.query('UPDATE password_resets SET used_at = NOW() WHERE id = $1', [rows[0].id])
       // Revoke all sessions for this user (force re-login)
-      await client.query('UPDATE sessions SET is_revoked = true WHERE user_id = $1', [rows[0].user_id])
+await client.query('UPDATE sessions SET is_revoked = true WHERE user_id = $1', [rows[0].user_id])
+      await logActivity({ req, user: { sub: rows[0].user_id, role: null, name: null }, action: 'password.reset', category: 'auth', description: 'Password reset completed' })
       return { saved: true }
     })
     res.json(result)
@@ -211,6 +232,7 @@ router.post('/invite', authenticate, authorize('hr'), async (req, res, next) => 
       subject: 'You have been invited to PerDevSys',
       text: `Hello ${input.fullName},\n\nYou have been invited to join PerDevSys as ${input.role}. Set your password using this link (valid for 7 days):\n\n${registerUrl}\n\nIf you did not expect this invitation, you can ignore this email.`,
     })
+await logActivity({ req, user: req.user, action: 'invite.created', category: 'auth', description: `${req.user.name} invited ${input.fullName} (${input.role})`, details: { email: input.email, role: input.role } })
     res.status(201).json({
       invitation: rows[0],
       registerUrl,
@@ -247,9 +269,10 @@ router.post('/register', async (req, res, next) => {
           'INSERT INTO sessions (user_id, refresh_token, user_agent, ip_address, expires_at) VALUES ($1, $2, $3, $4, $5)',
           [user.id, refreshToken, req.headers['user-agent'] || null, req.ip || null, expiresAt]
         )
-      } catch {
+} catch {
         console.warn('[PDS] Could not persist refresh token during registration.')
       }
+      await logActivity({ req, user: { sub: user.id, role: user.role, name: user.full_name }, action: 'register', category: 'auth', description: `${user.full_name} completed registration (${invitation.email})`, details: { role: user.role } })
       return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id } }
     })
     res.status(201).json(result)

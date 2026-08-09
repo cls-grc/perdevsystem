@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { query, transaction } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
+import { logActivity } from '../services/activity.js'
 
 const router = Router()
 
@@ -168,8 +169,9 @@ router.post('/', authorize('hr'), async (req, res, next) => {
       for (const competency of [...new Set(input.competencies)]) {
         await client.query('INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2)', [resource.id, competency])
       }
-      return { ...resource, competencies: [...new Set(input.competencies)] }
+return { ...resource, competencies: [...new Set(input.competencies)] }
     })
+    await logActivity({ req, user: req.user, action: 'learning.resource_create', category: 'learning', targetId: result.id, description: `${req.user.name} created learning resource "${result.title}"` })
     res.status(201).json({ resource: result })
   } catch (error) { next(error) }
 })
@@ -190,8 +192,9 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
       for (const competency of [...new Set(input.competencies)]) {
         await client.query('INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2)', [req.params.id, competency])
       }
-      return { ...rows[0], competencies: [...new Set(input.competencies)] }
+return { ...rows[0], competencies: [...new Set(input.competencies)] }
     })
+    await logActivity({ req, user: req.user, action: 'learning.resource_update', category: 'learning', targetId: req.params.id, description: `${req.user.name} updated learning resource "${result.title}"` })
     res.json({ resource: result })
   } catch (error) { next(error) }
 })
@@ -199,8 +202,9 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
 // Archive (soft-delete) resource — HR only.
 router.delete('/:id', authorize('hr'), async (req, res, next) => {
   try {
-    const { rows } = await query('UPDATE learning_resources SET is_active=false, updated_at=NOW() WHERE id=$1 AND is_active=true RETURNING id', [req.params.id])
+const { rows } = await query('UPDATE learning_resources SET is_active=false, updated_at=NOW() WHERE id=$1 AND is_active=true RETURNING id', [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Active learning resource not found.' })
+    await logActivity({ req, user: req.user, action: 'learning.resource_archive', category: 'learning', targetId: req.params.id, description: `${req.user.name} archived learning resource` })
     res.json({ archived: true })
   } catch (error) { next(error) }
 })
@@ -225,8 +229,9 @@ router.post('/assign', authorize('hr', 'supervisor'), async (req, res, next) => 
         )
         created.push(inserted.rows[0])
       }
-      return created
+return created
     })
+    await logActivity({ req, user: req.user, action: 'learning.assign', category: 'learning', targetId: input.resourceId, description: `${req.user.name} assigned learning resource to ${result.length} employee(s)`, details: { employeeIds: input.employeeIds, dueDate: input.dueDate || null } })
     res.status(201).json({ assignments: result })
   } catch (error) { next(error) }
 })
@@ -283,9 +288,10 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
     let progress = input.progress
     if (progress === undefined) progress = Number(assignment.progress || 0)
     const updated = await query(
-      'UPDATE learning_assignments SET progress=$1, status=$2 WHERE id=$3 RETURNING *',
+'UPDATE learning_assignments SET progress=$1, status=$2 WHERE id=$3 RETURNING *',
       [progress, status, req.params.id],
     )
+    await logActivity({ req, user: req.user, action: 'learning.progress_update', category: 'learning', targetId: req.params.id, description: `${req.user.name} updated learning progress to ${progress}% (${status})`, details: { progress, status } })
     res.json({ assignment: updated.rows[0] })
   } catch (error) { next(error) }
 })
@@ -309,8 +315,9 @@ router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next
       if (assignment.rows[0]) {
         await client.query("UPDATE learning_assignments SET progress=100, status='completed' WHERE id=$1", [assignment.rows[0].id])
       }
-      return rows[0]
+return rows[0]
     })
+    await logActivity({ req, user: req.user, action: 'learning.completion', category: 'learning', targetId: input.employeeId, description: `${req.user.name} verified completion of learning resource for employee`, details: { resourceId: input.resourceId, employeeId: input.employeeId } })
     res.status(201).json({ completion: result })
   } catch (error) { next(error) }
 })

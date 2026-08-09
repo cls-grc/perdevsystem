@@ -69,3 +69,26 @@
 @media(max-width:1000px){.er-workspace{padding:24px}.er-kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.er-workspace{padding:20px 16px}.er-heading{flex-direction:column}.er-heading-actions{width:100%}.er-kpis{grid-template-columns:1fr}.er-panel-head{flex-direction:column}.er-filters{width:100%}.er-filters .employee-search{flex:1}}
 
+/* --- Audit Trail page (AuditLogs.jsx) --- */
+.er-time{display:block;font-size:8px;color:#96929b;margin-top:2px}
+.audit-category{display:inline-block;padding:3px 8px;border-radius:10px;font-size:8px;font-weight:600;background:#f2f0f7;color:#5f5a6b}
+.audit-cat-auth{background:#eef2ff;color:#3d5cc4}
+.audit-cat-employee{background:#edf7f0;color:#258151}
+.audit-cat-certificate{background:#fff5e6;color:#b07d1f}
+.audit-cat-learning{background:#f0eefc;color:#5f48c4}
+.audit-cat-workflow{background:#e6f4f9;color:#2a7a9a}
+.audit-cat-notification{background:#fdeef6;color:#b04a7f}
+.audit-cat-system{background:#f0f0f3;color:#6b6773}
+.audit-action{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;color:#403d8f;background:#f4f2fb;padding:2px 6px;border-radius:5px}
+.audit-desc{max-width:340px;white-space:normal;line-height:1.4;color:#55515f}
+.er-pagination{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px}
+.er-pagination button{border:1px solid #e4e1f7;background:#fbfbff;color:#3f3d56;border-radius:6px;padding:6px 12px;font-size:9px;font-weight:600;cursor:pointer;transition:all .15s ease}
+.er-pagination button:hover:not(:disabled){background:#f4f2ff;border-color:#d5ccff}
+.er-pagination button:disabled{opacity:.4;cursor:not-allowed}
+.er-pagination span{font-size:9px;color:#8a8790}
+.dark .audit-category{background:#2b2b32;color:#c9c3d6}
+.dark .audit-action{background:#2d2b36;color:#c9bfff}
+.dark .audit-desc{color:#ccc}
+.dark .er-pagination button{background:#29292e;border-color:#4a4852;color:#dad6e2}
+.dark .er-pagination button:hover:not(:disabled){background:#2d2b36}
+

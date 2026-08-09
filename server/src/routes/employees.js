@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { query } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
+import { logActivity } from '../services/activity.js'
 
 const router = Router()
 router.use(authenticate)
@@ -55,7 +56,8 @@ router.post('/invite', authorize('hr'), async (req, res, next) => {
       INSERT INTO invitations (email, role, full_name, department_id, employee_id, token, expires_at, created_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, email, role, full_name, expires_at
-    `, [input.email, input.role, input.fullName, input.departmentId || null, input.employeeId || null, token, expiresAt, req.user.sub])
+`, [input.email, input.role, input.fullName, input.departmentId || null, input.employeeId || null, token, expiresAt, req.user.sub])
+    await logActivity({ req, user: req.user, action: 'employee.invite', category: 'auth', description: `${req.user.name} invited ${input.fullName} (${input.role})`, details: { email: input.email, role: input.role } })
     res.status(201).json({
       invitation: rows[0],
       registerUrl: `${req.protocol}://${req.get('host')}/register?token=${token}`,
@@ -133,7 +135,8 @@ router.post('/', authorize('hr'), async (req, res, next) => {
       VALUES ($1, $2, $3, (SELECT name FROM departments WHERE id = $3), $4, $5, $6, $7, $8)
       RETURNING *
     `, [input.employeeNumber, input.fullName, input.departmentId, input.jobTitle, input.managerId || null, input.performanceScore, input.competencyScore, input.learningProgress])
-    await query('INSERT INTO score_history (employee_id, performance_score, competency_score, learning_progress) VALUES ($1, $2, $3, $4)', [rows[0].id, rows[0].performance_score, rows[0].competency_score, rows[0].learning_progress])
+await query('INSERT INTO score_history (employee_id, performance_score, competency_score, learning_progress) VALUES ($1, $2, $3, $4)', [rows[0].id, rows[0].performance_score, rows[0].competency_score, rows[0].learning_progress])
+    await logActivity({ req, user: req.user, action: 'employee.create', category: 'employee', targetId: rows[0].id, description: `${req.user.name} created employee ${input.fullName}`, details: { employeeNumber: input.employeeNumber, departmentId: input.departmentId } })
     res.status(201).json({ employee: rows[0] })
   } catch (error) { next(error) }
 })
@@ -152,8 +155,9 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
     if (input.learningProgress !== undefined) { sets.push(`learning_progress = $${idx++}`); params.push(input.learningProgress) }
     if (!sets.length) return res.status(400).json({ error: 'No fields to update.' })
     params.push(req.params.id)
-    const { rows } = await query(`UPDATE employees SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`, params)
+const { rows } = await query(`UPDATE employees SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`, params)
     if (!rows[0]) return res.status(404).json({ error: 'Employee not found.' })
+    await logActivity({ req, user: req.user, action: 'employee.update', category: 'employee', targetId: req.params.id, description: `${req.user.name} updated employee ${rows[0].full_name}`, details: { changedFields: Object.keys(input) } })
     res.json({ employee: rows[0] })
   } catch (error) { next(error) }
 })
@@ -162,8 +166,9 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
 router.post('/:id/deactivate', authorize('hr'), async (req, res, next) => {
   try {
     const { rows } = await query("UPDATE employees SET is_active = false, updated_at = NOW() WHERE id = $1 AND is_active = true RETURNING *", [req.params.id])
-    if (!rows[0]) return res.status(404).json({ error: 'Active employee not found.' })
+if (!rows[0]) return res.status(404).json({ error: 'Active employee not found.' })
     await query('UPDATE users SET is_active = false WHERE employee_id = $1', [req.params.id])
+    await logActivity({ req, user: req.user, action: 'employee.deactivate', category: 'employee', targetId: req.params.id, description: `${req.user.name} deactivated employee ${rows[0].full_name}` })
     res.json({ deactivated: true, employee: rows[0] })
   } catch (error) { next(error) }
 })
@@ -172,8 +177,9 @@ router.post('/:id/deactivate', authorize('hr'), async (req, res, next) => {
 router.post('/:id/reactivate', authorize('hr'), async (req, res, next) => {
   try {
     const { rows } = await query("UPDATE employees SET is_active = true, updated_at = NOW() WHERE id = $1 AND is_active = false RETURNING *", [req.params.id])
-    if (!rows[0]) return res.status(404).json({ error: 'Inactive employee not found.' })
+if (!rows[0]) return res.status(404).json({ error: 'Inactive employee not found.' })
     await query('UPDATE users SET is_active = true WHERE employee_id = $1', [req.params.id])
+    await logActivity({ req, user: req.user, action: 'employee.reactivate', category: 'employee', targetId: req.params.id, description: `${req.user.name} reactivated employee ${rows[0].full_name}` })
     res.json({ reactivated: true, employee: rows[0] })
   } catch (error) { next(error) }
 })

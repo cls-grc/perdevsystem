@@ -26,7 +26,7 @@ function timeAgo(dateString) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export default function Header({ user, onToggle, dark }) {
+export default function Header({ user, onToggle, dark, onOpenMobileNav }) {
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
@@ -80,7 +80,10 @@ export default function Header({ user, onToggle, dark }) {
   return <>
     <header className="topbar">
       <div className="crumb">Hospitality HR <span>/</span> Performance &amp; Development</div>
-      <div className="top-actions">
+<div className="top-actions">
+        <button className="mobile-menu-btn" type="button" onClick={onOpenMobileNav} aria-label="Open menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+        </button>
         <label className="search"><Icon name="search" size={18}/><input placeholder="Search"/></label>
         <button
           className="header-text-button ai-chat-btn"

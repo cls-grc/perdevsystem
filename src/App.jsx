@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar'
+import MobileNav from './components/MobileNav'
 import Header from './components/Header'
 import Dashboard from './components/Dashboard'
 import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
@@ -13,6 +14,7 @@ import SuccessionPlanning from './pages/SuccessionPlanning'
 import SocialRecognition from './pages/SocialRecognition'
 import CertificateManagement from './pages/CertificateManagement'
 import EmployeeManagement from './pages/EmployeeManagement'
+import AuditLogs from './pages/AuditLogs'
 import Register from './pages/Register'
 import './index.css'
 import './buttonStyles.css'
@@ -28,18 +30,20 @@ import './certificate.css'
 import './certificateUpload.css'
 import './employeeRecords.css'
 import './learningLibrary.css'
+import './responsive.css'
 
 function App() {
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pds-user') || 'null') } catch { return null }
   })
-  const [dark, setDark] = useState(() => {
+const [dark, setDark] = useState(() => {
     try {
       return localStorage.getItem('pds-theme') === 'dark'
     } catch (e) {
       return false
     }
   })
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
 useEffect(() => {
     const root = document.documentElement
@@ -67,11 +71,16 @@ useEffect(() => {
 
   if (!user) return <Login onLogin={setUser} />
 
-  const handleLogout = async () => {
+const handleLogout = async () => {
     const refreshToken = localStorage.getItem('pds-refresh-token')
     if (refreshToken) {
       try { await api.logout(refreshToken) } catch { /* best-effort */ }
     }
+    // Persisted AI chat history is cleared ONLY on logout (it survives page refreshes).
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('pds-user') || '{}') || {}
+      if (currentUser.id) localStorage.removeItem(`pds-ai-chat-${currentUser.id}`)
+    } catch { /* best-effort */ }
     localStorage.removeItem('pds-token')
     localStorage.removeItem('pds-refresh-token')
     localStorage.removeItem('pds-user')
@@ -81,9 +90,10 @@ useEffect(() => {
   return (
     <BrowserRouter>
       <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
-        <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
+<Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
         <div className="flex-1 min-h-screen flex flex-col">
-          <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} />
+          <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} onOpenMobileNav={() => setMobileNavOpen(true)} />
+          <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
           <Routes>
             <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
             <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
@@ -94,6 +104,7 @@ useEffect(() => {
             <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
             <Route path="/certificates" element={['hr', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
 <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
+<Route path="/audit" element={['hr', 'operations_manager', 'management'].includes(user.role) ? <AuditLogs key={`audit-${user.id}`} /> : <Navigate to="/" replace />} />
 <Route path="/register" element={<Register key={`reg-${user.id}`} />} />
             <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
           </Routes>

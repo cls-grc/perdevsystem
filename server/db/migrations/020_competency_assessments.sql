@@ -49,9 +49,32 @@ CREATE TRIGGER trg_competency_updated_at
 -- Uses a deterministic offset so the same competency isn't always
 -- the same value. Only seeds rows that don't already exist.
 --
--- Explicit type casts on the VALUES columns prevent type-inference
--- ambiguity across PostgreSQL versions.
+-- For maximum PostgreSQL compatibility, the competency list is
+-- loaded into a TEMPORARY table using plain INSERT ... VALUES, then
+-- joined from a real table. This avoids the VALUES-subquery parser
+-- edge cases that can break on some PostgreSQL versions.
 -- ============================================================
+CREATE TEMP TABLE _seed_competencies (
+  competency      TEXT    NOT NULL,
+  required_score  NUMERIC NOT NULL,
+  offset_pct      INT     NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO _seed_competencies (competency, required_score, offset_pct) VALUES
+  ('Customer Service',       90, -1),
+  ('Communication',          85,  1),
+  ('Leadership',             80, -2),
+  ('Food Safety',            85,  1),
+  ('Kitchen Operations',     80, -2),
+  ('Compliance',             90, -1),
+  ('Conflict Resolution',    80,  2),
+  ('Technical Skills',       75,  1),
+  ('Operational Management', 80, -1),
+  ('Financial Acumen',       75,  2),
+  ('Reservation Management', 80,  1),
+  ('Upselling',              75,  2),
+  ('Teamwork',               85,  0);
+
 INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
 SELECT
   e.id,
@@ -62,21 +85,8 @@ SELECT
   c.required_score::numeric,
   'baseline'
 FROM employees e
-JOIN (
-  -- competency name, required target %, deterministic per-competency offset
-  VALUES
-    ('Customer Service'::text,       90::numeric, -1::int),
-    ('Communication'::text,          85::numeric,  1::int),
-    ('Leadership'::text,             80::numeric, -2::int),
-    ('Food Safety'::text,            85::numeric,  1::int),
-    ('Kitchen Operations'::text,     80::numeric, -2::int),
-    ('Compliance'::text,             90::numeric, -1::int),
-    ('Conflict Resolution'::text,    80::numeric,  2::int),
-    ('Technical Skills'::text,       75::numeric,  1::int),
-    ('Operational Management'::text, 80::numeric, -1::int),
-    ('Financial Acumen'::text,       75::numeric,  2::int),
-    ('Reservation Management'::text, 80::numeric,  1::int),
-    ('Upselling'::text,              75::numeric,  2::int),
-    ('Teamwork'::text,               85::numeric,  0::int)
-) AS c(competency, required_score, offset_pct)
-ON CONFLICT (employee_id, competency) DO NOTHING;
+CROSS JOIN _seed_competencies c
+WHERE NOT EXISTS (
+  SELECT 1 FROM competency_assessments ca
+  WHERE ca.employee_id = e.id AND ca.competency = c.competency
+);

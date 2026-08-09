@@ -11,8 +11,9 @@ import employeeRoutes from './routes/employees.js'
 import auditRoutes from './routes/audit.js'
 import learningResourceRoutes from './routes/learningResources.js'
 import chatRoutes from './routes/chat.js'
-import { errorHandler, notFound } from './middleware.js'
+import { errorHandler, notFound, requestLogger } from './middleware.js'
 import { pool } from './db.js'
+import { logger } from './services/logger.js'
 
 const app = express()
 app.disable('x-powered-by')
@@ -28,6 +29,7 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json({ limit: '12mb' }))
+app.use(requestLogger)
 app.get('/health', async (_req, res, next) => { try { await pool.query('SELECT 1'); res.json({ status: 'ok' }) } catch (error) { next(error) } })
 app.use('/api/auth', authRoutes)
 app.use('/api/workflows', workflowRoutes)
@@ -41,4 +43,4 @@ app.use('/api/chat', chatRoutes)
 app.use(notFound)
 
 app.use(errorHandler)
-app.listen(config.port, () => console.log(`PDS API listening on port ${config.port}`))
+app.listen(config.port, () => logger.info(`PDS API listening on port ${config.port}`))

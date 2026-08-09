@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { query, transaction } from '../db.js'
 import { stagesFor, nextStage, returnToStage, canActOnStage } from '../workflow.js'
 import { authenticate, authorize } from '../middleware.js'
+import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 
 const router = Router()
@@ -56,7 +57,8 @@ router.post('/', async (req, res, next) => {
     if (!initialStage[2].includes(req.user.role)) return res.status(403).json({ error: 'Your role cannot start this workflow.' })
     const subjectEmployeeId = input.subjectEmployeeId || (req.user.role === 'employee' ? req.user.employeeId : null)
     const { rows } = await query('INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, due_date, metadata) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [input.module, input.title, subjectEmployeeId, initialStage[0], req.user.sub, input.dueDate || null, input.metadata])
-    await query('INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)', [rows[0].id, initialStage[0], 'created', req.user.sub, input.metadata])
+await query('INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)', [rows[0].id, initialStage[0], 'created', req.user.sub, input.metadata])
+    await logActivity({ req, user: req.user, action: 'workflow.create', category: 'workflow', targetId: rows[0].id, description: `${req.user.name} created ${input.module} workflow "${input.title}"`, details: { module: input.module, subjectEmployeeId: subjectEmployeeId || null } })
     res.status(201).json({ workflow: rows[0] })
   } catch (error) { next(error) }
 })
@@ -116,8 +118,9 @@ router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, r
         'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details) VALUES ($1,$2,$3,$4,$5,$6)',
         [rows[0].id, initialStage[0], 'created', req.user.sub, `Assigned to resolve skill gap in ${input.competencyName || 'Competency'}`, metadata]
       )
-      return { workflow: rows[0], resource }
+return { workflow: rows[0], resource }
     })
+    await logActivity({ req, user: req.user, action: 'workflow.assign_learning_gap', category: 'workflow', targetId: result.workflow.id, description: `${req.user.name} assigned learning path "${input.courseTitle}" to resolve a skill gap`, details: { subjectEmployeeId: input.subjectEmployeeId, competencyName: input.competencyName } })
     res.status(201).json({ workflow: result.workflow, resource: result.resource, assigned: true })
   } catch (error) { next(error) }
 })
@@ -156,7 +159,8 @@ router.post('/:id/generate-report', authorize('hr', 'employee'), async (req, res
     if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) {
       return res.status(403).json({ error: 'You can only generate AI insights for your own workflows.' })
     }
-    const report = await generateOnDemand(req.params.id, req.user.sub)
+const report = await generateOnDemand(req.params.id, req.user.sub)
+    await logActivity({ req, user: req.user, action: 'workflow.report_generate', category: 'workflow', targetId: req.params.id, description: `${req.user.name} generated an AI report for workflow "${workflow.title}"` })
     res.status(201).json({ report })
   } catch (error) { next(error) }
 })
@@ -175,8 +179,9 @@ const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow
       return res.status(403).json({ error: `This workflow action is assigned to ${currentStage?.[2].join(' or ') || 'another role'}.` })
     }
     if (input.data?.type === 'training_schedule' && req.user.role !== 'hr') return res.status(403).json({ error: 'Only HR can record a verified training schedule.' })
-    await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
+await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
     await query('UPDATE workflows SET updated_at=NOW() WHERE id=$1', [workflow.id])
+    await logActivity({ req, user: req.user, action: 'workflow.note', category: 'workflow', targetId: workflow.id, description: `${req.user.name} added a note to workflow "${workflow.title}"`, details: { stage: workflow.current_stage } })
     res.status(201).json({ saved: true })
   } catch (error) { next(error) }
 })
@@ -192,9 +197,10 @@ if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.em
       const destination = returnToStage(workflow.module, workflow.current_stage, req.user.role, input.targetStage, workflow.subject_employee_id, req.user.employeeId)
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'returned', req.user.sub, input.note || null, { ...input.data, returnedFrom: workflow.current_stage, targetStage: destination.key }])
-      await notifyNextOwners(client, workflow, destination)
+await notifyNextOwners(client, workflow, destination)
       return { workflow: update.rows[0], returnedTo: destination.label }
     })
+    await logActivity({ req, user: req.user, action: 'workflow.return', category: 'workflow', targetId: req.params.id, description: `${req.user.name} returned workflow to ${result.returnedTo}`, details: { note: input.note || null } })
     res.json(result)
   } catch (error) { next(error) }
 })
@@ -211,9 +217,10 @@ router.post('/:id/cancel', async (req, res, next) => {
       if (!isCreator && !isHr) throw Object.assign(new Error('Only the workflow owner or HR can cancel this workflow.'), { status: 403 })
       if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
       await client.query("UPDATE workflows SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
-      await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'cancelled', req.user.sub, input.reason, input.data])
+await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'cancelled', req.user.sub, input.reason, input.data])
       return { cancelled: true, stage: workflow.current_stage }
     })
+    await logActivity({ req, user: req.user, action: 'workflow.cancel', category: 'workflow', targetId: req.params.id, description: `${req.user.name} cancelled a workflow`, details: { reason: input.reason } })
     res.json(result)
   } catch (error) { next(error) }
 })
@@ -274,7 +281,7 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
         try {
           const { metrics, details } = await calculateMetrics(workflow.module)
           await saveMetricsForWorkflow(client, workflow, req.user.sub, metrics)
-          return { completed: true, stage: workflow.current_stage, metricsReady: true }
+return { completed: true, stage: workflow.current_stage, metricsReady: true }
         } catch (aiError) {
           console.warn('[workflows] Could not save metrics for workflow completion:', aiError.message)
           return { completed: true, stage: workflow.current_stage, metricsReady: false }
@@ -283,8 +290,13 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'advanced', req.user.sub, input.note || null, input.data])
       await notifyNextOwners(client, workflow, destination)
-      return { workflow: update.rows[0], nextAction: destination.label }
+return { workflow: update.rows[0], nextAction: destination.label }
     })
+    if (result.completed) {
+      await logActivity({ req, user: req.user, action: 'workflow.complete', category: 'workflow', targetId: req.params.id, description: `${req.user.name} completed a workflow`, details: { note: input.note || null } })
+    } else {
+      await logActivity({ req, user: req.user, action: 'workflow.advance', category: 'workflow', targetId: req.params.id, description: `${req.user.name} advanced workflow to ${result.nextAction}`, details: { note: input.note || null } })
+    }
     res.json(result)
   } catch (error) { next(error) }
 })
@@ -296,7 +308,8 @@ router.post('/:id/due-date', async (req, res, next) => {
     const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Workflow not found.' })
     if (req.user.role === 'employee' && rows[0].subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot update this workflow.' })
-    const updated = await query('UPDATE workflows SET due_date=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [input.dueDate, req.params.id])
+const updated = await query('UPDATE workflows SET due_date=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [input.dueDate, req.params.id])
+    await logActivity({ req, user: req.user, action: 'workflow.due_date', category: 'workflow', targetId: req.params.id, description: `${req.user.name} set due date on workflow`, details: { dueDate: input.dueDate } })
     res.json({ workflow: updated.rows[0] })
   } catch (error) { next(error) }
 })

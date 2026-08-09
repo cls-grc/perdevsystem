@@ -7,7 +7,7 @@ hr: [
       title: 'Overview',
       links: [{ to: '/', label: 'AI-Assisted Performance & Learning Analytics', icon: 'grid' }]
     },
-    {
+{
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
@@ -27,7 +27,8 @@ hr: [
       links: [
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
-        { to: '/succession', label: 'Succession Planning', icon: 'users' }
+        { to: '/succession', label: 'Succession Planning', icon: 'users' },
+        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
   ],
@@ -64,11 +65,17 @@ supervisor: [
       title: 'Overview',
       links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid' }]
     },
-    {
+{
       title: 'Operations',
       links: [
         { to: '/succession', label: 'Succession Approvals', icon: 'users' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
+      ]
+    },
+    {
+      title: 'Monitoring',
+      links: [
+        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
   ],
@@ -92,11 +99,12 @@ operations_manager: [
       ]
     },
     {
-      title: 'Monitoring',
+title: 'Monitoring',
       links: [
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
-        { to: '/succession', label: 'Succession Planning', icon: 'users' }
+        { to: '/succession', label: 'Succession Planning', icon: 'users' },
+        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
   ],

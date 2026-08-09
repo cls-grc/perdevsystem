@@ -1,0 +1,237 @@
+/* ============================================================
+   RESPONSIVE ADAPTABILITY — PerDevSys
+   Adapts the system to laptop, desktop/PC, tablet, and phone.
+   Breakpoints:
+     - Desktop (>1200px): full layout
+     - Laptop (1024–1200px): slightly condensed
+     - Tablet (681–1024px): condensed sidebar + stacked panels
+     - Phone (≤680px): mobile drawer nav + full-width stack
+   ============================================================ */
+
+/* ---------- Fluid base ---------- */
+html, body {
+  overflow-x: hidden;
+}
+img, svg { max-width: 100%; }
+button { touch-action: manipulation; }
+
+/* Mobile menu button is hidden by default (desktop/tablet use the sidebar) */
+.mobile-menu-btn {
+  display: none !important;
+}
+
+/* ---------- Tablet & smaller laptop (≤1100px) ---------- */
+@media (max-width: 1100px) {
+  .module-workspace, .enterprise-review, .workflow-page,
+  .performance-process, .ai-dashboard, .dashboard, .sales-page {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .topbar { padding: 0 22px; }
+  .topbar .search { min-width: 160px; max-width: 200px; }
+}
+
+/* ---------- Mobile nav toggle (≤680px) ---------- */
+@media (max-width: 680px) {
+  /* Hide desktop sidebar entirely; show via mobile drawer */
+  .sidebar { display: none !important; }
+
+  /* Slim fixed top bar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: 58px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .topbar .crumb { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  .topbar .crumb span { display: none; }
+  .topbar .search { display: none; }
+  .top-actions { gap: 8px; }
+  .top-actions .header-text-button { font-size: 0; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; }
+  .top-actions .header-text-button::after { font-size: 15px; }
+  .top-actions .ai-chat-btn::after { content: '✦'; }
+  .top-actions .header-text-button:nth-of-type(3)::after { content: '🔔'; }
+  .top-actions .header-text-button svg { width: 16px; height: 16px; }
+
+  /* Mobile hamburger button */
+  .mobile-menu-btn {
+    display: grid !important;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    background: transparent;
+    color: #5f6378;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .mobile-menu-btn:hover { background: #f3f1ff; }
+
+  /* Mobile drawer */
+  .mobile-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(22, 19, 43, 0.45);
+    backdrop-filter: blur(2px);
+  }
+  .mobile-nav-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 84vw);
+    z-index: 2001;
+    background: #ffffff;
+    border-right: 1px solid #ebeef5;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    box-shadow: 8px 0 30px rgba(30, 25, 80, 0.18);
+    animation: mobileDrawerIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes mobileDrawerIn {
+    from { transform: translateX(-100%); opacity: 0.6; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .dark .mobile-nav-drawer { background: #1c1c22; border-color: #333; }
+  .mobile-nav-drawer .brand { margin-bottom: 14px; }
+  .mobile-nav-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    border: 0;
+    background: transparent;
+    font-size: 22px;
+    color: #8c8998;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .mobile-nav-section-title {
+    color: #8b8ea3;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+  }
+  .mobile-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #3f4356;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mobile-nav-link:hover { background: #f5f4ff; }
+  .mobile-nav-link.active { background: #eef1ff; color: #3729d6; }
+  .dark .mobile-nav-link { color: #d5d3e0; }
+  .dark .mobile-nav-link.active { background: #2b2b3a; color: #a9a0ff; }
+  .mobile-nav-profile {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid #eceef5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .dark .mobile-nav-profile { border-color: #333; }
+  .mobile-nav-signout {
+    margin-left: auto;
+    border: 1px solid #e4e4f0;
+    background: transparent;
+    color: #5f6378;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .dark .mobile-nav-signout { color: #d5d3e0; border-color: #444; }
+
+  /* Content spacing on phones */
+  .module-workspace, .enterprise-review, .workflow-page,
+  .performance-process, .ai-dashboard, .dashboard, .sales-page {
+    padding: 18px 14px;
+  }
+
+  /* Headings reflow */
+  .module-heading, .workflow-heading, .ai-heading, .page-intro,
+  .review-top, .performance-heading, .er-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .module-heading h1, .workflow-heading h1, .ai-heading h1,
+  .page-intro h1, .review-top h1, .er-heading h1 { font-size: 18px; }
+  .module-heading-actions, .ai-actions, .er-heading-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .module-heading-actions .module-secondary,
+  .module-heading-actions .module-primary { min-width: 0; flex: 1 1 auto; }
+
+  /* Metrics collapse to 2 then 1 */
+  .metrics, .ai-kpis, .workflow-metrics, .review-metrics,
+  .process-summary, .module-metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .ai-chart-row { grid-template-columns: 1fr; }
+
+  /* Tables scroll horizontally */
+  .er-table-wrap, .calibration-table-wrap, .sales-table,
+  .ai-records, .module-content { overflow-x: auto; }
+  .er-table, .calibration-table, .sales-table table { min-width: 560px; }
+
+  /* Drawers / modals fit screen */
+  .settings-backdrop { padding: 12px; }
+  .settings-dialog { width: 100%; max-height: 92vh; }
+  .schedule-backdrop { padding: 12px; }
+  .schedule-dialog { width: 100%; }
+  .notif-panel-box { top: 62px; right: 8px; width: calc(100vw - 16px); }
+
+  /* Forms & grids stack */
+  .score-grid, .form-tabs, .module-data,
+  .decision-options-grid { grid-template-columns: 1fr; }
+  .module-content-meta { grid-template-columns: 1fr; }
+  .module-actions { flex-direction: column; align-items: stretch; }
+  .module-actions button { width: 100%; }
+  .review-layout, .performance-workspace, .module-grid,
+  .ai-content, .workflow-layout, .dashboard-grid { grid-template-columns: 1fr; }
+
+  /* Chat drawer full-screen */
+  .ai-chat-drawer { width: 100vw !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; }
+
+  /* KPI list */
+  .kpi-assessment-header { flex-direction: column; gap: 8px; }
+  .builder-score-summary { flex-direction: column; gap: 8px; align-items: flex-start; }
+  .calibration-summary-grid { grid-template-columns: 1fr; }
+  .module-steps { flex-direction: column; }
+  .module-step { flex: 1 1 auto; min-width: 0; }
+
+  /* Smaller text for dense tables */
+  .er-table { font-size: 11px; }
+}
+
+/* ---------- Very small phones (≤420px) ---------- */
+@media (max-width: 420px) {
+  .metrics, .ai-kpis, .workflow-metrics, .review-metrics,
+  .process-summary, .module-metrics { grid-template-columns: 1fr; }
+  .topbar .crumb { display: none; }
+  .top-actions .avatar { display: none; }
+  .settings-dialog h2 { font-size: 17px; }
+}
+
+/* ---------- Landscape phones / small tablets (height constrained) ---------- */
+@media (max-height: 500px) and (orientation: landscape) {
+  .settings-dialog, .schedule-dialog { max-height: 92vh; }
+  .ai-chat-drawer { height: 100vh !important; }
+  .notif-panel-box { max-height: 90vh; }
+}

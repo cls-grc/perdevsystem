@@ -93,21 +93,41 @@ function parseInlineBold(text) {
 }
 
 export default function AIChatDrawer({ isOpen, onClose }) {
-  const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role || 'employee' } catch { return 'employee' } })()
+  const user = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}') || {} } catch { return {} } })()
+  const role = user.role || 'employee'
+  const storageKey = `pds-ai-chat-${user.id || 'guest'}`
   const samples = SAMPLE_PROMPTS_BY_ROLE[role] || SAMPLE_PROMPTS_BY_ROLE.employee
 
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `Hello! I am your database-grounded AI Assistant. I can analyze system records, performance scores, skill gaps, learning paths, and succession data scoped to your authorized role (${role.replace('_', ' ').toUpperCase()}).`,
-      summary: 'Database-grounded initialization',
-    }
-  ])
+  // Load persisted chat history for this user (survives page refresh).
+  // History is only cleared on logout (see App.jsx handleLogout).
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length) return parsed
+      }
+    } catch { /* fall through to fresh greeting */ }
+    return [
+      {
+        role: 'assistant',
+        content: `Hello! I am your database-grounded AI Assistant. I can analyze system records, performance scores, skill gaps, learning paths, and succession data scoped to your authorized role (${role.replace('_', ' ').toUpperCase()}).`,
+        summary: 'Database-grounded initialization',
+      }
+    ]
+  })
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [dataContextSummary, setDataContextSummary] = useState('')
   const messagesEndRef = useRef(null)
+
+  // Persist chat history whenever it changes so it survives page refreshes.
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages))
+    } catch { /* storage may be unavailable */ }
+  }, [messages, storageKey])
 
   useEffect(() => {
     if (isOpen) {
