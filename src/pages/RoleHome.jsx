@@ -23,7 +23,7 @@ export default function RoleHome({ role, name }) {
     try {
       const calls = []
       // HR & operations_manager can access the full dashboard analytics.
-      if (hr || operationsManager) calls.push(api.analytics())
+      if (hr || operationsManager) calls.push(api.analytics().catch(() => null))
       // Everyone with an employee record can see their own analytics.
       if (supervisor || management || employee || operationsManager) calls.push(api.analyticsMe().catch(() => null))
       // Workflow statistics relevant to the role.
@@ -117,6 +117,7 @@ export default function RoleHome({ role, name }) {
   }, [hr, operationsManager, supervisor, management, employee])
 
   useEffect(() => { void load() }, [load])
+
 
   if (loading) {
     return <main className="role-home"><div><h1>Loading dashboard…</h1><p>Fetching live workforce data.</p></div><div className="role-home-skeleton">{[0, 1, 2, 3].map(i => <i key={i} />)}</div></main>

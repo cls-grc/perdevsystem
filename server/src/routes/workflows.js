@@ -5,6 +5,7 @@ import { stagesFor, nextStage, returnToStage, canActOnStage } from '../workflow.
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
+import { getScopeFilter, verifyEmployeeAccess, verifyWorkflowAccess } from '../services/departmentScope.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
@@ -27,26 +28,43 @@ router.use(authenticate)
 
 router.get('/definitions', (_req, res) => res.json({ workflows: Object.fromEntries(Object.entries({ performance: stagesFor('performance'), competency: stagesFor('competency'), learning: stagesFor('learning'), training: stagesFor('training'), succession: stagesFor('succession'), recognition: stagesFor('recognition') }).map(([module, stages]) => [module, stages.map(([key, label, roles]) => ({ key, label, roles }))])) }))
 
-router.get('/subjects', async (_req, res, next) => {
+router.get('/subjects', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT id, full_name, department, job_title FROM employees WHERE is_active=true ORDER BY full_name')
+    const scope = await getScopeFilter(req.user)
+    const params = []
+    let where = 'WHERE is_active=true'
+    if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND department=$${params.length}`
+    } else if (scope.isEmployee) {
+      params.push(scope.employeeId)
+      where += ` AND id=$${params.length}`
+    }
+    const { rows } = await query(`SELECT id, full_name, department, job_title FROM employees ${where} ORDER BY full_name`, params)
     res.json({ employees: rows })
   } catch (error) { next(error) }
 })
 
 router.get('/', async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
     const { module, status = 'active', page = '1', limit = '50' } = req.query
     const pageNum = Math.max(1, parseInt(page, 10) || 1)
     const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50))
     const offset = (pageNum - 1) * limitNum
     const params = []; let where = 'WHERE w.status = $1'; params.push(status)
     if (module) { params.push(module); where += ` AND w.module = $${params.length}` }
-    if (req.user.role === 'employee') { params.push(req.user.employeeId); where += ` AND w.subject_employee_id = $${params.length}` }
-    const countResult = await query(`SELECT count(*)::int AS total FROM workflows w ${where}`, params)
+    if (scope.isEmployee) {
+      params.push(scope.employeeId)
+      where += ` AND w.subject_employee_id = $${params.length}`
+    } else if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
+    }
+    const countResult = await query(`SELECT count(*)::int AS total FROM workflows w LEFT JOIN employees e ON e.id = w.subject_employee_id ${where}`, params)
     const total = countResult.rows[0]?.total || 0
     params.push(limitNum, offset)
-    const { rows } = await query(`SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id = w.subject_employee_id ${where} ORDER BY w.updated_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params)
+    const { rows } = await query(`SELECT w.*, e.full_name AS subject_name, e.department AS subject_department FROM workflows w LEFT JOIN employees e ON e.id = w.subject_employee_id ${where} ORDER BY w.updated_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params)
     res.json({ workflows: rows, total, page: pageNum, limit: limitNum })
   } catch (error) { next(error) }
 })
@@ -56,8 +74,11 @@ router.post('/', async (req, res, next) => {
     const input = createSchema.parse(req.body); const [initialStage] = stagesFor(input.module)
     if (!initialStage[2].includes(req.user.role)) return res.status(403).json({ error: 'Your role cannot start this workflow.' })
     const subjectEmployeeId = input.subjectEmployeeId || (req.user.role === 'employee' ? req.user.employeeId : null)
+    if (subjectEmployeeId) {
+      await verifyEmployeeAccess(req.user, subjectEmployeeId)
+    }
     const { rows } = await query('INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, due_date, metadata) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [input.module, input.title, subjectEmployeeId, initialStage[0], req.user.sub, input.dueDate || null, input.metadata])
-await query('INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)', [rows[0].id, initialStage[0], 'created', req.user.sub, input.metadata])
+    await query('INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)', [rows[0].id, initialStage[0], 'created', req.user.sub, input.metadata])
     await logActivity({ req, user: req.user, action: 'workflow.create', category: 'workflow', targetId: rows[0].id, description: `${req.user.name} created ${input.module} workflow "${input.title}"`, details: { module: input.module, subjectEmployeeId: subjectEmployeeId || null } })
     res.status(201).json({ workflow: rows[0] })
   } catch (error) { next(error) }
@@ -73,6 +94,7 @@ const assignGapSchema = z.object({
 router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const input = assignGapSchema.parse(req.body)
+    await verifyEmployeeAccess(req.user, input.subjectEmployeeId)
     const [initialStage] = stagesFor('learning')
     const title = `Learning Path: ${input.courseTitle}`
     const metadata = {
@@ -118,7 +140,7 @@ router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, r
         'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details) VALUES ($1,$2,$3,$4,$5,$6)',
         [rows[0].id, initialStage[0], 'created', req.user.sub, `Assigned to resolve skill gap in ${input.competencyName || 'Competency'}`, metadata]
       )
-return { workflow: rows[0], resource }
+      return { workflow: rows[0], resource }
     })
     await logActivity({ req, user: req.user, action: 'workflow.assign_learning_gap', category: 'workflow', targetId: result.workflow.id, description: `${req.user.name} assigned learning path "${input.courseTitle}" to resolve a skill gap`, details: { subjectEmployeeId: input.subjectEmployeeId, competencyName: input.competencyName } })
     res.status(201).json({ workflow: result.workflow, resource: result.resource, assigned: true })
@@ -127,39 +149,26 @@ return { workflow: rows[0], resource }
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id=w.subject_employee_id WHERE w.id=$1', [req.params.id])
-    if (!rows[0]) return res.status(404).json({ error: 'Workflow not found.' })
-    if (req.user.role === 'employee' && rows[0].subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot view this workflow.' })
+    const workflow = await verifyWorkflowAccess(req.user, req.params.id)
     const events = await query('SELECT we.*, u.full_name AS actor_name FROM workflow_events we JOIN users u ON u.id=we.actor_id WHERE workflow_id=$1 ORDER BY created_at ASC', [req.params.id])
-    res.json({ workflow: rows[0], events: events.rows, stages: stagesFor(rows[0].module).map(([key,label,roles]) => ({ key,label,roles })) })
+    res.json({ workflow, events: events.rows, stages: stagesFor(workflow.module).map(([key,label,roles]) => ({ key,label,roles })) })
   } catch (error) { next(error) }
 })
 
 // GET /:id/ai-reports - fetch saved AI reports linked to a workflow (audit trail)
 router.get('/:id/ai-reports', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id=w.subject_employee_id WHERE w.id=$1', [req.params.id])
-    if (!rows[0]) return res.status(404).json({ error: 'Workflow not found.' })
-    if (req.user.role === 'employee' && rows[0].subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot view this workflow.' })
-const reports = await getReportsForWorkflow(req.params.id)
+    await verifyWorkflowAccess(req.user, req.params.id)
+    const reports = await getReportsForWorkflow(req.params.id)
     res.json({ reports })
   } catch (error) { next(error) }
 })
 
-// POST /:id/generate-report - Generate an AI report on demand for a completed
-// workflow. HR can generate for any workflow; an employee can generate for
-// their OWN workflow only. Creates a new immutable report row; previous reports
-// stay in history. The newest report appears first.
-router.post('/:id/generate-report', authorize('hr', 'employee'), async (req, res, next) => {
+// POST /:id/generate-report - Generate an AI report on demand for a completed workflow.
+router.post('/:id/generate-report', authorize('hr', 'supervisor', 'employee'), async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [req.params.id])
-    const workflow = rows[0]
-    if (!workflow) return res.status(404).json({ error: 'Workflow not found.' })
-    // Employees may only generate AI insights for their own validated workflows.
-    if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) {
-      return res.status(403).json({ error: 'You can only generate AI insights for your own workflows.' })
-    }
-const report = await generateOnDemand(req.params.id, req.user.sub)
+    const workflow = await verifyWorkflowAccess(req.user, req.params.id)
+    const report = await generateOnDemand(req.params.id, req.user.sub)
     await logActivity({ req, user: req.user, action: 'workflow.report_generate', category: 'workflow', targetId: req.params.id, description: `${req.user.name} generated an AI report for workflow "${workflow.title}"` })
     res.status(201).json({ report })
   } catch (error) { next(error) }
@@ -168,18 +177,15 @@ const report = await generateOnDemand(req.params.id, req.user.sub)
 router.post('/:id/notes', async (req, res, next) => {
   try {
     const input = noteSchema.parse(req.body)
-    const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [req.params.id])
-    const workflow = rows[0]
-    if (!workflow) return res.status(404).json({ error: 'Workflow not found.' })
-    if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot update this workflow.' })
-const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow.current_stage)
+    const workflow = await verifyWorkflowAccess(req.user, req.params.id)
+    const currentStage = stagesFor(workflow.module).find(([key]) => key === workflow.current_stage)
     // Allow the workflow subject to add notes on employee-assigned stages so
     // their self-assessment submission isn't blocked server-side.
     if (!canActOnStage(currentStage?.[2] || [], req.user.role, workflow.subject_employee_id, req.user.employeeId)) {
       return res.status(403).json({ error: `This workflow action is assigned to ${currentStage?.[2].join(' or ') || 'another role'}.` })
     }
     if (input.data?.type === 'training_schedule' && req.user.role !== 'hr') return res.status(403).json({ error: 'Only HR can record a verified training schedule.' })
-await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
+    await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'note', req.user.sub, input.note, input.data])
     await query('UPDATE workflows SET updated_at=NOW() WHERE id=$1', [workflow.id])
     await logActivity({ req, user: req.user, action: 'workflow.note', category: 'workflow', targetId: workflow.id, description: `${req.user.name} added a note to workflow "${workflow.title}"`, details: { stage: workflow.current_stage } })
     res.status(201).json({ saved: true })
@@ -189,15 +195,15 @@ await query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,
 router.post('/:id/return', async (req, res, next) => {
   try {
     const input = returnSchema.parse(req.body)
+    await verifyWorkflowAccess(req.user, req.params.id)
     const result = await transaction(async (client) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
-if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
       const destination = returnToStage(workflow.module, workflow.current_stage, req.user.role, input.targetStage, workflow.subject_employee_id, req.user.employeeId)
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'returned', req.user.sub, input.note || null, { ...input.data, returnedFrom: workflow.current_stage, targetStage: destination.key }])
-await notifyNextOwners(client, workflow, destination)
+      await notifyNextOwners(client, workflow, destination)
       return { workflow: update.rows[0], returnedTo: destination.label }
     })
     await logActivity({ req, user: req.user, action: 'workflow.return', category: 'workflow', targetId: req.params.id, description: `${req.user.name} returned workflow to ${result.returnedTo}`, details: { note: input.note || null } })
@@ -208,6 +214,7 @@ await notifyNextOwners(client, workflow, destination)
 router.post('/:id/cancel', async (req, res, next) => {
   try {
     const input = cancelSchema.parse(req.body)
+    await verifyWorkflowAccess(req.user, req.params.id)
     const result = await transaction(async (client) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
@@ -215,9 +222,8 @@ router.post('/:id/cancel', async (req, res, next) => {
       const isCreator = req.user.sub === workflow.created_by
       const isHr = req.user.role === 'hr'
       if (!isCreator && !isHr) throw Object.assign(new Error('Only the workflow owner or HR can cancel this workflow.'), { status: 403 })
-      if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
       await client.query("UPDATE workflows SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
-await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'cancelled', req.user.sub, input.reason, input.data])
+      await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'cancelled', req.user.sub, input.reason, input.data])
       return { cancelled: true, stage: workflow.current_stage }
     })
     await logActivity({ req, user: req.user, action: 'workflow.cancel', category: 'workflow', targetId: req.params.id, description: `${req.user.name} cancelled a workflow`, details: { reason: input.reason } })
@@ -228,16 +234,16 @@ await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,ac
 router.post('/:id/advance', async (req, res, next) => {
   try {
     const input = advanceSchema.parse(req.body)
+    await verifyWorkflowAccess(req.user, req.params.id)
     const result = await transaction(async (client) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
-if (req.user.role === 'employee' && workflow.subject_employee_id !== req.user.employeeId) throw Object.assign(new Error('You cannot update this workflow.'), { status: 403 })
-const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
+      const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
         await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])
-// Score write-back: when a performance/competency/learning workflow completes, update the employee's scores
+        // Score write-back: when a performance/competency/learning workflow completes, update the employee's scores
         if (workflow.subject_employee_id) {
           if (workflow.module === 'learning' && (workflow.metadata?.assignedFromCompetencyGap || input.data?.formData?.assignedFromCompetencyGap)) {
             await client.query(
@@ -256,9 +262,9 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
                    'learning_completion')
                  ON CONFLICT (employee_id, competency)
                  DO UPDATE SET score = LEAST(100, competency_assessments.score + 10),
-                               source = 'learning_completion',
-                               assessed_at = NOW(),
-                               updated_at = NOW()`,
+                                source = 'learning_completion',
+                                assessed_at = NOW(),
+                                updated_at = NOW()`,
                 [workflow.subject_employee_id, gapCompetency]
               )
             }
@@ -273,7 +279,7 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
             }
           }
         }
-// AI-assisted analytics: calculate and save the module metrics so the
+        // AI-assisted analytics: calculate and save the module metrics so the
         // UI can show a "Ready to Generate AI Report" state. The AI report is
         // NOT generated automatically — HR generates it on demand via
         // POST /:id/generate-report. This is best-effort and never blocks
@@ -281,7 +287,7 @@ const destination = nextStage(workflow.module, workflow.current_stage, req.user.
         try {
           const { metrics, details } = await calculateMetrics(workflow.module)
           await saveMetricsForWorkflow(client, workflow, req.user.sub, metrics)
-return { completed: true, stage: workflow.current_stage, metricsReady: true }
+          return { completed: true, stage: workflow.current_stage, metricsReady: true }
         } catch (aiError) {
           console.warn('[workflows] Could not save metrics for workflow completion:', aiError.message)
           return { completed: true, stage: workflow.current_stage, metricsReady: false }
@@ -290,7 +296,7 @@ return { completed: true, stage: workflow.current_stage, metricsReady: true }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'advanced', req.user.sub, input.note || null, input.data])
       await notifyNextOwners(client, workflow, destination)
-return { workflow: update.rows[0], nextAction: destination.label }
+      return { workflow: update.rows[0], nextAction: destination.label }
     })
     if (result.completed) {
       await logActivity({ req, user: req.user, action: 'workflow.complete', category: 'workflow', targetId: req.params.id, description: `${req.user.name} completed a workflow`, details: { note: input.note || null } })
@@ -305,10 +311,8 @@ return { workflow: update.rows[0], nextAction: destination.label }
 router.post('/:id/due-date', async (req, res, next) => {
   try {
     const input = dueDateSchema.parse(req.body)
-    const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [req.params.id])
-    if (!rows[0]) return res.status(404).json({ error: 'Workflow not found.' })
-    if (req.user.role === 'employee' && rows[0].subject_employee_id !== req.user.employeeId) return res.status(403).json({ error: 'You cannot update this workflow.' })
-const updated = await query('UPDATE workflows SET due_date=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [input.dueDate, req.params.id])
+    await verifyWorkflowAccess(req.user, req.params.id)
+    const updated = await query('UPDATE workflows SET due_date=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [input.dueDate, req.params.id])
     await logActivity({ req, user: req.user, action: 'workflow.due_date', category: 'workflow', targetId: req.params.id, description: `${req.user.name} set due date on workflow`, details: { dueDate: input.dueDate } })
     res.json({ workflow: updated.rows[0] })
   } catch (error) { next(error) }
@@ -317,10 +321,17 @@ const updated = await query('UPDATE workflows SET due_date=$1, updated_at=NOW() 
 // GET /overdue - list workflows that are past their due date
 router.get('/overdue', async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
     const input = overdueQuerySchema.parse(req.query)
     const params = []
     let where = "WHERE w.due_date IS NOT NULL AND w.due_date < NOW() AND w.status = 'active'"
-    if (req.user.role === 'employee') { params.push(req.user.employeeId); where += ` AND w.subject_employee_id = $${params.length}` }
+    if (scope.isEmployee) {
+      params.push(scope.employeeId)
+      where += ` AND w.subject_employee_id = $${params.length}`
+    } else if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
+    }
     const { rows } = await query(`SELECT w.*, e.full_name AS subject_name FROM workflows w LEFT JOIN employees e ON e.id=w.subject_employee_id ${where} ORDER BY w.due_date ASC`, params)
     res.json({ workflows: rows, overdueCount: rows.length })
   } catch (error) { next(error) }

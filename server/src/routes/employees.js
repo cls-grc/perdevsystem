@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { query } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
+import { getScopeFilter, verifyEmployeeAccess } from '../services/departmentScope.js'
 
 const router = Router()
 router.use(authenticate)
@@ -56,7 +57,7 @@ router.post('/invite', authorize('hr'), async (req, res, next) => {
       INSERT INTO invitations (email, role, full_name, department_id, employee_id, token, expires_at, created_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, email, role, full_name, expires_at
-`, [input.email, input.role, input.fullName, input.departmentId || null, input.employeeId || null, token, expiresAt, req.user.sub])
+    `, [input.email, input.role, input.fullName, input.departmentId || null, input.employeeId || null, token, expiresAt, req.user.sub])
     await logActivity({ req, user: req.user, action: 'employee.invite', category: 'auth', description: `${req.user.name} invited ${input.fullName} (${input.role})`, details: { email: input.email, role: input.role } })
     res.status(201).json({
       invitation: rows[0],
@@ -65,9 +66,16 @@ router.post('/invite', authorize('hr'), async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-// GET /api/employees — list active employees
+// GET /api/employees — list active employees (scoped to department for supervisors)
 router.get('/', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
+    const params = []
+    let where = 'WHERE e.is_active = true'
+    if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
+    }
     const { rows } = await query(`
       SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
              e.manager_id, m.full_name AS manager_name,
@@ -77,9 +85,9 @@ router.get('/', authorize('hr', 'operations_manager', 'supervisor'), async (req,
       FROM employees e
       LEFT JOIN employees m ON m.id = e.manager_id
       LEFT JOIN departments d ON d.id = e.department_id
-      WHERE e.is_active = true
+      ${where}
       ORDER BY e.full_name
-    `)
+    `, params)
     res.json({ employees: rows })
   } catch (error) { next(error) }
 })
@@ -105,14 +113,16 @@ router.get('/all', authorize('hr'), async (req, res, next) => {
 // GET /api/employees/reportees/:id — employees who report to given manager
 router.get('/reportees/:id', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
+    await verifyEmployeeAccess(req.user, req.params.id)
     const { rows } = await query('SELECT id, full_name, job_title FROM employees WHERE manager_id = $1 AND is_active = true ORDER BY full_name', [req.params.id])
     res.json({ reportees: rows })
   } catch (error) { next(error) }
 })
 
 // GET /api/employees/:id — single employee
-router.get('/:id', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.get('/:id', authorize('hr', 'operations_manager', 'supervisor', 'employee'), async (req, res, next) => {
   try {
+    await verifyEmployeeAccess(req.user, req.params.id)
     const { rows } = await query(`
       SELECT e.*, m.full_name AS manager_name, d.name AS department_name
       FROM employees e
@@ -121,10 +131,10 @@ router.get('/:id', authorize('hr', 'operations_manager', 'supervisor'), async (r
       WHERE e.id = $1
     `, [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Employee not found.' })
-    if (req.user.role === 'employee' && rows[0].id !== req.user.employeeId) return res.status(403).json({ error: 'Access denied.' })
     res.json({ employee: rows[0] })
   } catch (error) { next(error) }
 })
+
 
 // POST /api/employees — create employee (HR only)
 router.post('/', authorize('hr'), async (req, res, next) => {

@@ -523,12 +523,26 @@ function buildSummary(module, metrics, details = {}) {
 
 // ------------------------------ Metric queries ------------------------------
 
-export async function calculateMetrics(module, { employeeId = null } = {}) {
+import { getScopeFilter } from '../services/departmentScope.js'
+
+export async function calculateMetrics(module, { employeeId = null, department = null } = {}) {
   // Employee-scoped metrics — used for a single employee's PERSONAL AI insight.
   if (employeeId) {
     const generation = await query(EMPLOYEE_METRIC_QUERIES[module], [employeeId])
     return { metrics: generation.rows[0], details: {} }
   }
+
+  // Department-scoped metrics for module-level insights (e.g., supervisor views).
+  if (department) {
+    const baseQuery = MODULE_METRIC_QUERIES[module]
+    const scopedQuery = baseQuery.includes('WHERE')
+      ? baseQuery.replace('WHERE', `WHERE department = $1 AND`)
+      : `${baseQuery} WHERE department = $1`
+    const generation = await query(scopedQuery, [department])
+    return { metrics: generation.rows[0], details: {} }
+  }
+
+  // Executive (org-wide) metrics.
   if (module === 'executive') {
     const [workforce, departments, workflows, succession, recognition, training] = await Promise.all([
       query(EXECUTIVE_METRIC_QUERIES.workforce),
@@ -549,6 +563,7 @@ export async function calculateMetrics(module, { employeeId = null } = {}) {
     }
   }
 
+  // Module-level metrics (org-wide when no department parameter).
   const generation = await query(MODULE_METRIC_QUERIES[module])
   const detailsQuery = module === 'performance'
     ? `SELECT (SELECT full_name FROM employees WHERE is_active=true ORDER BY performance_score DESC NULLS LAST, full_name LIMIT 1) AS top_name,

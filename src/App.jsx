@@ -91,7 +91,7 @@ const handleLogout = async () => {
     <BrowserRouter>
       <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
 <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
-        <div className="flex-1 min-h-screen flex flex-col">
+        <div className="flex-1 min-h-screen flex flex-col fixed-main">
           <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} onOpenMobileNav={() => setMobileNavOpen(true)} />
           <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
           <Routes>

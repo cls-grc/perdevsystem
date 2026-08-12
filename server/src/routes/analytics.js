@@ -11,16 +11,18 @@ import {
   getLatestReports,
   getReportsForWorkflow,
 } from '../services/aiReports.js'
+import { getScopeFilter, getUserDepartment, verifyEmployeeAccess } from '../services/departmentScope.js'
 
 const router = Router()
 router.use(authenticate)
 
-router.get('/dashboard', authorize('hr', 'operations_manager'), async (req, res, next) => {
+router.get('/dashboard', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
-    const departmentScope = req.user.role === 'operations_manager'
-      ? (await query('SELECT department FROM employees WHERE id=$1 AND is_active=true', [req.user.employeeId])).rows[0]?.department
-      : null
-    if (req.user.role === 'operations_manager' && !departmentScope) return res.status(403).json({ error: 'Operations Manager accounts require an active department assignment.' })
+    const scope = await getScopeFilter(req.user)
+    const departmentScope = scope.isScoped ? scope.department : null
+    if (scope.isScoped && !departmentScope) {
+      return res.status(403).json({ error: 'Department Head and Operations Manager accounts require an active department assignment.' })
+    }
     const employeeWhere = departmentScope ? ' AND department=$1' : ''
     const workflowJoin = departmentScope ? ' JOIN employees e ON e.id=w.subject_employee_id WHERE e.department=$1' : ''
     const params = departmentScope ? [departmentScope] : []
@@ -33,7 +35,7 @@ router.get('/dashboard', authorize('hr', 'operations_manager'), async (req, res,
       query(`SELECT w.module, w.status, count(*)::int AS count FROM workflows w${workflowJoin}${departmentScope ? ' GROUP BY w.module, w.status ORDER BY w.module, w.status' : ' GROUP BY w.module, w.status ORDER BY w.module, w.status'}`, params),
     ])
     const ready = employees.filter((e) => calculateReadiness({ performance: e.performance_score, competency: e.competency_score, learning: e.learning_progress }).band === 'ready_now').length
-    res.json({ totals: { ...totals[0], succession_ready: ready }, employees, workflowBreakdown: modules })
+    res.json({ totals: { ...totals[0], succession_ready: ready, departmentScope }, employees, workflowBreakdown: modules })
   } catch (error) { next(error) }
 })
 
@@ -52,32 +54,44 @@ const moduleInsightRequest = z.object({ module: z.enum(['performance','competenc
 router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const { employeeName } = insightRequest.parse(req.body || {})
+    const scope = await getScopeFilter(req.user)
+    const empWhere = scope.isScoped && scope.department ? ' AND department=$1' : ''
+    const wfJoin = scope.isScoped && scope.department ? ' JOIN employees e ON e.id=w.subject_employee_id WHERE e.department=$1' : ''
+    const succJoin = scope.isScoped && scope.department ? ' JOIN employees e ON e.id=sp.employee_id WHERE e.department=$1' : ''
+    const params = scope.isScoped && scope.department ? [scope.department] : []
+
     const [{ rows: totals }, { rows: departments }, { rows: workflows }, { rows: succession }, { rows: recognition }] = await Promise.all([
-      query(`SELECT count(*)::int AS employee_count, coalesce(round(avg(performance_score))::int,0) AS average_performance, coalesce(round(avg(competency_score))::int,0) AS average_competency, coalesce(round(avg(learning_progress))::int,0) AS learning_completion FROM employees WHERE is_active=true`),
-      query(`SELECT department, count(*)::int AS employees, coalesce(round(avg(performance_score))::int,0) AS performance, coalesce(round(avg(learning_progress))::int,0) AS learning FROM employees WHERE is_active=true GROUP BY department ORDER BY department`),
-      query(`SELECT module, current_stage, count(*)::int AS count FROM workflows WHERE status='active' GROUP BY module, current_stage ORDER BY module`),
-      query(`SELECT count(*) FILTER (WHERE readiness_band='ready_now')::int AS ready_now_count FROM succession_profiles`),
-      query(`SELECT count(*) FILTER (WHERE status='completed')::int AS completed_count FROM workflows WHERE module='recognition'`),
+      query(`SELECT count(*)::int AS employee_count, coalesce(round(avg(performance_score))::int,0) AS average_performance, coalesce(round(avg(competency_score))::int,0) AS average_competency, coalesce(round(avg(learning_progress))::int,0) AS learning_completion FROM employees WHERE is_active=true${empWhere}`, params),
+      query(`SELECT department, count(*)::int AS employees, coalesce(round(avg(performance_score))::int,0) AS performance, coalesce(round(avg(learning_progress))::int,0) AS learning FROM employees WHERE is_active=true${empWhere} GROUP BY department ORDER BY department`, params),
+      query(`SELECT w.module, w.current_stage, count(*)::int AS count FROM workflows w${wfJoin}${scope.isScoped && scope.department ? " AND w.status='active'" : " WHERE w.status='active'"} GROUP BY w.module, w.current_stage ORDER BY w.module`, params),
+      query(`SELECT count(*) FILTER (WHERE sp.readiness_band='ready_now')::int AS ready_now_count FROM succession_profiles sp${succJoin}`, params),
+      query(`SELECT count(*) FILTER (WHERE w.status='completed')::int AS completed_count FROM workflows w${wfJoin}${scope.isScoped && scope.department ? " AND w.module='recognition'" : " WHERE w.module='recognition'"}`, params),
     ])
     let employee = null
     if (employeeName) {
-      const result = await query(`SELECT full_name, department, job_title, performance_score, competency_score, learning_progress FROM employees WHERE lower(full_name) = lower($1) AND is_active=true LIMIT 1`, [employeeName])
+      const empParams = scope.isScoped && scope.department ? [employeeName, scope.department] : [employeeName]
+      const empDeptWhere = scope.isScoped && scope.department ? ' AND department=$2' : ''
+      const result = await query(`SELECT id, full_name, department, job_title, performance_score, competency_score, learning_progress FROM employees WHERE lower(full_name) = lower($1) AND is_active=true${empDeptWhere} LIMIT 1`, empParams)
       employee = result.rows[0]
-      if (!employee) return res.status(404).json({ error: 'Employee record not found in the database.' })
+      if (!employee) return res.status(404).json({ error: 'Employee record not found or outside your assigned department.' })
     }
-    res.json({ insights: await generateInsights({ workforce: totals[0], departments, activeWorkflows: workflows, succession: succession[0], recognition: recognition[0], employee }) })
+    res.json({ insights: await generateInsights({ workforce: totals[0], departments, activeWorkflows: workflows, succession: succession[0], recognition: recognition[0], employee, departmentScope: scope.department }) })
   } catch (error) { next(error) }
 })
 
 // Module insights: compute metrics, generate AI, and return the structured report.
-// This is the "Generate AI Insights" action in a module workflow.
+// Respects department scope for Department Heads.
 router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management'), async (req, res, next) => {
   try {
     const context = moduleInsightRequest.parse(req.body)
-    const { metrics, details } = await calculateMetrics(context.module)
-    const report = await generateAI(context.module, metrics, details)
+    const scope = await getScopeFilter(req.user)
+    const deptOptions = scope.isScoped && scope.department ? { department: scope.department } : {}
+    const { metrics, details } = await calculateMetrics(context.module, deptOptions)
+    const report = await generateAI(context.module, metrics, details, deptOptions)
+    const wfParams = scope.isScoped && scope.department ? [context.module, scope.department] : [context.module]
+    const wfDeptJoin = scope.isScoped && scope.department ? ' JOIN employees e ON e.id=w.subject_employee_id WHERE w.module=$1 AND w.status=\'active\' AND e.department=$2' : ' WHERE w.module=$1 AND w.status=\'active\''
     const [{ rows: moduleWorkflows }] = await Promise.all([
-      query(`SELECT current_stage, count(*)::int AS count FROM workflows WHERE module=$1 AND status='active' GROUP BY current_stage ORDER BY count DESC`, [context.module]),
+      query(`SELECT w.current_stage, count(*)::int AS count FROM workflows w${wfDeptJoin} GROUP BY w.current_stage ORDER BY count DESC`, wfParams),
     ])
     res.json({ insights: [{ title: report.title, summary: report.content }], metrics, activeModuleWorkflows: moduleWorkflows })
   } catch (error) { next(error) }

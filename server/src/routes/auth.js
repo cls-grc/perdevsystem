@@ -46,7 +46,7 @@ const loginLimiter = rateLimit({
 // Helper: generate access token (15min) + refresh token (7d)
 async function generateTokens(user, req) {
   const accessToken = jwt.sign(
-    { sub: user.id, role: user.role, employeeId: user.employee_id, name: user.full_name },
+    { sub: user.id, role: user.role, employeeId: user.employee_id, name: user.full_name, department: user.department, departmentId: user.department_id },
     config.jwtSecret,
     { expiresIn: '15m' }
   )
@@ -67,8 +67,14 @@ async function generateTokens(user, req) {
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentials.parse(req.body)
-    const { rows } = await query('SELECT id, email, password_hash, role, full_name, employee_id FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase()])
-const user = rows[0]
+    const { rows } = await query(`
+      SELECT u.id, u.email, u.password_hash, u.role, u.full_name, u.employee_id,
+             e.department, e.department_id
+      FROM users u
+      LEFT JOIN employees e ON e.id = u.employee_id
+      WHERE u.email = $1 AND u.is_active = true
+    `, [email.toLowerCase()])
+    const user = rows[0]
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       // Record failed login attempt for the audit trail (actor may be unresolved).
       await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'login.failed', category: 'auth', description: `Failed login attempt for ${email.toLowerCase()}` })
@@ -89,7 +95,7 @@ const user = rows[0]
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id },
+      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id },
     })
   } catch (error) { next(error) }
 })
@@ -103,7 +109,11 @@ router.post('/refresh', async (req, res, next) => {
 
     const result = await transaction(async (client) => {
       const { rows } = await client.query(
-        'SELECT s.*, u.email, u.role, u.full_name, u.employee_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.refresh_token = $1 AND s.is_revoked = false AND s.expires_at > NOW()',
+        `SELECT s.*, u.email, u.role, u.full_name, u.employee_id, e.department, e.department_id
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         LEFT JOIN employees e ON e.id = u.employee_id
+         WHERE s.refresh_token = $1 AND s.is_revoked = false AND s.expires_at > NOW()`,
         [refreshToken]
       )
       if (!rows[0]) throw Object.assign(new Error('Refresh token is invalid or has expired.'), { status: 401 })
@@ -112,7 +122,7 @@ router.post('/refresh', async (req, res, next) => {
       await client.query('UPDATE sessions SET is_revoked = true WHERE id = $1', [session.id])
       // Issue new tokens
       const newAccessToken = jwt.sign(
-        { sub: session.user_id, role: session.role, employeeId: session.employee_id, name: session.full_name },
+        { sub: session.user_id, role: session.role, employeeId: session.employee_id, name: session.full_name, department: session.department, departmentId: session.department_id },
         config.jwtSecret,
         { expiresIn: '15m' }
       )
@@ -132,7 +142,7 @@ router.post('/refresh', async (req, res, next) => {
       maxAge: 7 * 86400000,
     })
 
-await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'refresh', category: 'auth', description: 'Access token refreshed' })
+    await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'refresh', category: 'auth', description: 'Access token refreshed' })
     res.json({ token: result.accessToken, refreshToken: result.refreshToken })
   } catch (error) {
     if (error?.code === '42P01' || error?.message?.includes('relation "sessions" does not exist')) {

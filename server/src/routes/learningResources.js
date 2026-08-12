@@ -1,3 +1,4 @@
+import { getScopeFilter, verifyEmployeeAccess } from '../services/departmentScope.js'
 import { Router } from 'express'
 import { z } from 'zod'
 import { query, transaction } from '../db.js'
@@ -63,7 +64,7 @@ router.get('/competencies', async (_req, res, next) => {
     const { rows } = await query(
       `SELECT DISTINCT competency FROM learning_resource_competencies ORDER BY competency`,
     )
-const base = ['Customer Service', 'Leadership', 'Communication', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Conflict Resolution', 'Technical Skills', 'Reservation Management', 'Upselling', 'Operational Management', 'Financial Acumen', 'Teamwork']
+    const base = ['Customer Service', 'Leadership', 'Communication', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Conflict Resolution', 'Technical Skills', 'Reservation Management', 'Upselling', 'Operational Management', 'Financial Acumen', 'Teamwork']
     const tags = [...new Set([...base, ...rows.map(r => r.competency)])].sort()
     res.json({ competencies: tags })
   } catch (error) { next(error) }
@@ -77,15 +78,20 @@ const base = ['Customer Service', 'Leadership', 'Communication', 'Food Safety', 
 router.get('/skill-gaps', async (req, res, next) => {
   try {
     const { employeeId } = req.query
+    const scope = await getScopeFilter(req.user)
     let where = 'WHERE 1=1'
     const params = []
     // Employees may only view their own gaps.
-    if (req.user.role === 'employee') {
-      params.push(req.user.employeeId)
+    if (scope.isEmployee) {
+      params.push(scope.employeeId)
       where += ` AND ca.employee_id = $${params.length}`
     } else if (employeeId) {
+      await verifyEmployeeAccess(req.user, employeeId)
       params.push(employeeId)
       where += ` AND ca.employee_id = $${params.length}`
+    } else if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
     }
     const { rows } = await query(
       `SELECT ca.employee_id, ca.competency, ca.score, ca.required_score,
@@ -213,6 +219,9 @@ const { rows } = await query('UPDATE learning_resources SET is_active=false, upd
 router.post('/assign', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const input = assignSchema.parse(req.body)
+    for (const empId of input.employeeIds) {
+      await verifyEmployeeAccess(req.user, empId)
+    }
     const result = await transaction(async client => {
       const resourceCheck = await client.query('SELECT id FROM learning_resources WHERE id=$1 AND is_active=true', [input.resourceId])
       if (!resourceCheck.rows[0]) throw Object.assign(new Error('Learning resource is not available.'), { status: 404 })
@@ -229,23 +238,27 @@ router.post('/assign', authorize('hr', 'supervisor'), async (req, res, next) => 
         )
         created.push(inserted.rows[0])
       }
-return created
+      return created
     })
     await logActivity({ req, user: req.user, action: 'learning.assign', category: 'learning', targetId: input.resourceId, description: `${req.user.name} assigned learning resource to ${result.length} employee(s)`, details: { employeeIds: input.employeeIds, dueDate: input.dueDate || null } })
     res.status(201).json({ assignments: result })
   } catch (error) { next(error) }
 })
 
-// List assignments. Employees see only their own.
+// List assignments. Employees see only their own, Supervisors see their department.
 router.get('/assignments', async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
     const params = []
     let where = 'WHERE 1=1'
-    if (req.user.role === 'employee') {
-      params.push(req.user.employeeId)
+    if (scope.isEmployee) {
+      params.push(scope.employeeId)
       where += ` AND la.employee_id = $${params.length}`
+    } else if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
     }
-const { rows } = await query(
+    const { rows } = await query(
       `SELECT la.*, r.title AS resource_title, r.category, r.provider, r.provider_type, r.duration_hours,
         e.full_name AS employee_name, e.department,
         (lc.id IS NOT NULL) AS is_completed, lc.completed_at, lc.assessment_result,
@@ -275,9 +288,8 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
     const { rows } = await query('SELECT * FROM learning_assignments WHERE id=$1', [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Assignment not found.' })
     const assignment = rows[0]
-    if (req.user.role === 'employee' && assignment.employee_id !== req.user.employeeId) {
-      return res.status(403).json({ error: 'You can only update your own assignment.' })
-    }
+    await verifyEmployeeAccess(req.user, assignment.employee_id)
+    
     // Derive status from progress if status not explicitly provided, so the
     // slider alone keeps the status badge sensible.
     let status = input.status
@@ -288,7 +300,7 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
     let progress = input.progress
     if (progress === undefined) progress = Number(assignment.progress || 0)
     const updated = await query(
-'UPDATE learning_assignments SET progress=$1, status=$2 WHERE id=$3 RETURNING *',
+      'UPDATE learning_assignments SET progress=$1, status=$2 WHERE id=$3 RETURNING *',
       [progress, status, req.params.id],
     )
     await logActivity({ req, user: req.user, action: 'learning.progress_update', category: 'learning', targetId: req.params.id, description: `${req.user.name} updated learning progress to ${progress}% (${status})`, details: { progress, status } })
@@ -301,6 +313,7 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
 router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const input = completionSchema.parse(req.body)
+    await verifyEmployeeAccess(req.user, input.employeeId)
     const result = await transaction(async client => {
       const assignment = await client.query(
         'SELECT id FROM learning_assignments WHERE resource_id=$1 AND employee_id=$2',
@@ -315,7 +328,7 @@ router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next
       if (assignment.rows[0]) {
         await client.query("UPDATE learning_assignments SET progress=100, status='completed' WHERE id=$1", [assignment.rows[0].id])
       }
-return rows[0]
+      return rows[0]
     })
     await logActivity({ req, user: req.user, action: 'learning.completion', category: 'learning', targetId: input.employeeId, description: `${req.user.name} verified completion of learning resource for employee`, details: { resourceId: input.resourceId, employeeId: input.employeeId } })
     res.status(201).json({ completion: result })
@@ -325,11 +338,15 @@ return rows[0]
 // List completions (confirmed records only).
 router.get('/completions', async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
     const params = []
     let where = 'WHERE 1=1'
-    if (req.user.role === 'employee') {
-      params.push(req.user.employeeId)
+    if (scope.isEmployee) {
+      params.push(scope.employeeId)
       where += ` AND lc.employee_id = $${params.length}`
+    } else if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where += ` AND e.department = $${params.length}`
     }
     const { rows } = await query(
       `SELECT lc.*, r.title AS resource_title, r.category, r.provider, r.provider_type,
