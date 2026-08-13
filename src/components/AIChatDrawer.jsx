@@ -204,10 +204,10 @@ export default function AIChatDrawer({ isOpen, onClose }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>✦</span>
-              <h2 style={{ margin: 0, fontSize: 16, color: '#fff' }}>Database-Grounded AI Assistant</h2>
+              <h2 style={{ margin: 0, fontSize: 16, color: '#fff' }}>AI Assistant Chatbox</h2>
             </div>
             <small style={{ color: '#b6b0d6', fontSize: 11 }}>
-              Strict Database Grounding · Role Scope: <b style={{ textTransform: 'uppercase', color: '#8f7bf0' }}>{role}</b>
+              Smart Analytics · Role Scope: <b style={{ textTransform: 'uppercase', color: '#8f7bf0' }}>{role}</b>
             </small>
           </div>
           <button
@@ -231,8 +231,8 @@ export default function AIChatDrawer({ isOpen, onClose }) {
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          <span>🔒 Authorized Data Pipeline Active</span>
-          <span style={{ fontWeight: 600, color: '#654bd2' }}>{dataContextSummary || 'Grounded DB Context'}</span>
+          <span>🔒 Authorized Access Active</span>
+          <span style={{ fontWeight: 600, color: '#654bd2' }}>{dataContextSummary || 'Analytics Context Active'}</span>
         </div>
 
         {/* Messages Body */}
@@ -282,7 +282,7 @@ export default function AIChatDrawer({ isOpen, onClose }) {
               fontSize: 12,
               color: '#8e8b95',
             }}>
-              ✦ Querying authorized database records & generating grounded response…
+              ✦ Analyzing available data & generating response…
             </div>
           )}
 
@@ -298,7 +298,7 @@ export default function AIChatDrawer({ isOpen, onClose }) {
         {/* Suggested Prompts Strip */}
         <div style={{ padding: '8px 14px', background: '#fff', borderTop: '1px solid #ecebf0' }}>
           <small style={{ fontSize: 10, color: '#8e8b95', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-            Suggested Database Queries:
+            Suggested Questions:
           </small>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
             {samples.map((prompt, i) => (
@@ -340,7 +340,7 @@ export default function AIChatDrawer({ isOpen, onClose }) {
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Ask a question about database metrics, performance, skill gaps, or learning…"
+            placeholder="Ask a question about performance, training, skill gaps, or learning…"
             disabled={sending}
             style={{
               flex: 1,
