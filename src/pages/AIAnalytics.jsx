@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
 import { printElementAsPdf, downloadCsv } from '../lib/exportUtils'
 
-const initials = name => name.split(' ').map(part => part[0]).join('').slice(0, 2)
+const initials = name => (name || 'Employee').split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2)
 const percent = value => `${Number(value || 0)}%`
 
 export default function AIAnalytics() {
