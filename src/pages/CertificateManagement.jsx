@@ -102,7 +102,75 @@ export default function CertificateManagement({ embedded = false }) {
     if (!code) return setError('This certificate has no verification code.')
     window.open(`/verify/certificate/${code}`, '_blank')
   }
-  const gallery = <div className="certificate-gallery">{filtered.map(c => <article className="certificate-card" key={c.id}><Preview certificate={c} compact/><div><span className={`certificate-status ${c.status}`}>{c.status}</span><h3>{hr ? c.employee_name : c.certificate_title}</h3><p>{c.certificate_number || date(c.awarded_at)}</p><p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p><button onClick={() => print(c)}>Print</button><button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button><button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>{hr && c.status === 'issued' && <><button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button><button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button></>}<button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify Page</button></div></article>)}{!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}</div>
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 8
+
+  useEffect(() => { setCurrentPage(1) }, [query, sortBy])
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1
+  const paginatedCertificates = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, currentPage])
+
+  const gallery = (
+    <>
+      <div className="certificate-gallery">
+        {paginatedCertificates.map(c => (
+          <article className="certificate-card" key={c.id}>
+            <Preview certificate={c} compact/>
+            <div>
+              <span className={`certificate-status ${c.status}`}>{c.status}</span>
+              <h3>{hr ? c.employee_name : c.certificate_title}</h3>
+              <p>{c.certificate_number || date(c.awarded_at)}</p>
+              <p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p>
+              <button onClick={() => print(c)}>Print</button>
+              <button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button>
+              <button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>
+              {hr && c.status === 'issued' && (
+                <>
+                  <button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button>
+                  <button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button>
+                </>
+              )}
+              <button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify Page</button>
+            </div>
+          </article>
+        ))}
+        {!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}
+      </div>
+
+      {filtered.length > 0 && (
+        <div className="certificate-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, padding: '10px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+          <span style={{ fontSize: 13, color: '#4b5563', fontWeight: 500 }}>
+            Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} certificates
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              style={{ padding: '6px 12px', border: '1px solid #d1d5db', background: currentPage === 1 ? '#f3f4f6' : '#ffffff', color: currentPage === 1 ? '#9ca3af' : '#374151', borderRadius: 6, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}
+            >
+              Previous
+            </button>
+            <span style={{ fontSize: 13, color: '#374151', fontWeight: 600, padding: '0 4px' }}>
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              style={{ padding: '6px 12px', border: '1px solid #d1d5db', background: currentPage >= totalPages ? '#f3f4f6' : '#ffffff', color: currentPage >= totalPages ? '#9ca3af' : '#374151', borderRadius: 6, cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer', fontSize: 13 }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   const employeeSearch = <div className="certificate-employee-search"><input className="certificate-search" value={employeeQuery} onChange={e => setEmployeeQuery(e.target.value)} placeholder="Search employee name, role, or department" aria-label="Search employees"/>{employeeQuery && <button className="certificate-clear" type="button" onClick={() => setEmployeeQuery('')} aria-label="Clear employee search">×</button>}</div>
   const printPortal = printCert && createPortal(<div className="certificate-print-root" role="dialog" aria-label="Print preview"><div className="certificate-print-sheet"><Preview template={printCert} certificate={printCert} /></div><button className="certificate-print-close" onClick={() => setPrintCert(null)}>× Close preview</button></div>, document.body)
   if (!hr) return <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}><header className="certificate-heading"><div><p className="eyebrow">{operationsManager ? 'Certificate monitoring' : 'My achievements'}</p><h1>{operationsManager ? 'Certificate management' : 'My Certificates'}</h1><span>{operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}</span></div></header><section className="certificate-archive"><div className="certificate-archive-inner"><h2>Issued certificates</h2>{archiveControls}</div>{gallery}</section>{printPortal}</Container>

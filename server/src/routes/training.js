@@ -484,17 +484,102 @@ router.post('/sessions/:id/complete', authorize('hr', 'operations_manager'), asy
       [req.user.id, id]
     )
 
+    // AUTO-ISSUE "Certificate of Participation" FOR QUALIFIED PARTICIPANTS (PRESENT / LATE ONLY)
+    let issuedCertCount = 0
+    try {
+      // 1. Get or create default "Certificate of Participation" template
+      let templateRes = await query(
+        `SELECT * FROM certificate_templates WHERE LOWER(certificate_title) = 'certificate of participation' AND is_active = true ORDER BY created_at ASC LIMIT 1`
+      )
+      let template = templateRes.rows[0]
+      if (!template) {
+        const insTmpl = await query(
+          `INSERT INTO certificate_templates (name, certificate_title, subtitle, organization_name, body_text, signatory_name, signatory_position, is_active, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8) RETURNING *`,
+          [
+            'Certificate of Participation',
+            'Certificate of Participation',
+            'Training Program Completion',
+            'PerDevSys Hospitality',
+            'This certificate is proudly presented to {{employee_name}} for successfully completing the training program.',
+            'Ava Reyes',
+            'HR Administrator',
+            req.user.sub || req.user.id
+          ]
+        )
+        template = insTmpl.rows[0]
+      }
+
+      // 2. Query participants who were PRESENT or LATE (ABSENT employees get NO certificate)
+      const qualifiedPartsRes = await query(
+        `SELECT tp.*, e.id AS emp_id, e.full_name, e.department, e.employee_number
+         FROM training_participants tp
+         JOIN employees e ON tp.employee_id = e.id
+         WHERE tp.session_id = $1 AND (LOWER(tp.attendance) = 'present' OR LOWER(tp.attendance) = 'late')`,
+        [id]
+      )
+
+      for (const p of qualifiedPartsRes.rows) {
+        // Check if certificate already exists for this employee & session
+        const existingCert = await query(
+          `SELECT id FROM certificates WHERE employee_id = $1 AND template_id = $2 AND metadata->>'trainingSessionId' = $3`,
+          [p.emp_id, template.id, id]
+        )
+        if (existingCert.rows.length === 0) {
+          const certNumber = `PDS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+          const achievementText = `For successfully attending and completing the "${session.title}" training program on ${session.start_date} at ${session.venue}.`
+          
+          await query(
+            `INSERT INTO certificates (template_id, employee_id, certificate_number, achievement_text, awarded_at, issued_by, metadata)
+             VALUES ($1, $2, $3, $4, NOW()::date, $5, $6)`,
+            [
+              template.id,
+              p.emp_id,
+              certNumber,
+              achievementText,
+              req.user.sub || req.user.id,
+              JSON.stringify({
+                employeeName: p.full_name,
+                employeeNumber: p.employee_number,
+                department: p.department,
+                trainingSessionId: session.id,
+                trainingTitle: session.title,
+                attendance: p.attendance,
+              })
+            ]
+          )
+          issuedCertCount++
+
+          // Send in-app notification to the employee
+          const u = await query('SELECT id FROM users WHERE employee_id = $1 AND is_active = true', [p.emp_id])
+          if (u.rows[0]) {
+            await query(
+              'INSERT INTO notifications(user_id, title, message) VALUES($1, $2, $3)',
+              [
+                u.rows[0].id,
+                'Certificate Issued',
+                `Congratulations! Your Certificate of Participation for "${session.title}" has been issued and is available in My Certificates.`,
+              ]
+            )
+          }
+        }
+      }
+    } catch (certError) {
+      console.error('Auto certificate issuance error:', certError)
+    }
+
     await logActivity({
       userId: req.user.id,
       action: 'training_session_completed',
       entityType: 'training_session',
       entityId: id,
-      details: { title: session.title },
+      details: { title: session.title, autoIssuedCertificates: issuedCertCount },
     })
 
     res.json({
       session: rows[0],
-      message: 'Training session completed successfully. Analytics and AI insights are now available.',
+      autoIssuedCertificates: issuedCertCount,
+      message: `Training session completed successfully. ${issuedCertCount > 0 ? `Auto-issued ${issuedCertCount} Certificate(s) of Participation.` : ''}`,
     })
   } catch (error) {
     next(error)
