@@ -484,6 +484,70 @@ router.post('/sessions/:id/complete', authorize('hr', 'operations_manager'), asy
       [req.user.id, id]
     )
 
+    // AUTO-ISSUE CERTIFICATE OF PARTICIPATION FOR PRESENT & LATE PARTICIPANTS
+    try {
+      const presentParts = await query(
+        `SELECT tp.employee_id, e.full_name, e.department, e.employee_number 
+         FROM training_participants tp 
+         JOIN employees e ON tp.employee_id = e.id 
+         WHERE tp.session_id = $1 AND LOWER(tp.attendance) IN ('present', 'late')`,
+        [id]
+      )
+
+      if (presentParts.rows.length > 0) {
+        let tplRes = await query(`SELECT id FROM certificate_templates WHERE is_active=true ORDER BY created_at ASC LIMIT 1`)
+        let templateId = tplRes.rows[0]?.id
+
+        if (!templateId) {
+          const newTpl = await query(
+            `INSERT INTO certificate_templates(name, certificate_title, subtitle, organization_name, body_text, signatory_name, signatory_position, created_by)
+             VALUES('Certificate of Participation', 'Certificate of Participation', 'Training Excellence Program', 'PerDevSys Hospitality', 'For active participation and completion of professional development training.', 'HR Director', 'Human Resources', $1)
+             RETURNING id`,
+            [req.user.id]
+          )
+          templateId = newTpl.rows[0].id
+        }
+
+        for (const emp of presentParts.rows) {
+          const existingCert = await query(
+            `SELECT id FROM certificates WHERE employee_id = $1 AND metadata->>'sessionId' = $2`,
+            [emp.employee_id, String(id)]
+          )
+          if (existingCert.rows.length === 0) {
+            const certNum = `CERT-TRN-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+            const achievement = `Successfully completed "${session.title}" training session on ${String(session.start_date || new Date().toISOString()).slice(0, 10)}.`
+            
+            await query(
+              `INSERT INTO certificates(template_id, employee_id, certificate_number, achievement_text, awarded_at, issued_by, metadata)
+               VALUES($1, $2, $3, $4, NOW()::date, $5, $6)`,
+              [
+                templateId,
+                emp.employee_id,
+                certNum,
+                achievement,
+                req.user.id,
+                JSON.stringify({
+                  sessionId: String(id),
+                  sessionTitle: session.title,
+                  employeeName: emp.full_name,
+                  department: emp.department,
+                }),
+              ]
+            )
+
+            await query(
+              `INSERT INTO notifications(user_id, title, message, type, link)
+               SELECT u.id, 'Certificate of Participation Issued', $1, 'certificate', '/certificates'
+               FROM users u WHERE u.employee_id = $2`,
+              [`Congratulations! You have received an official Certificate of Participation for "${session.title}".`, emp.employee_id]
+            )
+          }
+        }
+      }
+    } catch (certErr) {
+      console.error('Auto-certificate issuance log:', certErr)
+    }
+
     await logActivity({
       userId: req.user.id,
       action: 'training_session_completed',
@@ -494,7 +558,7 @@ router.post('/sessions/:id/complete', authorize('hr', 'operations_manager'), asy
 
     res.json({
       session: rows[0],
-      message: 'Training session completed successfully. Analytics and AI insights are now available.',
+      message: 'Training session completed successfully. Certificates of Participation auto-issued to all attending participants.',
     })
   } catch (error) {
     next(error)
