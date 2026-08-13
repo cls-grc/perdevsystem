@@ -40,7 +40,8 @@ supervisor: [
     {
       title: 'Administration',
       links: [
-        { to: '/employees', label: 'Employee Records', icon: 'users' }
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' }
       ]
     },
 {
@@ -69,7 +70,8 @@ supervisor: [
       title: 'Operations',
       links: [
         { to: '/succession', label: 'Succession Approvals', icon: 'users' },
-        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' }
       ]
     },
     {
@@ -87,7 +89,8 @@ operations_manager: [
     {
       title: 'Administration',
       links: [
-        { to: '/employees', label: 'Employee Records', icon: 'users' }
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' }
       ]
     },
 {
@@ -125,7 +128,8 @@ employee: [
       title: 'Monitoring',
       links: [
         { to: '/learning', label: 'My Learning', icon: 'book' },
-        { to: '/training', label: 'My Training', icon: 'calendar' }
+        { to: '/training', label: 'My Training', icon: 'calendar' },
+        { to: '/certificates', label: 'My Certificates', icon: 'award' }
       ]
     }
   ]
