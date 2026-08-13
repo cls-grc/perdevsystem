@@ -95,10 +95,20 @@ export default function WorkflowPage({
   itemIsEmployee = false,
   extraHeaderAction,
 }) {
-const role = getRole()
+  const role = getRole()
   const userId = getUserId()
   const employeeId = getEmployeeId()
-  const moduleKey = module || moduleKeys[title]
+  const moduleKey = useMemo(() => {
+    if (module) return module
+    const t = (title || '').toLowerCase()
+    if (t.includes('performance')) return 'performance'
+    if (t.includes('skill') || t.includes('competency')) return 'competency'
+    if (t.includes('learning')) return 'learning'
+    if (t.includes('training')) return 'training'
+    if (t.includes('succession')) return 'succession'
+    if (t.includes('recognition')) return 'recognition'
+    return 'performance'
+  }, [module, title])
   const moduleCfg = useMemo(() => configFor(moduleKey), [moduleKey])
 const [workflow, setWorkflow] = useState(null)
   const [workflows, setWorkflows] = useState([])
@@ -477,6 +487,14 @@ const complete = async () => {
     setSaving(true)
     setError('')
     try {
+      if (currentFormConfig?.builder === 'trainingInvite' && currentFormValue?.sessionId && Array.isArray(currentFormValue?.employeeIds)) {
+        try {
+          await api.inviteTrainingParticipants(currentFormValue.sessionId, currentFormValue.employeeIds)
+        } catch (err) {
+          console.warn('Participant invitation error:', err)
+        }
+      }
+
       const result = await api.advanceWorkflow(workflow.id, {
         note: note || undefined,
         data: { selectedItem: selected[0], formData: currentFormValue, ...currentFormValue },
@@ -1076,7 +1094,10 @@ const saveSchedule = async () => {
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Create new workflow" onClick={() => setComposerOpen(false)}>
         <section className="schedule-dialog workflow-modal composer-modal" onClick={event => event.stopPropagation()}>
 <div className="composer-head">
-            <div><h2>Create New {title}</h2><p>Choose the subject to evaluate, then start a fresh workflow cycle.</p></div>
+            <div>
+              <h2>{moduleKey === 'training' ? 'Invite Participants to Training' : `Create New ${title}`}</h2>
+              <p>{moduleKey === 'training' ? 'Select a scheduled training session and choose participants to invite.' : 'Choose the subject to evaluate, then start a fresh workflow cycle.'}</p>
+            </div>
           </div>
 
           <label className="composer-field">

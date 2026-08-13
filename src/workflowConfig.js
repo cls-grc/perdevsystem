@@ -397,26 +397,10 @@ const training = {
     ],
   },
   stepForms: {
-    schedule: {
-      title: 'Create training',
-      description: 'Set the session details: venue, date, capacity and budget.',
-      fields: [
-        { name: 'title', label: 'Title', type: 'text', required: true },
-        { name: 'venue', label: 'Venue', type: 'text', required: true },
-        { name: 'date', label: 'Date', type: 'date', required: true },
-        { name: 'capacity', label: 'Capacity', type: 'number', required: true, min: 1 },
-        { name: 'budget', label: 'Budget', type: 'money', required: true },
-      ],
-    },
     invite: {
       title: 'Invite participants',
-      description: 'Notify assigned employees and supervisors.',
+      description: 'Select existing scheduled training session and invite employees.',
       builder: 'assignEmployees',
-    },
-    attendance: {
-      title: 'Attendance',
-      description: 'Record which participants attended the session.',
-      builder: 'attendance',
     },
     effectiveness: {
       title: 'Training evaluation',
@@ -430,8 +414,8 @@ const training = {
     },
   },
   quickActions: [
-    { label: 'Schedule training', stage: 'schedule', roles: ['hr'] },
-    { label: 'Record attendance', stage: 'attendance', roles: ['hr', 'supervisor'] },
+    { label: 'Invite participants', stage: 'invite', roles: ['hr', 'supervisor'] },
+    { label: 'Training evaluation', stage: 'effectiveness', roles: ['employee', 'supervisor'] },
   ],
 }
 

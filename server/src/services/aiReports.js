@@ -37,9 +37,11 @@ learning: `SELECT
     (SELECT count(*)::int FROM learning_completions) AS completed_count,
     (SELECT count(*)::int FROM learning_assignments WHERE status='in_progress') AS active_count,
     (SELECT coalesce(round(avg(la.progress))::int,0) AS p FROM learning_assignments la) AS average_score`,
-  training: `SELECT count(*) FILTER (WHERE w.status='active')::int AS active_count,
-    count(*) FILTER (WHERE w.status='completed')::int AS completed_count
-    FROM workflows w WHERE w.module='training'`,
+  training: `SELECT 
+    (SELECT count(*)::int FROM training_sessions WHERE status='scheduled' OR status='ongoing') AS active_count,
+    (SELECT count(*)::int FROM training_sessions WHERE status='completed') AS completed_count,
+    (SELECT count(*)::int FROM training_participants) AS participant_count,
+    (SELECT coalesce(round(avg(CASE WHEN attendance='present' OR attendance='late' THEN 100 ELSE 0 END))::int, 0) FROM training_participants WHERE attendance != 'pending') AS average_score`,
   succession: `SELECT count(*)::int AS candidate_count,
     coalesce(round(avg(readiness_score))::int,0) AS average_readiness,
     count(*) FILTER (WHERE readiness_band='ready_now')::int AS ready_now_count,
@@ -81,8 +83,8 @@ const EMPLOYEE_METRIC_QUERIES = {
     coalesce(e.performance_score,0)::int AS performance_score,
     coalesce(e.competency_score,0)::int AS competency_score,
     coalesce(e.learning_progress,0)::int AS learning_progress,
-    (SELECT count(*)::int FROM workflows w WHERE w.module='training' AND w.subject_employee_id=e.id AND w.status='completed') AS completed_count,
-    (SELECT count(*)::int FROM workflows w WHERE w.module='training' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    (SELECT count(*)::int FROM training_participants tp JOIN training_sessions ts ON tp.session_id=ts.id WHERE tp.employee_id=e.id AND ts.status='completed') AS completed_count,
+    (SELECT count(*)::int FROM training_participants tp JOIN training_sessions ts ON tp.session_id=ts.id WHERE tp.employee_id=e.id AND (ts.status='scheduled' OR ts.status='ongoing')) AS active_count
     FROM employees e WHERE e.id=$1 AND e.is_active=true`,
   succession: `SELECT e.full_name AS employee_name, e.department, e.job_title,
     coalesce(e.performance_score,0)::int AS performance_score,

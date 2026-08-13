@@ -81,7 +81,7 @@ router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) =
 
 // Module insights: compute metrics, generate AI, and return the structured report.
 // Respects department scope for Department Heads.
-router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management'), async (req, res, next) => {
+router.post('/module-insights', authorize('hr', 'supervisor', 'employee', 'management', 'operations_manager'), async (req, res, next) => {
   try {
     const context = moduleInsightRequest.parse(req.body)
     const scope = await getScopeFilter(req.user)

@@ -166,6 +166,30 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   overdueWorkflows: (days = 3) => request(`/api/workflows/overdue?days=${days}`),
   // Database-grounded AI Chat Assistant
   chatAssistant: (data) => request('/api/chat', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Session-based Training Management System
+  trainingSessions: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.status) qs.set('status', params.status)
+    if (params.category) qs.set('category', params.category)
+    if (params.query) qs.set('query', params.query)
+    const queryStr = qs.toString()
+    return request(`/api/training/sessions${queryStr ? `?${queryStr}` : ''}`)
+  },
+  trainingSession: (id) => request(`/api/training/sessions/${id}`),
+  createTrainingSession: (data) => request('/api/training/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  updateTrainingSession: (id, data) => request(`/api/training/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  cancelTrainingSession: (id) => request(`/api/training/sessions/${id}/cancel`, { method: 'POST', body: '{}' }),
+  inviteTrainingParticipants: (sessionId, employeeIds) => request(`/api/training/sessions/${sessionId}/participants`, { method: 'POST', body: JSON.stringify({ employeeIds }) }),
+  removeTrainingParticipant: (sessionId, employeeId) => request(`/api/training/sessions/${sessionId}/participants/${employeeId}`, { method: 'DELETE' }),
+  recordTrainingAttendance: (sessionId, records) => request(`/api/training/sessions/${sessionId}/attendance`, { method: 'POST', body: JSON.stringify({ records }) }),
+  submitTrainingEvaluation: (sessionId, data) => request(`/api/training/sessions/${sessionId}/evaluation`, { method: 'POST', body: JSON.stringify(data) }),
+  completeTrainingSession: (sessionId) => request(`/api/training/sessions/${sessionId}/complete`, { method: 'POST', body: '{}' }),
+  trainingSessionAnalytics: (sessionId) => request(`/api/training/sessions/${sessionId}/analytics`),
+  generateTrainingAiInsights: (sessionId) => request(`/api/training/sessions/${sessionId}/ai-insights`, { method: 'POST', body: '{}' }),
+  employeeTrainingSessions: (employeeId) => request(`/api/training/sessions?employeeId=${employeeId}`),
+  trainingStats: () => request('/api/training/stats'),
+
   // CSV exports (client-side from fetched data — no extra endpoint needed)
   exportEmployeesCsv: async () => {
     const result = await request('/api/employees/all')

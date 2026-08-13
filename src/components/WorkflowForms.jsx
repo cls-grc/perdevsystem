@@ -1013,6 +1013,186 @@ function AssignEmployeesBuilder({ value = [], onChange, people = [] }) {
   )
 }
 
+// ------------------------- Builder: Training Invite -----------------------
+
+function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [deptFilter, setDeptFilter] = useState('')
+
+  useEffect(() => {
+    let mounted = true
+    api.trainingSessions()
+      .then(res => {
+        if (mounted) setSessions(res.sessions || [])
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => { mounted = false }
+  }, [])
+
+  const selectedSessionId = value.sessionId || ''
+  const selectedEmpIds = Array.isArray(value.employeeIds) ? value.employeeIds : []
+
+  const handleSessionChange = sessionId => {
+    const sess = sessions.find(s => s.id === sessionId) || null
+    onChange({
+      ...value,
+      sessionId,
+      sessionTitle: sess?.title || '',
+      venue: sess?.venue || '',
+      startDate: sess?.start_date || '',
+    })
+  }
+
+  const toggleEmp = emp => {
+    const isSelected = selectedEmpIds.includes(emp.id)
+    const nextIds = isSelected ? selectedEmpIds.filter(id => id !== emp.id) : [...selectedEmpIds, emp.id]
+    const nextNames = people.filter(p => nextIds.includes(p.id)).map(p => p.full_name)
+    onChange({
+      ...value,
+      employeeIds: nextIds,
+      employeeNames: nextNames,
+    })
+  }
+
+  const selectedSess = sessions.find(s => s.id === selectedSessionId)
+
+  const filteredEmployees = people.filter(p => {
+    if (deptFilter && p.department !== deptFilter) return false
+    if (search && !`${p.full_name} ${p.department} ${p.job_title || ''}`.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const departments = [...new Set(people.map(p => p.department))].filter(Boolean)
+
+  return (
+    <div className="builder training-invite-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="builder-note">
+        Select a scheduled training session and multi-select employees to invite.
+      </div>
+
+      {/* 1. Session Selector */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label style={{ fontWeight: 600, fontSize: 13, color: '#374151' }}>
+          Select Scheduled Training Session *
+        </label>
+        <select
+          value={selectedSessionId}
+          onChange={e => handleSessionChange(e.target.value)}
+          style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
+        >
+          <option value="">Choose a Training Session…</option>
+          {sessions.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.title} — {String(s.start_date).slice(0, 10)} @ {s.venue} ({s.registered_count || 0}/{s.capacity} enrolled)
+            </option>
+          ))}
+        </select>
+        {sessions.length === 0 && !loading && (
+          <small style={{ color: '#b91c1c' }}>No scheduled training sessions found in database. Create a session first in the Training Sessions Catalog.</small>
+        )}
+      </div>
+
+      {/* Session Preview Badge */}
+      {selectedSess && (
+        <div style={{ background: '#f0edff', border: '1px solid #d5cefc', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <b style={{ color: '#5f48c5', fontSize: 14 }}>{selectedSess.title}</b>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+              <span>📍 {selectedSess.venue}</span> • <span>📅 {String(selectedSess.start_date).slice(0, 10)}</span> • <span>👥 {selectedSess.registered_count || 0}/{selectedSess.capacity} capacity</span>
+            </div>
+          </div>
+          <span style={{ background: '#5f48c5', color: '#fff', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{selectedSess.category}</span>
+        </div>
+      )}
+
+      {/* 2. Employee Selection */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label style={{ fontWeight: 600, fontSize: 13, color: '#374151' }}>
+            Select Employees to Invite ({selectedEmpIds.length} selected) *
+          </label>
+          {filteredEmployees.length > 0 && (
+            <button
+              type="button"
+              style={{ background: 'transparent', border: 'none', color: '#5f48c5', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => {
+                const allIds = filteredEmployees.map(p => p.id)
+                const nextIds = [...new Set([...selectedEmpIds, ...allIds])]
+                const nextNames = people.filter(p => nextIds.includes(p.id)).map(p => p.full_name)
+                onChange({ ...value, employeeIds: nextIds, employeeNames: nextNames })
+              }}
+            >
+              + Select All Filtered ({filteredEmployees.length})
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Search employee name or job title..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ flex: 1, padding: '7px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+          />
+          <select
+            value={deptFilter}
+            onChange={e => setDeptFilter(e.target.value)}
+            style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+          >
+            <option value="">All Departments</option>
+            {departments.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {filteredEmployees.map(p => {
+            const checked = selectedEmpIds.includes(p.id)
+            return (
+              <label
+                key={p.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  background: checked ? '#f0edff' : '#ffffff',
+                  border: checked ? '1px solid #c4b8f3' : '1px solid #f3f4f6',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleEmp(p)}
+                />
+                <div style={{ flex: 1 }}>
+                  <b style={{ fontSize: 13, color: '#111827' }}>{p.full_name}</b>
+                  <small style={{ display: 'block', color: '#6b7280', fontSize: 11 }}>
+                    {p.job_title ? `${p.job_title} — ` : ''}{p.department}
+                  </small>
+                </div>
+              </label>
+            )
+          })}
+          {filteredEmployees.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#6b7280', padding: 12, fontSize: 13, margin: 0 }}>No employees match your search criteria.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ------------------------- Builder: Progress tracker -----------------------
 
 function ProgressBuilder({ value = [], onChange }) {
@@ -1109,12 +1289,13 @@ const BUILDERS = {
   kpi: { Component: KpiBuilder, initial: () => [] },
   kpiLibrary: { Component: KpiLibraryBuilder, initial: () => [] },
   assessment: { Component: AssessmentBuilder, initial: role => ({ kpiRatings: DEFAULT_KPIS.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: role === 'employee' ? 85 : 80, comment: '' })), overall: 82, role: role || '' }) },
-calibration: { Component: CalibrationBuilder, initial: () => ({ decision: '', finalScore: '', reason: '' }) },
+  calibration: { Component: CalibrationBuilder, initial: () => ({ decision: '', finalScore: '', reason: '' }) },
   competencyTemplate: { Component: CompetencyTemplateBuilder, initial: () => [] },
   skillGapPlan: { Component: SkillGapPlanBuilder, initial: () => ({ planTitle: 'Development Plan', prioritySkills: ['Customer Service'], coachingNotes: '' }) },
   competencyRequirement: { Component: CompetencyRequirementBuilder, initial: () => [] },
   resources: { Component: ResourcesBuilder, initial: () => [] },
   assignEmployees: { Component: AssignEmployeesBuilder, initial: () => [] },
+  trainingInvite: { Component: TrainingInviteBuilder, initial: () => ({ sessionId: '', employeeIds: [] }) },
   progress: { Component: ProgressBuilder, initial: () => [] },
   attendance: { Component: AttendanceBuilder, initial: () => [] },
   talentPool: { Component: TalentPoolBuilder, initial: () => [] },
@@ -1130,7 +1311,7 @@ export function getInitialValue(formConfig, role) {
     const builder = BUILDERS[formConfig.builder]
     return builder ? builder.initial(role) : {}
   }
-const fields = formConfig.fields || []
+  const fields = formConfig.fields || []
   if (fields.length === 0) return undefined
   return fields.reduce((acc, field) => {
     if (field.type === 'toggle') acc[field.name] = false
@@ -1153,9 +1334,12 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
   const progressive = formConfig.progressive && !builder && fields.length > 0
   const visibleFields = progressive ? fields.filter(f => f.section === undefined || f.section === section) : fields
 
-const isRequiredFilled = useMemo(() => {
+  const isRequiredFilled = useMemo(() => {
     if (builder) {
       if (Array.isArray(value)) return value.length > 0
+      if (formConfig.builder === 'trainingInvite') {
+        return Boolean(value?.sessionId && Array.isArray(value?.employeeIds) && value.employeeIds.length > 0)
+      }
       if (formConfig.builder === 'calibration') {
         // Calibration requires a decision; finalScore when overriding; reason
         // when overriding or returning for reassessment.

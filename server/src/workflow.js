@@ -25,9 +25,7 @@ export const WORKFLOWS = {
     ['update_competency', 'Update competency records', ['hr']],
   ],
   training: [
-    ['schedule', 'Schedule training', ['hr']],
     ['invite', 'Invite participants', ['hr', 'supervisor']],
-    ['attendance', 'Record attendance', ['employee', 'supervisor', 'hr']],
     ['effectiveness', 'Measure effectiveness', ['employee', 'supervisor']],
     ['published', 'Publish analytics', ['hr']],
   ],
