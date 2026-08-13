@@ -494,7 +494,7 @@ const recognition = {
         { name: 'employee', label: 'Employee', type: 'employee', required: true },
         { name: 'category', label: 'Recognition category', type: 'select', required: true, options: ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork'] },
         { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: true, hint: 'Link or description of supporting evidence' },
+        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: false, hint: 'Link or description of supporting evidence (optional)' },
       ],
     },
     supervisor_validation: {
@@ -515,8 +515,8 @@ const recognition = {
       ],
     },
   },
-quickActions: [
-    { label: 'Submit nomination', stage: 'submitted', roles: ['employee', 'hr'] },
+  quickActions: [
+    { label: 'Submit nomination', stage: 'submitted', roles: ['employee', 'hr', 'supervisor'] },
     { label: 'Review nomination', stage: 'hr_review', roles: ['hr'] },
   ],
 }

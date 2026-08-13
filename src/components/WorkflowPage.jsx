@@ -536,7 +536,17 @@ const complete = async () => {
   // modal for non-destructive actions. The button itself performs the action.
   const handleCompleteWithValidation = () => {
     if (currentFormConfig && !isFormValid) {
-      setError('Please complete all required fields before submitting this step.')
+      const missingFields = (currentFormConfig.fields || [])
+        .filter(f => f.required)
+        .filter(f => {
+          const v = currentFormValue[f.name]
+          if (Array.isArray(v)) return v.length === 0
+          if (f.type === 'toggle') return !v
+          return v === undefined || v === null || String(v).trim() === ''
+        })
+        .map(f => f.label || f.name)
+      const detail = missingFields.length > 0 ? `: ${missingFields.join(', ')}` : '.'
+      setError(`Please fill in all required fields before completing this step${detail}`)
       return
     }
     void complete()
@@ -918,7 +928,7 @@ const saveSchedule = async () => {
                       <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add an approval note or review comment for this step." rows={2} />
                     </label>
                     <div className="module-actions single-action">
-                      <button className="module-primary approve-continue" disabled={saving || (!isFormValid && Boolean(currentFormConfig))} onClick={approveAndContinue}>
+                      <button className="module-primary approve-continue" disabled={saving} onClick={approveAndContinue}>
                         {saving ? 'Approving...' : 'Approve & Continue'}
                       </button>
                       <button className="module-secondary return-button" disabled={saving} onClick={returnForRevision}>Return for Revision</button>
@@ -931,7 +941,7 @@ const saveSchedule = async () => {
                       <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add a note or review comment for this step." rows={2} />
                     </label>
                     <div className="module-actions single-action">
-                      <button className="module-primary" disabled={saving || (!isFormValid && Boolean(currentFormConfig))} onClick={handleCompleteWithValidation}>
+                      <button className="module-primary" disabled={saving} onClick={handleCompleteWithValidation}>
                         {saving ? 'Completing...' : 'Complete Step'}
                       </button>
                     </div>

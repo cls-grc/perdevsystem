@@ -35,8 +35,8 @@ export const WORKFLOWS = {
     ['review_readiness', 'Review readiness assessments', ['hr']],
     ['approved', 'Management approval', ['management']],
   ],
-recognition: [
-    ['submitted', 'Submit nomination', ['employee', 'hr']],
+  recognition: [
+    ['submitted', 'Submit nomination', ['employee', 'hr', 'supervisor']],
     ['supervisor_validation', 'Supervisor validation', ['supervisor']],
     ['hr_review', 'HR review', ['hr']],
   ],
