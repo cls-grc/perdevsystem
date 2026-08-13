@@ -65,9 +65,8 @@ export default function CertificateManagement({ embedded = false }) {
   const safePage = Math.min(currentPage, totalPages)
   const paginated = filtered.slice((safePage - 1) * CERTS_PER_PAGE, safePage * CERTS_PER_PAGE)
   const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)))
-  // Reset to page 1 when filter/sort changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(() => setCurrentPage(1), [query, sortBy])
+  // Reset to page 1 whenever the filter or sort changes
+  useEffect(() => { setCurrentPage(1) }, [query, sortBy])
   const getPaginationPages = () => {
     const pages = []
     const delta = 2
