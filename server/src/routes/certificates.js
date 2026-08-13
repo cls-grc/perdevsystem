@@ -149,6 +149,83 @@ router.delete('/templates/:id', authorize('hr'), async (req, res, next) => { try
 router.get('/', authorize('hr', 'supervisor', 'management', 'operations_manager', 'employee'), async (req, res, next) => { try {
     // Auto-expire any certificates past their expiry date before returning the list.
     await query("UPDATE certificates SET status='expired', metadata=metadata || jsonb_build_object('expiredAt', NOW()::text) WHERE status='issued' AND expires_at IS NOT NULL AND expires_at < NOW()::date")
+
+    // Auto-backfill certificates for any completed training session participants who don't have one yet
+    try {
+      const completedSessions = await query(
+        `SELECT ts.id, ts.title, ts.start_date, ts.created_by 
+         FROM training_sessions ts 
+         WHERE LOWER(ts.status) = 'completed'`
+      )
+      if (completedSessions.rows.length > 0) {
+        let tplRes = await query(`SELECT id FROM certificate_templates WHERE is_active=true ORDER BY created_at ASC LIMIT 1`)
+        let templateId = tplRes.rows[0]?.id
+        if (!templateId) {
+          const sysUser = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`)
+          const createdBy = sysUser.rows[0]?.id
+          if (createdBy) {
+            const newTpl = await query(
+              `INSERT INTO certificate_templates(name, certificate_title, subtitle, organization_name, body_text, signatory_name, signatory_position, created_by)
+               VALUES('Certificate of Participation', 'Certificate of Participation', 'Training Excellence Program', 'PerDevSys Hospitality', 'For active participation and completion of professional development training.', 'HR Director', 'Human Resources', $1)
+               RETURNING id`,
+              [createdBy]
+            )
+            templateId = newTpl.rows[0].id
+          }
+        }
+
+        if (templateId) {
+          for (const sess of completedSessions.rows) {
+            const parts = await query(
+              `SELECT tp.employee_id, e.full_name, e.department, e.employee_number 
+               FROM training_participants tp 
+               JOIN employees e ON tp.employee_id = e.id 
+               WHERE tp.session_id = $1 AND LOWER(tp.attendance) IN ('present', 'late')`,
+              [sess.id]
+            )
+            for (const emp of parts.rows) {
+              const existing = await query(
+                `SELECT id FROM certificates WHERE employee_id = $1 AND metadata->>'sessionId' = $2`,
+                [emp.employee_id, String(sess.id)]
+              )
+              if (existing.rows.length === 0) {
+                const sysUser = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`)
+                const issuerId = sess.created_by || sysUser.rows[0]?.id
+                const certNum = `CERT-TRN-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+                const achievement = `Successfully completed "${sess.title}" training session on ${String(sess.start_date || new Date().toISOString()).slice(0, 10)}.`
+                
+                await query(
+                  `INSERT INTO certificates(template_id, employee_id, certificate_number, achievement_text, awarded_at, issued_by, metadata)
+                   VALUES($1, $2, $3, $4, NOW()::date, $5, $6)`,
+                  [
+                    templateId,
+                    emp.employee_id,
+                    certNum,
+                    achievement,
+                    issuerId,
+                    JSON.stringify({
+                      sessionId: String(sess.id),
+                      sessionTitle: sess.title,
+                      employeeName: emp.full_name,
+                      department: emp.department,
+                    }),
+                  ]
+                )
+
+                await query(
+                  `INSERT INTO notifications(user_id, title, message, type, link)
+                   SELECT u.id, 'Certificate of Participation Issued', $1, 'certificate', '/certificates'
+                   FROM users u WHERE u.employee_id = $2`,
+                  [`Congratulations! You have received an official Certificate of Participation for "${sess.title}".`, emp.employee_id]
+                )
+              }
+            }
+          }
+        }
+      }
+    } catch (backfillErr) {
+      console.error('Cert backfill error:', backfillErr)
+    }
     const scope = await getScopeFilter(req.user)
     const params = []; let where = 'WHERE 1=1'
     if (scope.isEmployee) { params.push(scope.employeeId); where += ` AND c.employee_id=$${params.length}` }
