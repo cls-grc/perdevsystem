@@ -536,8 +536,8 @@ router.post('/sessions/:id/complete', authorize('hr', 'operations_manager'), asy
             )
 
             await query(
-              `INSERT INTO notifications(user_id, title, message)
-               SELECT u.id, 'Certificate of Participation Issued', $1
+              `INSERT INTO notifications(user_id, title, message, type, link)
+               SELECT u.id, 'Certificate of Participation Issued', $1, 'certificate', '/certificates'
                FROM users u WHERE u.employee_id = $2`,
               [`Congratulations! You have received an official Certificate of Participation for "${session.title}".`, emp.employee_id]
             )
