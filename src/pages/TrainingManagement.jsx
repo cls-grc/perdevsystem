@@ -366,6 +366,54 @@ export default function TrainingManagement() {
     })
   }, [employees, selectedSessionDetail, empDeptFilter, empSearch])
 
+  // Derived live Overview panels from stats OR live sessions array fallback
+  const overviewUpcoming = useMemo(() => {
+    if (overviewStats?.upcoming?.length) return overviewStats.upcoming
+    return sessions.filter(s => String(s.status).toLowerCase() === 'scheduled' || String(s.status).toLowerCase() === 'ongoing')
+  }, [overviewStats, sessions])
+
+  const overviewRecentCompleted = useMemo(() => {
+    if (overviewStats?.recentCompleted?.length) return overviewStats.recentCompleted
+    return sessions.filter(s => String(s.status).toLowerCase() === 'completed')
+  }, [overviewStats, sessions])
+
+  const overviewByCategory = useMemo(() => {
+    if (overviewStats?.byCategory?.length) return overviewStats.byCategory
+    if (!sessions.length) return []
+    const counts = {}
+    const completedCounts = {}
+    sessions.forEach(s => {
+      counts[s.category] = (counts[s.category] || 0) + 1
+      if (String(s.status).toLowerCase() === 'completed') {
+        completedCounts[s.category] = (completedCounts[s.category] || 0) + 1
+      }
+    })
+    return Object.keys(counts).map(cat => ({
+      category: cat,
+      count: counts[cat],
+      completed: completedCounts[cat] || 0,
+    }))
+  }, [overviewStats, sessions])
+
+  const overviewTopAttendance = useMemo(() => {
+    if (overviewStats?.topAttendance?.length) return overviewStats.topAttendance
+    const completed = sessions.filter(s => String(s.status).toLowerCase() === 'completed')
+    if (!completed.length) return []
+    return completed.map(s => {
+      const reg = Number(s.registered_count || 0)
+      const pres = Number(s.present_count || 0)
+      const pct = reg > 0 ? Math.round((pres / reg) * 100) : 0
+      return {
+        id: s.id,
+        title: s.title,
+        category: s.category,
+        present_count: pres,
+        registered_count: reg,
+        attendance_pct: pct,
+      }
+    }).sort((a, b) => b.attendance_pct - a.attendance_pct)
+  }, [overviewStats, sessions])
+
   return (
     <main className="module-workspace training-workspace">
       {/* Header Bar */}
@@ -584,27 +632,27 @@ export default function TrainingManagement() {
                 {/* Upcoming Sessions */}
                 <div className="overview-panel">
                   <div className="overview-panel-head">
-                    <h3>Upcoming Sessions <span className="panel-sub">(Next 30 days)</span></h3>
-                    <button className="overview-refresh-btn" onClick={loadOverviewStats} disabled={loadingStats}>Refresh</button>
+                    <h3>Upcoming Sessions <span className="panel-sub">(Scheduled & Active)</span></h3>
+                    <button className="overview-refresh-btn" onClick={() => { void loadSessions(); void loadOverviewStats(); }} disabled={loadingStats}>Refresh</button>
                   </div>
-                  {loadingStats ? <p className="overview-empty">Loading…</p> : (
-                    overviewStats?.upcoming?.length ? (
+                  {loadingStats && !sessions.length ? <p className="overview-empty">Loading…</p> : (
+                    overviewUpcoming.length ? (
                       <div className="overview-sessions-list">
-                        {overviewStats.upcoming.map(s => (
+                        {overviewUpcoming.map(s => (
                           <div key={s.id} className="overview-session-row">
                             <div className="overview-session-badge" style={{ background: '#f0edff', color: '#5f48c5' }}>
                               {String(s.start_date).slice(5, 10)}
                             </div>
                             <div className="overview-session-info">
                               <b>{s.title}</b>
-                              <small>{s.venue} · {s.start_time?.slice(0,5)} · {s.registered_count}/{s.capacity} registered</small>
+                              <small>{s.venue} · {s.start_time?.slice(0,5)} · {s.registered_count || 0}/{s.capacity} registered</small>
                             </div>
                             <span className="overview-category-chip">{s.category}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="overview-empty">No sessions scheduled in the next 30 days.</p>
+                      <p className="overview-empty">No sessions scheduled in the database yet.</p>
                     )
                   )}
                 </div>
@@ -614,11 +662,13 @@ export default function TrainingManagement() {
                   <div className="overview-panel-head">
                     <h3>Recently Completed</h3>
                   </div>
-                  {loadingStats ? <p className="overview-empty">Loading…</p> : (
-                    overviewStats?.recentCompleted?.length ? (
+                  {loadingStats && !sessions.length ? <p className="overview-empty">Loading…</p> : (
+                    overviewRecentCompleted.length ? (
                       <div className="overview-sessions-list">
-                        {overviewStats.recentCompleted.map(s => {
-                          const pct = s.registered_count > 0 ? Math.round((s.present_count / s.registered_count) * 100) : 0
+                        {overviewRecentCompleted.map(s => {
+                          const reg = Number(s.registered_count || 0)
+                          const pres = Number(s.present_count || 0)
+                          const pct = reg > 0 ? Math.round((pres / reg) * 100) : 0
                           return (
                             <div key={s.id} className="overview-session-row">
                               <div className="overview-session-badge" style={{ background: '#f0fdf4', color: '#059669' }}>
@@ -652,10 +702,10 @@ export default function TrainingManagement() {
                   <div className="overview-panel-head">
                     <h3>Sessions by Category</h3>
                   </div>
-                  {overviewStats?.byCategory?.length ? (
+                  {overviewByCategory.length ? (
                     <div className="overview-category-list">
-                      {overviewStats.byCategory.map(c => {
-                        const total = overviewStats.summary?.total_sessions || 1
+                      {overviewByCategory.map(c => {
+                        const total = sessions.length || 1
                         const pct = Math.round((c.count / total) * 100)
                         return (
                           <div key={c.category} className="overview-cat-row">
@@ -676,9 +726,9 @@ export default function TrainingManagement() {
                   <div className="overview-panel-head">
                     <h3>Top Attendance Sessions</h3>
                   </div>
-                  {overviewStats?.topAttendance?.length ? (
+                  {overviewTopAttendance.length ? (
                     <div className="overview-sessions-list">
-                      {overviewStats.topAttendance.map((s, idx) => (
+                      {overviewTopAttendance.map((s, idx) => (
                         <div key={s.id} className="overview-session-row">
                           <div className="overview-session-badge" style={{ background: idx === 0 ? '#fef9c3' : '#f3f4f6', color: idx === 0 ? '#b45309' : '#374151', fontWeight: 700 }}>
                             #{idx + 1}

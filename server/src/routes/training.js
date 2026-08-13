@@ -636,21 +636,21 @@ router.get('/stats', async (req, res, next) => {
       query(`
         SELECT
           COUNT(*)::int AS total_sessions,
-          COUNT(*) FILTER (WHERE status = 'scheduled' OR status = 'ongoing')::int AS active_sessions,
-          COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_sessions,
-          COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_sessions,
+          COUNT(*) FILTER (WHERE LOWER(status) = 'scheduled' OR LOWER(status) = 'ongoing')::int AS active_sessions,
+          COUNT(*) FILTER (WHERE LOWER(status) = 'completed')::int AS completed_sessions,
+          COUNT(*) FILTER (WHERE LOWER(status) = 'cancelled')::int AS cancelled_sessions,
           (SELECT COUNT(*)::int FROM training_participants) AS total_participants,
-          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'present') AS total_present,
-          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'absent') AS total_absent,
-          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'late') AS total_late,
-          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'excused') AS total_excused,
-          (SELECT COALESCE(ROUND(AVG(CASE WHEN attendance IN ('present','late') THEN 100 ELSE 0 END))::int, 0)
-           FROM training_participants WHERE attendance != 'pending') AS attendance_rate,
+          (SELECT COUNT(*)::int FROM training_participants WHERE LOWER(attendance) = 'present') AS total_present,
+          (SELECT COUNT(*)::int FROM training_participants WHERE LOWER(attendance) = 'absent') AS total_absent,
+          (SELECT COUNT(*)::int FROM training_participants WHERE LOWER(attendance) = 'late') AS total_late,
+          (SELECT COUNT(*)::int FROM training_participants WHERE LOWER(attendance) = 'excused') AS total_excused,
+          (SELECT COALESCE(ROUND(AVG(CASE WHEN LOWER(attendance) IN ('present','late') THEN 100 ELSE 0 END))::int, 0)
+           FROM training_participants WHERE LOWER(attendance) != 'pending') AS attendance_rate,
           (SELECT COALESCE(ROUND(AVG((overall_rating::float/5)*100))::int, 0)
            FROM training_evaluations) AS satisfaction_rate
         FROM training_sessions ts WHERE 1=1 ${deptWhere}
       `),
-      // Upcoming sessions (next 30 days)
+      // Upcoming sessions (all scheduled sessions)
       query(`
         SELECT ts.id, ts.title, ts.category, ts.venue, ts.trainer,
                ts.start_date, ts.start_time, ts.department, ts.capacity,
@@ -660,8 +660,7 @@ router.get('/stats', async (req, res, next) => {
           SELECT session_id, COUNT(*)::int AS registered_count
           FROM training_participants GROUP BY session_id
         ) p ON ts.id = p.session_id
-        WHERE ts.status = 'scheduled'
-          AND ts.start_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+        WHERE LOWER(ts.status) = 'scheduled'
           ${deptWhere}
         ORDER BY ts.start_date ASC, ts.start_time ASC
         LIMIT 8
@@ -678,20 +677,20 @@ router.get('/stats', async (req, res, next) => {
         LEFT JOIN (
           SELECT session_id,
                  COUNT(*)::int AS registered_count,
-                 COUNT(CASE WHEN attendance = 'present' THEN 1 END)::int AS present_count,
-                 COUNT(CASE WHEN attendance = 'absent' THEN 1 END)::int AS absent_count,
-                 COUNT(CASE WHEN attendance = 'late' THEN 1 END)::int AS late_count,
-                 COUNT(CASE WHEN attendance = 'excused' THEN 1 END)::int AS excused_count
+                 COUNT(CASE WHEN LOWER(attendance) = 'present' THEN 1 END)::int AS present_count,
+                 COUNT(CASE WHEN LOWER(attendance) = 'absent' THEN 1 END)::int AS absent_count,
+                 COUNT(CASE WHEN LOWER(attendance) = 'late' THEN 1 END)::int AS late_count,
+                 COUNT(CASE WHEN LOWER(attendance) = 'excused' THEN 1 END)::int AS excused_count
           FROM training_participants GROUP BY session_id
         ) p ON ts.id = p.session_id
-        WHERE ts.status = 'completed' ${deptWhere}
+        WHERE LOWER(ts.status) = 'completed' ${deptWhere}
         ORDER BY ts.completed_at DESC NULLS LAST, ts.start_date DESC
         LIMIT 6
       `),
       // Sessions by category
       query(`
         SELECT category, COUNT(*)::int AS count,
-               COUNT(*) FILTER (WHERE status='completed')::int AS completed
+               COUNT(*) FILTER (WHERE LOWER(status)='completed')::int AS completed
         FROM training_sessions ts WHERE 1=1 ${deptWhere}
         GROUP BY category ORDER BY count DESC
       `),
@@ -713,10 +712,10 @@ router.get('/stats', async (req, res, next) => {
         LEFT JOIN (
           SELECT session_id,
                  COUNT(*)::int AS registered_count,
-                 COUNT(CASE WHEN attendance IN ('present','late') THEN 1 END)::int AS present_count
+                 COUNT(CASE WHEN LOWER(attendance) IN ('present','late') THEN 1 END)::int AS present_count
           FROM training_participants GROUP BY session_id
         ) p ON ts.id = p.session_id
-        WHERE ts.status = 'completed' ${deptWhere}
+        WHERE LOWER(ts.status) = 'completed' ${deptWhere}
         ORDER BY attendance_pct DESC NULLS LAST
         LIMIT 5
       `),
