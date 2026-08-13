@@ -123,9 +123,12 @@ const EXECUTIVE_METRIC_QUERIES = {
   recognition: `SELECT count(*) FILTER (WHERE status='completed')::int AS completed_count,
     count(*) FILTER (WHERE status='active')::int AS active_count
     FROM workflows WHERE module='recognition'`,
-  training: `SELECT count(*) FILTER (WHERE w.status='completed')::int AS completed_count,
-    count(*) FILTER (WHERE w.status='active')::int AS active_count
-    FROM workflows w WHERE w.module='training'`,
+  training: `SELECT 
+    count(*) FILTER (WHERE status='completed')::int AS completed_count,
+    count(*) FILTER (WHERE LOWER(status)='scheduled' OR LOWER(status)='ongoing')::int AS active_count,
+    (SELECT count(*)::int FROM training_participants) AS participant_count,
+    (SELECT count(*) FILTER (WHERE LOWER(attendance)='present' OR LOWER(attendance)='late')::int FROM training_participants) AS present_count
+    FROM training_sessions`,
 }
 
 // ---------------------------- Metric calculation ----------------------------
