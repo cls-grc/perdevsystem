@@ -58,28 +58,6 @@ export default function SocialRecognition() {
         itemLabel="Recognition nomination"
         itemIsEmployee
         onOpenBadgePicker={() => setIsBadgeModalOpen(true)}
-        extraHeaderAction={
-          <button
-            type="button"
-            onClick={() => setIsBadgeModalOpen(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'linear-gradient(135deg, #654bd2, #4f32c2)',
-              color: '#ffffff',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 12px rgba(101, 75, 210, 0.25)',
-            }}
-          >
-            <span>🏆</span> Nominate & Issue Badge
-          </button>
-        }
       />
 
       <BadgePickerModal

@@ -407,36 +407,12 @@ function RecognitionBusiness({ data, workflows, completedWorkflows, breakdown, o
 
   return (
     <>
-      {/* 1. Header Toolbar with Nominate CTA */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Social Recognition & Leaderboard</h3>
-          <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6b7280' }}>
-            Celebrate hospitality excellence, track peer badges, and view top recognized staff.
-          </p>
-        </div>
-        {onOpenBadgePicker && (
-          <button
-            type="button"
-            onClick={onOpenBadgePicker}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'linear-gradient(135deg, #654bd2, #4f32c2)',
-              color: '#ffffff',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 12px rgba(101, 75, 210, 0.25)',
-            }}
-          >
-            <span>🏆</span> Nominate & Issue Badge
-          </button>
-        )}
+      {/* 1. Header Toolbar */}
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Social Recognition & Leaderboard</h3>
+        <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6b7280' }}>
+          Celebrate hospitality excellence, track peer badges, and view top recognized staff.
+        </p>
       </div>
 
       {/* 2. Top Summary KPI Widgets */}
