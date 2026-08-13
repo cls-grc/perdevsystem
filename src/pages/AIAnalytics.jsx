@@ -3,8 +3,15 @@ import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
 import { printElementAsPdf, downloadCsv } from '../lib/exportUtils'
 
-const initials = name => name.split(' ').map(part => part[0]).join('').slice(0, 2)
+const initials = name => (name || '').split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '??'
 const percent = value => `${Number(value || 0)}%`
+const formatDate = str => {
+  if (!str) return ''
+  try {
+    const d = new Date(str)
+    return isNaN(d.getTime()) ? '' : d.toLocaleString()
+  } catch { return '' }
+}
 
 export default function AIAnalytics() {
   const [data, setData] = useState(null)
@@ -21,15 +28,14 @@ export default function AIAnalytics() {
   const isHr = role === 'hr'
 
   const load = async () => {
-    try { setData(await api.analytics()); setError('') } catch (requestError) { setError(requestError.message) }
+    try { setData(await api.analytics()); setError('') } catch (requestError) { setError(requestError.message || 'Failed to load analytics data.') }
   }
   const loadExecutive = async () => {
     try {
       const result = await api.executiveReport()
-      setReport(result.report || null)
-      setError('')
-    } catch (requestError) {
-      setError(requestError.message)
+      setReport(result?.report || null)
+    } catch {
+      // Executive report load error is non-fatal
     }
   }
   useEffect(() => {
@@ -37,13 +43,17 @@ export default function AIAnalytics() {
     void Promise.all([load(), loadExecutive()]).finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const employees = useMemo(() => (data?.employees || []).filter(employee => `${employee.full_name} ${employee.department}`.toLowerCase().includes(query.toLowerCase())), [data, query])
+
+  const employees = useMemo(() => (data?.employees || []).filter(employee => `${employee?.full_name || ''} ${employee?.department || ''}`.toLowerCase().includes((query || '').toLowerCase())), [data, query])
+  
   const generate = async (employee = null) => {
     if (!canGenerate) return
     setSelected(employee); setGenerating(true)
     try {
-      setInsights((await api.generateInsights(employee?.full_name)).insights); setError('')
-    } catch (requestError) { setError(requestError.message) }
+      const res = await api.generateInsights(employee?.full_name)
+      setInsights(res?.insights || null)
+      setError('')
+    } catch (requestError) { setError(requestError.message || 'Failed to generate insights.') }
     finally { setGenerating(false) }
   }
   const generateExecutive = async () => {
@@ -52,26 +62,28 @@ export default function AIAnalytics() {
     try {
       const result = await api.generateExecutiveReport()
       setInsights(null)
-      setReport(result.report ?? null)
+      setReport(result?.report ?? null)
       setError('')
-    } catch (requestError) { setError(requestError.message) }
+    } catch (requestError) { setError(requestError.message || 'Failed to generate report.') }
     finally { setGenerating(false) }
   }
 
   if (loading) return <main className="ai-dashboard"><div className="dashboard-skeleton"><i/><i/><i/><i/></div></main>
+
   const totals = data?.totals || {}
-  const workflowTotal = (data?.workflowBreakdown || []).reduce((sum, item) => sum + Number(item.count), 0)
-  const completed = (data?.workflowBreakdown || []).filter(item => item.status === 'completed').reduce((sum, item) => sum + Number(item.count), 0)
+  const workflowTotal = (data?.workflowBreakdown || []).reduce((sum, item) => sum + Number(item?.count || 0), 0)
+  const completed = (data?.workflowBreakdown || []).filter(item => item?.status === 'completed').reduce((sum, item) => sum + Number(item?.count || 0), 0)
   const averagePerformance = Number(totals.average_performance || 0)
   const averageLearning = Number(totals.learning_completion || 0)
-  const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
+  const departments = [...new Set((data?.employees || []).map(employee => employee?.department).filter(Boolean))].slice(0, 4)
 
   const radarScores = useMemo(() => {
     const emps = data?.employees || []
     if (!emps.length) return [75, 80, 70, 85, 78]
     const avgPerf = Number(totals.average_performance || 75)
     const avgLearn = Number(totals.learning_completion || 70)
-    const avgComp = Math.round(emps.reduce((s, e) => s + Number(e.competency_score || 75), 0) / emps.length)
+    const validScores = emps.map(e => Number(e?.competency_score || 75)).filter(s => !isNaN(s))
+    const avgComp = validScores.length ? Math.round(validScores.reduce((s, v) => s + v, 0) / validScores.length) : 75
     const succPct = emps.length ? Math.round(((totals.succession_ready || 0) / emps.length) * 100) : 65
     const opsAvg = Math.round((avgPerf + avgComp) / 2)
     return [avgComp, avgPerf, avgLearn, Math.min(95, Math.max(55, succPct * 2)), opsAvg]
@@ -81,7 +93,8 @@ export default function AIAnalytics() {
     const cx = 90, cy = 75, maxR = 55
     const angles = [-Math.PI / 2, -Math.PI / 10, (3 * Math.PI) / 10, (7 * Math.PI) / 10, (11 * Math.PI) / 10]
     return angles.map((angle, i) => {
-      const score = Math.min(100, Math.max(25, radarScores[i]))
+      const val = radarScores?.[i]
+      const score = Math.min(100, Math.max(25, isNaN(val) ? 75 : val))
       const r = (score / 100) * maxR
       const x = Math.round(cx + r * Math.cos(angle))
       const y = Math.round(cy + r * Math.sin(angle))
@@ -90,7 +103,7 @@ export default function AIAnalytics() {
   }, [radarScores])
 
   return <main className="ai-dashboard">
-<div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div><div className="ai-actions">{isHr && <button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button>}{(report || insights) && <button onClick={() => printElementAsPdf('ai-report-content', 'PerDevSys Executive Report')} style={{ background: '#f0edff', color: '#5f48c5', border: '1px solid #d5cefc' }} title="Export report as PDF">⬇ PDF Export</button>}<button onClick={async () => { try { const rows = await api.exportEmployeesCsv(); const fmt = rows.map(e => ({'Employee Number': e.employee_number, 'Full Name': e.full_name, 'Department': e.department_name || e.department || '', 'Job Title': e.job_title || '', 'Performance Score': e.performance_score || 0, 'Learning Progress': e.learning_progress || 0, 'Status': e.is_active ? 'Active' : 'Inactive'})); downloadCsv(fmt, `employees-${new Date().toISOString().slice(0,10)}.csv`) } catch {}}} style={{ background: '#eef9f2', color: '#2d7f53', border: '1px solid #b8e8ce' }} title="Export all employee records to CSV">⬇ CSV Export</button></div></div>
+    <div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div><div className="ai-actions">{isHr && <button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button>}{(report || insights) && <button onClick={() => printElementAsPdf('ai-report-content', 'PerDevSys Executive Report')} style={{ background: '#f0edff', color: '#5f48c5', border: '1px solid #d5cefc' }} title="Export report as PDF">⬇ PDF Export</button>}<button onClick={async () => { try { const rows = await api.exportEmployeesCsv(); const fmt = (rows || []).map(e => ({'Employee Number': e.employee_number || '', 'Full Name': e.full_name || '', 'Department': e.department_name || e.department || '', 'Job Title': e.job_title || '', 'Performance Score': e.performance_score || 0, 'Learning Progress': e.learning_progress || 0, 'Status': e.is_active ? 'Active' : 'Inactive'})); downloadCsv(fmt, `employees-${new Date().toISOString().slice(0,10)}.csv`) } catch {}}} style={{ background: '#eef9f2', color: '#2d7f53', border: '1px solid #b8e8ce' }} title="Export all employee records to CSV">⬇ CSV Export</button></div></div>
     {error && <p className="ai-service-note">{error}</p>}
     <section className="ai-content">
       <div className="ai-main">
@@ -98,22 +111,23 @@ export default function AIAnalytics() {
         <section className="analytics-visuals">
           <article className="radar-card"><div><small>Competency overview</small><b>Hospitality capability mix</b></div><svg viewBox="0 0 180 150" aria-label="Competency radar chart"><g className="radar-grid"><polygon points="90,10 145,48 124,122 56,122 35,48"/><polygon points="90,32 123,55 110,103 70,103 57,55"/><line x1="90" y1="10" x2="90" y2="122"/><line x1="35" y1="48" x2="124" y2="122"/><line x1="145" y1="48" x2="56" y2="122"/></g><polygon className="radar-fill" points={radarPoints}/></svg><div className="radar-labels"><span>Service</span><span>Leadership</span><span>Safety</span><span>Teamwork</span><span>Operations</span></div></article>
           <article className="progress-card"><small>Learning and performance</small><b>Development momentum</b><div className="bar-row"><span>Performance</span><i><em style={{ width: `${averagePerformance}%` }}/></i><strong>{averagePerformance}%</strong></div><div className="bar-row"><span>Learning</span><i><em style={{ width: `${averageLearning}%` }}/></i><strong>{averageLearning}%</strong></div></article>
-          <article className="heat-card"><small>Competency heat map</small><b>Department readiness</b><div className="heat-map">{departments.map((department, index) => <span key={department} className={`heat-${index + 1}`}>{department.slice(0, 2)}</span>)}</div><p>Current department coverage from workforce records.</p></article>
+          <article className="heat-card"><small>Competency heat map</small><b>Department readiness</b><div className="heat-map">{departments.map((department, index) => <span key={department || index} className={`heat-${index + 1}`}>{String(department || 'N/A').slice(0, 2).toUpperCase()}</span>)}</div><p>Current department coverage from workforce records.</p></article>
         </section>
         <section className="ai-chart-row">{[['Active workflows', workflowTotal], ['Completed workflows', completed], ['Training completion', percent(totals.learning_completion)]].map(([label, value]) => <article key={label}><small>{label}</small><b>{value}</b><span>Current workforce signal</span></article>)}</section>
-        <section className="ai-records"><div><h2>Hotel and restaurant workforce progress</h2><label className="employee-search"><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search employee or department"/></label></div><table><thead><tr><th>Employee</th><th>Department</th><th>Performance</th><th>Learning progress</th></tr></thead><tbody>{employees.map((employee, index) => <tr key={employee.id} onClick={canGenerate ? () => generate(employee) : undefined} className={selected?.id === employee.id ? 'selected-employee' : ''}><td><i className={`table-avatar av-${index}`}>{initials(employee.full_name)}</i>{employee.full_name}</td><td>{employee.department}</td><td><span className="inline-progress"><i style={{ width: percent(employee.performance_score) }}/></span>{percent(employee.performance_score)}</td><td><span className="inline-progress green"><i style={{ width: percent(employee.learning_progress) }}/></span>{percent(employee.learning_progress)}</td></tr>)}</tbody></table>{employees.length === 0 && <p className="no-results">No employee records match your search.</p>}</section>
+        <section className="ai-records"><div><h2>Hotel and restaurant workforce progress</h2><label className="employee-search"><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search employee or department"/></label></div><table><thead><tr><th>Employee</th><th>Department</th><th>Performance</th><th>Learning progress</th></tr></thead><tbody>{employees.map((employee, index) => <tr key={employee?.id || index} onClick={canGenerate ? () => generate(employee) : undefined} className={selected?.id === employee?.id ? 'selected-employee' : ''}><td><i className={`table-avatar av-${index % 5}`}>{initials(employee?.full_name)}</i>{employee?.full_name || 'Unnamed'}</td><td>{employee?.department || 'N/A'}</td><td><span className="inline-progress"><i style={{ width: percent(employee?.performance_score) }}/></span>{percent(employee?.performance_score)}</td><td><span className="inline-progress green"><i style={{ width: percent(employee?.learning_progress) }}/></span>{percent(employee?.learning_progress)}</td></tr>)}</tbody></table>{employees.length === 0 && <p className="no-results">No employee records match your search.</p>}</section>
       </div>
-      <aside className="insight-panel ai-results-panel"><div className="insight-title"><div><h2>{selected ? `${selected.full_name} analytics` : 'AI Insights'}</h2><p>{selected ? 'Individual hospitality profile' : report ? 'Saved executive report' : 'Organization view'}</p></div><span className="live-badge">{isHr ? 'AI ready' : 'Read only'}</span></div>
+      <aside className="insight-panel ai-results-panel"><div className="insight-title"><div><h2>{selected ? `${selected.full_name || 'Employee'} analytics` : 'AI Insights'}</h2><p>{selected ? 'Individual hospitality profile' : report ? 'Saved executive report' : 'Organization view'}</p></div><span className="live-badge">{isHr ? 'AI ready' : 'Read only'}</span></div>
         {report && !selected && !insights ? (
           <div className="insight-results" id="ai-report-content">
-<div className="report-meta">
-              <span className="report-date">Generated {new Date(report.created_at).toLocaleString()}{report.generated_by_name ? ` by ${report.generated_by_name}` : ''}</span>
+            <div className="report-meta">
+              {formatDate(report.created_at) && <span className="report-date">Generated {formatDate(report.created_at)}{report.generated_by_name ? ` by ${report.generated_by_name}` : ''}</span>}
               {report.metrics_json && <span className="data-backed-chip" title="Report is based on calculated database metrics">✓ Data-backed</span>}
             </div>
-            <AIReport content={report.content} title={report.title} />
+            <AIReport content={report.content || ''} title={report.title || ''} />
           </div>
         ) : insights ? <div className="insight-results" id="ai-report-content"><AIReport insights={insights}/></div> : <div className="insight-empty"><b>{canGenerate ? 'AI workforce brief ready' : 'Monitoring access'}</b><p>{canGenerate ? 'Generate a workforce analytics report from the current database values.' : 'View current workforce metrics and workflow activity. Executive report generation is restricted to HR.'}</p>{canGenerate && <button className="insight-cta" onClick={() => generate()} disabled={generating}>Create workforce brief</button>}</div>}
       </aside>
     </section>
   </main>
 }
+
