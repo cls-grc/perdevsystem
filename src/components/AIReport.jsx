@@ -42,14 +42,14 @@ function renderContent(content, keyPrefix) {
     if (listItems.length) {
       if (isNumbered) {
         elements.push(
-          <ol key={key} style={{ paddingLeft: 20, margin: '6px 0', fontSize: 13, color: '#374151', lineHeight: 1.65 }}>
-            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 4 }}>{renderInline(item)}</li>)}
+          <ol key={key} style={{ paddingLeft: 18, margin: '5px 0', fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
+            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
           </ol>,
         )
       } else {
         elements.push(
-          <ul key={key} style={{ paddingLeft: 20, margin: '6px 0', fontSize: 13, color: '#374151', lineHeight: 1.65 }}>
-            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 4 }}>{renderInline(item)}</li>)}
+          <ul key={key} style={{ paddingLeft: 18, margin: '5px 0', fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
+            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
           </ul>,
         )
       }
@@ -74,7 +74,7 @@ function renderContent(content, keyPrefix) {
       listItems.push(numMatch[2])
     } else {
       flushList(`${keyPrefix}-list-${index}`)
-      elements.push(<p key={`${keyPrefix}-p-${index}`} style={{ margin: '4px 0', lineHeight: 1.65, color: '#374151', fontSize: 13 }}>{renderInline(sanitized)}</p>)
+      elements.push(<p key={`${keyPrefix}-p-${index}`} style={{ margin: '4px 0', lineHeight: 1.6, color: '#374151', fontSize: 12 }}>{renderInline(sanitized)}</p>)
     }
   })
   flushList(`${keyPrefix}-list-end`)
