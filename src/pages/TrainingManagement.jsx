@@ -1014,17 +1014,96 @@ export default function TrainingManagement() {
 
               {/* Evaluation Form section for logged in employee */}
               {(selectedSessionDetail.participants || []).some(p => p.employee_id === currentUser.employeeId) && (
-                <div style={{ background: '#f0edff', padding: 16, borderRadius: 8, marginTop: 12 }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: '#4b36ab' }}>Submit Training Effectiveness Evaluation</h4>
-                  <form onSubmit={handleEvalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                      <label><small>Relevance (1-5)</small><input type="number" min={1} max={5} value={evalForm.relevance} onChange={e => setEvalForm({ ...evalForm, relevance: Number(e.target.value), employeeId: currentUser.employeeId })}/></label>
-                      <label><small>Trainer Rating (1-5)</small><input type="number" min={1} max={5} value={evalForm.trainerRating} onChange={e => setEvalForm({ ...evalForm, trainerRating: Number(e.target.value), employeeId: currentUser.employeeId })}/></label>
-                      <label><small>Content Quality (1-5)</small><input type="number" min={1} max={5} value={evalForm.contentQuality} onChange={e => setEvalForm({ ...evalForm, contentQuality: Number(e.target.value), employeeId: currentUser.employeeId })}/></label>
-                      <label><small>Overall (1-5)</small><input type="number" min={1} max={5} value={evalForm.overallRating} onChange={e => setEvalForm({ ...evalForm, overallRating: Number(e.target.value), employeeId: currentUser.employeeId })}/></label>
+                <div className="training-eval-card" style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginTop: 20 }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 15, fontWeight: 700, color: '#111827' }}>
+                      Submit Training Effectiveness Evaluation
+                    </h4>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+                      Rate the relevance, trainer quality, and content of this training session.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleEvalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
+                      {[
+                        { key: 'relevance', label: 'Relevance' },
+                        { key: 'trainerRating', label: 'Trainer Rating' },
+                        { key: 'contentQuality', label: 'Content Quality' },
+                        { key: 'overallRating', label: 'Overall Rating' },
+                      ].map(metric => (
+                        <div key={metric.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{metric.label}</span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {[1, 2, 3, 4, 5].map(num => {
+                              const selected = (evalForm[metric.key] || 5) === num
+                              return (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onClick={() => setEvalForm({ ...evalForm, [metric.key]: num, employeeId: currentUser.employeeId })}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 0',
+                                    border: selected ? '1px solid #5f48c5' : '1px solid #d1d5db',
+                                    background: selected ? '#5f48c5' : '#ffffff',
+                                    color: selected ? '#ffffff' : '#374151',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {num}★
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <textarea rows={2} placeholder="Optional feedback..." value={evalForm.comments} onChange={e => setEvalForm({ ...evalForm, comments: e.target.value, employeeId: currentUser.employeeId })}/>
-                    <button type="submit" className="session-action-btn primary" disabled={submittingEval}>{submittingEval ? 'Submitting...' : 'Submit Evaluation'}</button>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Feedback & Comments (Optional)</span>
+                      <textarea
+                        rows={3}
+                        placeholder="Share your thoughts on how this training will help in your daily role..."
+                        value={evalForm.comments}
+                        onChange={e => setEvalForm({ ...evalForm, comments: e.target.value, employeeId: currentUser.employeeId })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          fontSize: 13,
+                          fontFamily: 'inherit',
+                          color: '#111827',
+                          background: '#ffffff',
+                          resize: 'vertical',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="submit"
+                        disabled={submittingEval}
+                        style={{
+                          background: '#29282D',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '10px 20px',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {submittingEval ? 'Submitting Evaluation...' : 'Submit Evaluation'}
+                      </button>
+                    </div>
                   </form>
                 </div>
               )}
