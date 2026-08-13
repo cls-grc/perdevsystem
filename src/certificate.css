@@ -55,6 +55,14 @@
 .certificate-sort:focus{outline:0;border-color:#7254e3;box-shadow:0 0 0 3px rgba(114,84,227,.13)}
 .certificate-search:focus{outline:0}
 .certificate-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:13px}
+.certificate-gallery-wrap{display:flex;flex-direction:column;gap:20px}
+.cert-pagination{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 0 4px;flex-wrap:wrap}
+.cert-page-btn{min-width:34px;height:34px;padding:0 10px;border:1px solid #dfdce5;border-radius:8px;background:#fff;color:#48454f;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s,box-shadow .15s;display:inline-flex;align-items:center;justify-content:center}
+.cert-page-btn:hover:not(:disabled){background:#f4f2ff;border-color:#c4b5fd;color:#7254e3}
+.cert-page-btn.active{background:#7254e3;border-color:#7254e3;color:#fff;box-shadow:0 2px 8px rgba(114,84,227,.3)}
+.cert-page-btn:disabled{opacity:.4;cursor:not-allowed}
+.cert-page-ellipsis{color:#8d8992;font-size:13px;padding:0 4px;user-select:none;line-height:34px}
+.cert-page-info{font-size:10px;color:#8d8992;margin-left:8px;white-space:nowrap}
 .certificate-card{display:flex;flex-direction:column;gap:10px;border:1px solid #eeedf2;border-radius:10px;padding:12px;background:#fff;transition:transform .18s ease,box-shadow .18s ease}
 .certificate-card:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(42,35,76,.06)}
 .certificate-card h3{margin:0;font-size:11px;color:#2b2933}

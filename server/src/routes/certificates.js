@@ -158,7 +158,13 @@ router.get('/', authorize('hr', 'supervisor', 'management', 'operations_manager'
          WHERE LOWER(ts.status) = 'completed'`
       )
       if (completedSessions.rows.length > 0) {
-        let tplRes = await query(`SELECT id FROM certificate_templates WHERE is_active=true ORDER BY created_at ASC LIMIT 1`)
+        // Always use a dedicated "Certificate of Participation" template for training completions
+        let tplRes = await query(
+          `SELECT id FROM certificate_templates
+           WHERE is_active = true
+             AND (LOWER(name) LIKE '%participation%' OR LOWER(certificate_title) LIKE '%participation%')
+           ORDER BY created_at ASC LIMIT 1`
+        )
         let templateId = tplRes.rows[0]?.id
         if (!templateId) {
           const sysUser = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`)
@@ -166,7 +172,7 @@ router.get('/', authorize('hr', 'supervisor', 'management', 'operations_manager'
           if (createdBy) {
             const newTpl = await query(
               `INSERT INTO certificate_templates(name, certificate_title, subtitle, organization_name, body_text, signatory_name, signatory_position, created_by)
-               VALUES('Certificate of Participation', 'Certificate of Participation', 'Training Excellence Program', 'PerDevSys Hospitality', 'For active participation and completion of professional development training.', 'HR Director', 'Human Resources', $1)
+               VALUES('Certificate of Participation', 'Certificate of Participation', 'Training Excellence Program', 'Luxora Hotel and Restaurant', 'Successfully completed professional development training as part of the Luxora Hotel and Restaurant learning program.', 'HR Director', 'Human Resources', $1)
                RETURNING id`,
               [createdBy]
             )
