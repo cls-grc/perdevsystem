@@ -111,8 +111,8 @@ export default function AIChatDrawer({ isOpen, onClose }) {
     return [
       {
         role: 'assistant',
-        content: `Hello! I am your database-grounded AI Assistant. I can analyze system records, performance scores, skill gaps, learning paths, and succession data scoped to your authorized role (${role.replace('_', ' ').toUpperCase()}).`,
-        summary: 'Database-grounded initialization',
+        content: `👋 Hi! I'm your **PerDevSys AI Assistant**. I can help you explore workforce insights — including performance scores, skill gaps, training sessions, learning progress, and succession readiness — tailored to your role (${role.replace('_', ' ').toUpperCase()}). What would you like to know?`,
+        summary: 'Ready',
       }
     ]
   })
