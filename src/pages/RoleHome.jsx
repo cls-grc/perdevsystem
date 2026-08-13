@@ -146,7 +146,7 @@ export default function RoleHome({ role, name }) {
     <div><h1>{title}</h1><p>{description}</p></div>
     {error && <div className="role-home-error" role="alert"><p>{error}</p><button onClick={load}>Retry</button></div>}
     <section>
-      {(cards || []).filter(c => Array.isArray(c)).map(([label, value, detail, live], idx) => <article key={label || idx}><small>{label}</small><b>{value}</b><p>{detail}</p><em className="role-live">{live}</em></article>)}
+      {cards.map(([label, value, detail, live]) => <article key={label}><small>{label}</small><b>{value}</b><p>{detail}</p><em className="role-live">{live}</em></article>)}
     </section>
     <div className="role-home-action"><h2>{nextTitle}</h2><p>{nextDetail}</p></div>
   </main>

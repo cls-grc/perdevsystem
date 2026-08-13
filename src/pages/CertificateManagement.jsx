@@ -45,7 +45,7 @@ function Preview({ template, certificate, compact = false }) {
 export default function CertificateManagement({ embedded = false }) {
   const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role } catch { return '' } })(); const hr = role === 'hr'; const operationsManager = role === 'operations_manager'
   const Container = embedded ? 'section' : 'main'
-  const CERTS_PER_PAGE = 8
+  const CERTS_PER_PAGE = 6
   const [currentPage, setCurrentPage] = useState(1)
   const [templates, setTemplates] = useState([]), [certificates, setCertificates] = useState([]), [employees, setEmployees] = useState([]), [template, setTemplate] = useState(null), [recipientIds, setRecipientIds] = useState([]), [achievement, setAchievement] = useState('For exceptional performance and meaningful contribution to the organization.'), [form, setForm] = useState(defaults), [showForm, setShowForm] = useState(false), [editingTemplate, setEditingTemplate] = useState(null), [error, setError] = useState(''), [notice, setNotice] = useState(''), [query, setQuery] = useState(''), [employeeQuery, setEmployeeQuery] = useState(''), [sortBy, setSortBy] = useState('newest'), [printCert, setPrintCert] = useState(null)
   const load = async () => { try { const calls = [api.certificates()]; if (hr) calls.push(api.certificateTemplates(), api.workflowSubjects()); const result = await Promise.all(calls); setCertificates(result[0].certificates || []); if (hr) { setTemplates(result[1].templates || []); setEmployees(result[2].employees || []); if (!template && result[1].templates?.[0]) setTemplate(result[1].templates[0]) } } catch (requestError) { setError(requestError.message) } }
@@ -66,7 +66,8 @@ export default function CertificateManagement({ embedded = false }) {
   const paginated = filtered.slice((safePage - 1) * CERTS_PER_PAGE, safePage * CERTS_PER_PAGE)
   const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)))
   // Reset to page 1 when filter/sort changes
-  useEffect(() => { setCurrentPage(1) }, [query, sortBy])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => setCurrentPage(1), [query, sortBy])
   const getPaginationPages = () => {
     const pages = []
     const delta = 2

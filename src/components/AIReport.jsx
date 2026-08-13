@@ -32,9 +32,8 @@ function renderInline(text) {
 }
 
 // Render a block of lines, grouping consecutive `- ` / `* ` / `1. ` lines into a list.
-function renderContent(content = '', keyPrefix = 'block') {
-  const safeContent = typeof content === 'string' ? content : String(content || '')
-  const lines = safeContent.split('\n').map(line => line.trim()).filter(Boolean)
+function renderContent(content, keyPrefix) {
+  const lines = content.split('\n').map(line => line.trim()).filter(Boolean)
   const elements = []
   let listItems = []
   let isNumbered = false
@@ -84,10 +83,8 @@ function renderContent(content = '', keyPrefix = 'block') {
 }
 
 export default function AIReport({ insights = [], content = '', title = '' }) {
-  const safeContent = typeof content === 'string' ? content : ''
-  const safeInsights = Array.isArray(insights) ? insights : (insights ? [insights] : [])
-  const source = safeContent.trim() || safeInsights.map(insight => typeof insight === 'string' ? insight : (insight?.summary || insight?.content || '')).filter(Boolean).join('\n\n') || ''
-  const reportTitle = typeof title === 'string' ? title : ''
+  const source = content?.trim() || insights?.map(insight => insight.summary).join('\n\n') || ''
+  const reportTitle = title || ''
   const rawBlocks = cleanMarkdown(source).split(/\n\s*\n/).filter(Boolean)
 
   return (

@@ -33,39 +33,6 @@ import './employeeRecords.css'
 import './learningLibrary.css'
 import './responsive.css'
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error }
-  }
-  componentDidCatch(error, errorInfo) {
-    console.error("Dashboard Error Boundary caught an error:", error, errorInfo)
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <main style={{ padding: '40px 24px', maxWidth: '600px', margin: '40px auto', background: '#ffffff', borderRadius: '12px', border: '1px solid #fee2e2', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', textAlign: 'center' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>⚠️</div>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#991b1b', marginBottom: '8px' }}>Dashboard Notice</h2>
-          <p style={{ fontSize: '13px', color: '#4b5563', marginBottom: '20px', lineHeight: '1.5' }}>
-            {this.state.error?.message || 'An issue occurred while loading this view. Click below to reload.'}
-          </p>
-          <button
-            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
-            style={{ padding: '8px 20px', background: '#7254e3', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
-          >
-            Reload View
-          </button>
-        </main>
-      )
-    }
-    return this.props.children
-  }
-}
-
 function App() {
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pds-user') || 'null') } catch { return null }
@@ -132,32 +99,28 @@ function App() {
     setUser(null)
   }
 
-  const role = user?.role || ''
-
   return (
     <BrowserRouter>
       <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
-        <Sidebar key={`sb-${user?.id || 'anon'}`} user={user} onLogout={handleLogout} />
+        <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
         <div className="flex-1 min-h-screen flex flex-col fixed-main">
-          <Header key={`hdr-${user?.id || 'anon'}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} onOpenMobileNav={() => setMobileNavOpen(true)} />
+          <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} onOpenMobileNav={() => setMobileNavOpen(true)} />
           <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-          <ErrorBoundary key={`eb-${user?.id || 'anon'}`}>
-            <Routes>
-              <Route path="/" element={['hr','operations_manager'].includes(role)?<AIAnalytics key={`analytics-${user?.id || 'anon'}`} />:<RoleHome key={`home-${user?.id || 'anon'}`} role={role} name={user?.name || ''}/>} />
-              <Route path="/performance" element={<PerformanceManagement key={`perf-${user?.id || 'anon'}`} />} />
-              <Route path="/competency" element={<CompetencyManagement key={`comp-${user?.id || 'anon'}`} />} />
-              <Route path="/learning" element={<LearningManagement key={`learn-${user?.id || 'anon'}`} />} />
-              <Route path="/training" element={<TrainingManagement key={`train-${user?.id || 'anon'}`} />} />
-              <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(role)?<SuccessionPlanning key={`succ-${user?.id || 'anon'}`} />:<RoleHome key={`home-${user?.id || 'anon'}`} role={role} name={user?.name || ''}/>} />
-              <Route path="/recognition" element={<SocialRecognition key={`recog-${user?.id || 'anon'}`} />} />
-              <Route path="/certificates" element={['hr', 'supervisor', 'management', 'operations_manager', 'employee'].includes(role) ? <CertificateManagement key={`cert-${user?.id || 'anon'}`} /> : <Navigate to="/" replace />} />
-              <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification key={`verify-${user?.id || 'anon'}`} />} />
-              <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(role) ? <EmployeeManagement key={`emp-${user?.id || 'anon'}`} /> : <Navigate to="/" replace />} />
-              <Route path="/audit" element={['hr', 'operations_manager', 'management'].includes(role) ? <AuditLogs key={`audit-${user?.id || 'anon'}`} /> : <Navigate to="/" replace />} />
-              <Route path="/register" element={<Register key={`reg-${user?.id || 'anon'}`} />} />
-              <Route path="*" element={['hr','operations_manager'].includes(role)?<AIAnalytics key={`analytics-${user?.id || 'anon'}`} />:<RoleHome key={`home-${user?.id || 'anon'}`} role={role} name={user?.name || ''}/>} />
-            </Routes>
-          </ErrorBoundary>
+          <Routes>
+            <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
+            <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
+            <Route path="/competency" element={<CompetencyManagement key={`comp-${user.id}`} />} />
+            <Route path="/learning" element={<LearningManagement key={`learn-${user.id}`} />} />
+            <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
+            <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning key={`succ-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
+            <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
+            <Route path="/certificates" element={['hr', 'supervisor', 'management', 'operations_manager', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
+            <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification key={`verify-${user.id}`} />} />
+            <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
+            <Route path="/audit" element={['hr', 'operations_manager', 'management'].includes(user.role) ? <AuditLogs key={`audit-${user.id}`} /> : <Navigate to="/" replace />} />
+            <Route path="/register" element={<Register key={`reg-${user.id}`} />} />
+            <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
+          </Routes>
         </div>
       </div>
     </BrowserRouter>
