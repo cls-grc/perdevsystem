@@ -254,6 +254,7 @@ export default function TrainingManagement() {
       setSelectedEmpIds([])
       await loadSessionDetail(selectedSession.id)
       await loadSessions()
+      await loadOverviewStats()
     } catch (err) {
       setError(err.message || 'Failed to invite participants.')
     } finally {
@@ -276,6 +277,7 @@ export default function TrainingManagement() {
       setNotice(res.message || 'Attendance records saved.')
       await loadSessionDetail(selectedSession.id)
       await loadSessions()
+      await loadOverviewStats()
     } catch (err) {
       setError(err.message || 'Failed to save attendance.')
     } finally {
@@ -303,6 +305,7 @@ export default function TrainingManagement() {
       const res = await api.submitTrainingEvaluation(selectedSession.id, evalForm)
       setNotice(res.message || 'Evaluation submitted.')
       await loadSessionDetail(selectedSession.id)
+      await loadOverviewStats()
     } catch (err) {
       setError(err.message || 'Failed to submit evaluation.')
     } finally {
@@ -319,6 +322,7 @@ export default function TrainingManagement() {
       setNotice(res.message || 'Session completed.')
       await loadSessionDetail(selectedSession.id)
       await loadSessions()
+      await loadOverviewStats()
     } catch (err) {
       setError(err.message || 'Session cannot be completed.')
     }
@@ -512,6 +516,22 @@ export default function TrainingManagement() {
                     </div>
                   </div>
 
+                  {/* Attendance Breakdown Pills */}
+                  <div className="session-attendance-breakdown" style={{ display: 'flex', gap: 6, margin: '10px 0 14px 0', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }} />
+                      Present: {session.present_count || 0}
+                    </span>
+                    <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }} />
+                      Absent: {session.absent_count || 0}
+                    </span>
+                    <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706' }} />
+                      Late: {session.late_count || 0}
+                    </span>
+                  </div>
+
                   <div className="session-card-actions">
                     <button className="session-action-btn primary" onClick={() => openSessionDetailModal(session)}>
                       Manage Session
@@ -538,6 +558,9 @@ export default function TrainingManagement() {
               { label: 'Active / Upcoming', value: overviewStats?.summary?.active_sessions ?? sessions.filter(s => s.status === 'scheduled').length },
               { label: 'Completed', value: overviewStats?.summary?.completed_sessions ?? sessions.filter(s => s.status === 'completed').length },
               { label: 'Total Participants', value: overviewStats?.summary?.total_participants ?? '—' },
+              { label: 'Present Count', value: overviewStats?.summary?.total_present ?? sessions.reduce((acc, s) => acc + Number(s.present_count || 0), 0) },
+              { label: 'Absent Count', value: overviewStats?.summary?.total_absent ?? sessions.reduce((acc, s) => acc + Number(s.absent_count || 0), 0) },
+              { label: 'Late Count', value: overviewStats?.summary?.total_late ?? sessions.reduce((acc, s) => acc + Number(s.late_count || 0), 0) },
               { label: 'Attendance Rate', value: overviewStats?.summary?.attendance_rate != null ? `${overviewStats.summary.attendance_rate}%` : '—' },
               { label: 'Satisfaction Rate', value: overviewStats?.summary?.satisfaction_rate != null ? `${overviewStats.summary.satisfaction_rate}%` : '—' },
             ].map((stat, i) => (
@@ -603,7 +626,12 @@ export default function TrainingManagement() {
                               </div>
                               <div className="overview-session-info">
                                 <b>{s.title}</b>
-                                <small>{s.venue} · {String(s.start_date).slice(0,10)} · {s.present_count}/{s.registered_count} attended</small>
+                                <small>
+                                  {s.venue} · {String(s.start_date).slice(0,10)} · 
+                                  <span style={{ color: '#16a34a', fontWeight: 600 }}> {s.present_count || 0} Present</span> · 
+                                  <span style={{ color: '#dc2626', fontWeight: 600 }}> {s.absent_count || 0} Absent</span> · 
+                                  <span style={{ color: '#d97706', fontWeight: 600 }}> {s.late_count || 0} Late</span>
+                                </small>
                               </div>
                               <span className="overview-category-chip" style={{ background: '#dcfce7', color: '#059669' }}>{s.category}</span>
                             </div>

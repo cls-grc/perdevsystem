@@ -95,14 +95,20 @@ router.get('/sessions', async (req, res, next) => {
         ts.budget, ts.department, ts.status, ts.completed_at, ts.created_at,
         u.full_name AS created_by_name,
         COALESCE(p.registered_count, 0) AS registered_count,
-        COALESCE(p.present_count, 0) AS present_count
+        COALESCE(p.present_count, 0) AS present_count,
+        COALESCE(p.absent_count, 0) AS absent_count,
+        COALESCE(p.late_count, 0) AS late_count,
+        COALESCE(p.excused_count, 0) AS excused_count
       FROM training_sessions ts
       LEFT JOIN users u ON ts.created_by = u.id
       LEFT JOIN (
         SELECT 
           session_id, 
           COUNT(*)::int AS registered_count,
-          COUNT(CASE WHEN attendance = 'present' OR attendance = 'late' THEN 1 END)::int AS present_count
+          COUNT(CASE WHEN attendance = 'present' THEN 1 END)::int AS present_count,
+          COUNT(CASE WHEN attendance = 'absent' THEN 1 END)::int AS absent_count,
+          COUNT(CASE WHEN attendance = 'late' THEN 1 END)::int AS late_count,
+          COUNT(CASE WHEN attendance = 'excused' THEN 1 END)::int AS excused_count
         FROM training_participants
         GROUP BY session_id
       ) p ON ts.id = p.session_id
@@ -634,6 +640,10 @@ router.get('/stats', async (req, res, next) => {
           COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_sessions,
           COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_sessions,
           (SELECT COUNT(*)::int FROM training_participants) AS total_participants,
+          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'present') AS total_present,
+          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'absent') AS total_absent,
+          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'late') AS total_late,
+          (SELECT COUNT(*)::int FROM training_participants WHERE attendance = 'excused') AS total_excused,
           (SELECT COALESCE(ROUND(AVG(CASE WHEN attendance IN ('present','late') THEN 100 ELSE 0 END))::int, 0)
            FROM training_participants WHERE attendance != 'pending') AS attendance_rate,
           (SELECT COALESCE(ROUND(AVG((overall_rating::float/5)*100))::int, 0)
@@ -660,12 +670,18 @@ router.get('/stats', async (req, res, next) => {
       query(`
         SELECT ts.id, ts.title, ts.category, ts.venue, ts.start_date,
                COALESCE(p.registered_count, 0) AS registered_count,
-               COALESCE(p.present_count, 0) AS present_count
+               COALESCE(p.present_count, 0) AS present_count,
+               COALESCE(p.absent_count, 0) AS absent_count,
+               COALESCE(p.late_count, 0) AS late_count,
+               COALESCE(p.excused_count, 0) AS excused_count
         FROM training_sessions ts
         LEFT JOIN (
           SELECT session_id,
                  COUNT(*)::int AS registered_count,
-                 COUNT(CASE WHEN attendance IN ('present','late') THEN 1 END)::int AS present_count
+                 COUNT(CASE WHEN attendance = 'present' THEN 1 END)::int AS present_count,
+                 COUNT(CASE WHEN attendance = 'absent' THEN 1 END)::int AS absent_count,
+                 COUNT(CASE WHEN attendance = 'late' THEN 1 END)::int AS late_count,
+                 COUNT(CASE WHEN attendance = 'excused' THEN 1 END)::int AS excused_count
           FROM training_participants GROUP BY session_id
         ) p ON ts.id = p.session_id
         WHERE ts.status = 'completed' ${deptWhere}
