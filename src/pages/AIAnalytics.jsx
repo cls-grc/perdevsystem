@@ -58,13 +58,7 @@ export default function AIAnalytics() {
     finally { setGenerating(false) }
   }
 
-  if (loading) return <main className="ai-dashboard"><div className="dashboard-skeleton"><i/><i/><i/><i/></div></main>
   const totals = data?.totals || {}
-  const workflowTotal = (data?.workflowBreakdown || []).reduce((sum, item) => sum + Number(item.count), 0)
-  const completed = (data?.workflowBreakdown || []).filter(item => item.status === 'completed').reduce((sum, item) => sum + Number(item.count), 0)
-  const averagePerformance = Number(totals.average_performance || 0)
-  const averageLearning = Number(totals.learning_completion || 0)
-  const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
 
   const radarScores = useMemo(() => {
     const emps = data?.employees || []
@@ -88,6 +82,13 @@ export default function AIAnalytics() {
       return `${x},${y}`
     }).join(' ')
   }, [radarScores])
+
+  if (loading) return <main className="ai-dashboard"><div className="dashboard-skeleton"><i/><i/><i/><i/></div></main>
+  const workflowTotal = (data?.workflowBreakdown || []).reduce((sum, item) => sum + Number(item.count), 0)
+  const completed = (data?.workflowBreakdown || []).filter(item => item.status === 'completed').reduce((sum, item) => sum + Number(item.count), 0)
+  const averagePerformance = Number(totals.average_performance || 0)
+  const averageLearning = Number(totals.learning_completion || 0)
+  const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
 
   return <main className="ai-dashboard">
 <div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div><div className="ai-actions">{isHr && <button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button>}{(report || insights) && <button onClick={() => printElementAsPdf('ai-report-content', 'PerDevSys Executive Report')} style={{ background: '#f0edff', color: '#5f48c5', border: '1px solid #d5cefc' }} title="Export report as PDF">⬇ PDF Export</button>}<button onClick={async () => { try { const rows = await api.exportEmployeesCsv(); const fmt = rows.map(e => ({'Employee Number': e.employee_number, 'Full Name': e.full_name, 'Department': e.department_name || e.department || '', 'Job Title': e.job_title || '', 'Performance Score': e.performance_score || 0, 'Learning Progress': e.learning_progress || 0, 'Status': e.is_active ? 'Active' : 'Inactive'})); downloadCsv(fmt, `employees-${new Date().toISOString().slice(0,10)}.csv`) } catch {}}} style={{ background: '#eef9f2', color: '#2d7f53', border: '1px solid #b8e8ce' }} title="Export all employee records to CSV">⬇ CSV Export</button></div></div>
