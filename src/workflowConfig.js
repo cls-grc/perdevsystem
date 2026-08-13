@@ -47,6 +47,13 @@ export const RECOGNITION_CATEGORIES = ['Customer Obsession', 'Leadership', 'Inno
 export const COMPETENCY_LEVELS = ['Foundation', 'Developing', 'Proficient', 'Expert']
 export const SUCCESSION_READINESS = ['Ready Now', 'Ready in 1-2 Years', 'Potential', 'Not Ready']
 
+export const RECOGNITION_BADGES = [
+  { id: 'gold', name: 'Gold Excellence', tier: 'Gold', points: 100, icon: '🥇', color: '#d97706', bg: '#fef3c7', border: '#fde68a', description: 'Outstanding contribution & exemplary leadership impact' },
+  { id: 'silver', name: 'Silver Service Hero', tier: 'Silver', points: 50, icon: '🥈', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1', description: 'Exceptional guest service & customer satisfaction hero' },
+  { id: 'bronze', name: 'Bronze Team Star', tier: 'Bronze', points: 25, icon: '🥉', color: '#9a3412', bg: '#ffedd5', border: '#fed7aa', description: 'Great teamwork, peer support & daily operational reliability' },
+  { id: 'excellence', name: 'Innovation & Safety', tier: 'Excellence', points: 75, icon: '🏆', color: '#6d28d9', bg: '#f3e8ff', border: '#ddd6fe', description: 'Creative problem solving, initiative & safety compliance' },
+]
+
 // KPI library — selecting one auto-fills name, description, weight, target,
 // measurement. HR only adjusts the weight/target values.
 export const KPI_LIBRARY = [

@@ -318,32 +318,368 @@ function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) 
 }
 
 // ------------------------------ RECOGNITION -------------------------------
-// No dedicated leaderboard table exists in the analytics payload, so we render
-// a workflow-oriented summary of recognition nominations (no fabricated tally).
-function RecognitionBusiness({ workflows, completedWorkflows, breakdown }) {
-  const active = (workflows || []).filter(w => w.status === 'active')
-  const completed = completedWorkflows || []
+function RecognitionBusiness({ data, workflows, completedWorkflows, breakdown, onOpenBadgePicker }) {
+  const employees = useMemo(() => data?.employees || [], [data])
+  const active = useMemo(() => (workflows || []).filter(w => w.status === 'active'), [workflows])
+  const completed = useMemo(() => completedWorkflows || [], [completedWorkflows])
+  const allRecognitionWorkflows = useMemo(() => [...active, ...completed], [active, completed])
+
+  const [selectedDept, setSelectedDept] = useState('All')
+  const [leaderboardQuery, setLeaderboardQuery] = useState('')
+
+  // Dynamically calculate employee recognition stats & leaderboard points from live DB records & workflows
+  const leaderboardData = useMemo(() => {
+    const map = {}
+
+    // Initialize every active employee with baseline scores derived from DB
+    employees.forEach(emp => {
+      map[emp.id] = {
+        id: emp.id,
+        name: emp.full_name,
+        department: emp.department || 'Operations',
+        jobTitle: emp.job_title || 'Hospitality Staff',
+        gold: 0,
+        silver: 0,
+        bronze: 0,
+        excellence: 0,
+        totalBadges: 0,
+        totalPoints: 0,
+        performanceScore: emp.performance_score || 80,
+      }
+    })
+
+    // Aggregate badges and points from all live recognition workflows
+    allRecognitionWorkflows.forEach(wf => {
+      const targetId = wf.subject_employee_id || wf.subject_id
+      const meta = wf.metadata || {}
+
+      // Find matching employee by ID or name
+      let empObj = targetId ? map[targetId] : null
+      if (!empObj && wf.subject_name) {
+        empObj = Object.values(map).find(e => e.name.toLowerCase() === wf.subject_name.toLowerCase())
+      }
+
+      if (empObj) {
+        const tier = (meta.badgeTier || meta.badge_tier || 'bronze').toLowerCase()
+        const points = Number(meta.badgePoints || meta.points) || (tier === 'gold' ? 100 : tier === 'silver' ? 50 : tier === 'excellence' ? 75 : 25)
+
+        if (tier === 'gold') empObj.gold += 1
+        else if (tier === 'silver') empObj.silver += 1
+        else if (tier === 'excellence') empObj.excellence += 1
+        else empObj.bronze += 1
+
+        empObj.totalBadges += 1
+        empObj.totalPoints += points
+      }
+    })
+
+    let list = Object.values(map)
+
+    // Filter by department if selected
+    if (selectedDept !== 'All') {
+      list = list.filter(e => e.department === selectedDept)
+    }
+
+    // Filter by query
+    if (leaderboardQuery.trim()) {
+      const q = leaderboardQuery.toLowerCase()
+      list = list.filter(e => e.name.toLowerCase().includes(q) || e.department.toLowerCase().includes(q) || e.jobTitle.toLowerCase().includes(q))
+    }
+
+    // Sort by points DESC, then totalBadges DESC, then performanceScore DESC
+    return list.sort((a, b) => b.totalPoints - a.totalPoints || b.totalBadges - a.totalBadges || b.performanceScore - a.performanceScore)
+  }, [employees, allRecognitionWorkflows, selectedDept, leaderboardQuery])
+
+  // Extract unique departments for filter pills
+  const departments = useMemo(() => ['All', ...new Set(employees.map(e => e.department).filter(Boolean))], [employees])
+
+  // Top 3 Podium
+  const top3 = useMemo(() => leaderboardData.slice(0, 3), [leaderboardData])
+
+  // Totals for top cards
+  const totalBadgesIssued = useMemo(() => {
+    return leaderboardData.reduce((acc, e) => acc + e.totalBadges, 0)
+  }, [leaderboardData])
+
+  const totalGoldIssued = useMemo(() => {
+    return leaderboardData.reduce((acc, e) => acc + e.gold, 0)
+  }, [leaderboardData])
+
   return (
     <>
-      <Section title="Recognition feed" note="All recognition records are workflow-driven">
-        <WorkflowSummary workflows={workflows} completedWorkflows={completedWorkflows} breakdown={breakdown} moduleKey="recognition" />
-      </Section>
-      {active.length > 0 && (
-        <Section title="Open nominations" note="Awaiting the next assigned role">
-          <ul className="open-nominations">
-            {active.map(w => (
-              <li key={w.id}>
-                <span className="emp-chips av">{(w.subject_name || '—').split(' ').map(x => x[0]).join('').toUpperCase()}</span>
-                <div className="emp-info"><b>{w.title}</b><small>Stage: {w.current_stage || '—'}</small></div>
-                <span className="status-mini active">In review</span>
-              </li>
-            ))}
-          </ul>
+      {/* 1. Header Toolbar with Nominate CTA */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Social Recognition & Leaderboard</h3>
+          <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6b7280' }}>
+            Celebrate hospitality excellence, track peer badges, and view top recognized staff.
+          </p>
+        </div>
+        {onOpenBadgePicker && (
+          <button
+            type="button"
+            onClick={onOpenBadgePicker}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'linear-gradient(135deg, #654bd2, #4f32c2)',
+              color: '#ffffff',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 4px 12px rgba(101, 75, 210, 0.25)',
+            }}
+          >
+            <span>🏆</span> Nominate & Issue Badge
+          </button>
+        )}
+      </div>
+
+      {/* 2. Top Summary KPI Widgets */}
+      <div className="business-metrics" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', marginBottom: 16 }}>
+        <article><small>Total Nominations</small><b>{allRecognitionWorkflows.length}</b></article>
+        <article><small>Badges Awarded</small><b>{totalBadgesIssued}</b></article>
+        <article><small>Gold Excellence 🥇</small><b>{totalGoldIssued}</b></article>
+        <article><small>Active In Review</small><b>{active.length}</b></article>
+      </div>
+
+      {/* 3. Top 3 Podium Visual Display */}
+      {top3.length > 0 && (
+        <Section title="Hospitality Recognition Podium" note="Top 3 recognized staff overall">
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-end',
+            gap: 16,
+            padding: '24px 16px 12px 16px',
+            background: 'linear-gradient(180deg, #f8f6ff 0%, #ffffff 100%)',
+            borderRadius: 14,
+            border: '1px solid #e9e5f5',
+            marginBottom: 20,
+          }}>
+            {/* 2nd Place Podium */}
+            {top3[1] && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: 160 }}>
+                <span style={{ fontSize: 24 }}>🥈</span>
+                <span className="emp-chips av" style={{ width: 44, height: 44, fontSize: 16, background: '#64748b', color: '#fff', border: '3px solid #cbd5e1' }}>
+                  {top3[1].name.split(' ').map(x => x[0]).join('').toUpperCase()}
+                </span>
+                <b style={{ fontSize: 13, color: '#1e293b', marginTop: 6, textAlign: 'center' }}>{top3[1].name}</b>
+                <small style={{ fontSize: 10, color: '#64748b', textAlign: 'center' }}>{top3[1].department}</small>
+                <div style={{ marginTop: 6, padding: '2px 8px', borderRadius: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                  {top3[1].totalPoints} pts ({top3[1].totalBadges} 🏅)
+                </div>
+                <div style={{ width: '100%', height: 75, background: 'linear-gradient(180deg, #e2e8f0, #cbd5e1)', borderRadius: '8px 8px 0 0', marginTop: 10, display: 'grid', placeItems: 'center', color: '#475569', fontWeight: 800, fontSize: 20 }}>
+                  2
+                </div>
+              </div>
+            )}
+
+            {/* 1st Place Podium (Tallest Center) */}
+            {top3[0] && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: 180, zIndex: 2 }}>
+                <span style={{ fontSize: 32 }}>🥇</span>
+                <span className="emp-chips av" style={{ width: 52, height: 52, fontSize: 18, background: '#d97706', color: '#fff', border: '3px solid #fde68a', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
+                  {top3[0].name.split(' ').map(x => x[0]).join('').toUpperCase()}
+                </span>
+                <b style={{ fontSize: 14, color: '#0f172a', marginTop: 6, textAlign: 'center', fontWeight: 800 }}>{top3[0].name}</b>
+                <small style={{ fontSize: 11, color: '#d97706', textAlign: 'center', fontWeight: 700 }}>{top3[0].department}</small>
+                <div style={{ marginTop: 6, padding: '3px 10px', borderRadius: 14, background: '#fef3c7', border: '1px solid #fde68a', fontSize: 12, fontWeight: 800, color: '#b45309' }}>
+                  {top3[0].totalPoints} pts ({top3[0].totalBadges} 🏅)
+                </div>
+                <div style={{ width: '100%', height: 105, background: 'linear-gradient(180deg, #fde68a, #f59e0b)', borderRadius: '10px 10px 0 0', marginTop: 10, display: 'grid', placeItems: 'center', color: '#78350f', fontWeight: 900, fontSize: 26, boxShadow: '0 4px 12px rgba(245,158,11,0.2)' }}>
+                  1
+                </div>
+              </div>
+            )}
+
+            {/* 3rd Place Podium */}
+            {top3[2] && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: 160 }}>
+                <span style={{ fontSize: 24 }}>🥉</span>
+                <span className="emp-chips av" style={{ width: 44, height: 44, fontSize: 16, background: '#9a3412', color: '#fff', border: '3px solid #fed7aa' }}>
+                  {top3[2].name.split(' ').map(x => x[0]).join('').toUpperCase()}
+                </span>
+                <b style={{ fontSize: 13, color: '#1e293b', marginTop: 6, textAlign: 'center' }}>{top3[2].name}</b>
+                <small style={{ fontSize: 10, color: '#64748b', textAlign: 'center' }}>{top3[2].department}</small>
+                <div style={{ marginTop: 6, padding: '2px 8px', borderRadius: 12, background: '#ffedd5', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#9a3412' }}>
+                  {top3[2].totalPoints} pts ({top3[2].totalBadges} 🏅)
+                </div>
+                <div style={{ width: '100%', height: 55, background: 'linear-gradient(180deg, #fed7aa, #f97316)', borderRadius: '8px 8px 0 0', marginTop: 10, display: 'grid', placeItems: 'center', color: '#7c2d12', fontWeight: 800, fontSize: 18 }}>
+                  3
+                </div>
+              </div>
+            )}
+          </div>
         </Section>
       )}
-      {completed.length === 0 && active.length === 0 && (
-        <p className="module-biz-empty">No recognition nominations exist yet.</p>
-      )}
+
+      {/* 4. Filterable Leaderboard Table */}
+      <Section title="Recognition Leaderboard" note="Live tally of points & awarded badges">
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 12 }}>
+          {departments.map(dept => (
+            <button
+              key={dept}
+              type="button"
+              onClick={() => setSelectedDept(dept)}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 16,
+                border: selectedDept === dept ? '1px solid #654bd2' : '1px solid #e5e7eb',
+                background: selectedDept === dept ? '#f3e8ff' : '#ffffff',
+                color: selectedDept === dept ? '#6d28d9' : '#4b5563',
+                fontSize: 11,
+                fontWeight: selectedDept === dept ? 700 : 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {dept} {dept === 'All' ? `(${employees.length})` : ''}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <input
+            className="biz-list-search"
+            value={leaderboardQuery}
+            onChange={e => setLeaderboardQuery(e.target.value)}
+            placeholder="Search leaderboard by staff name or title..."
+            style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }}
+          />
+        </div>
+
+        <div style={{ overflowX: 'auto', border: '1px solid #ecebf0', borderRadius: 10 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#faf9fc', borderBottom: '1px solid #ecebf0', color: '#6b7280', fontSize: 11 }}>
+                <th style={{ padding: '10px 12px', width: 45 }}>Rank</th>
+                <th style={{ padding: '10px 12px' }}>Employee</th>
+                <th style={{ padding: '10px 12px' }}>Department</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center' }}>Badges</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboardData.map((emp, idx) => (
+                <tr key={emp.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx < 3 ? '#faf5ff' : '#ffffff' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 800, color: idx === 0 ? '#d97706' : idx === 1 ? '#475569' : idx === 2 ? '#9a3412' : '#6b7280' }}>
+                    {idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="emp-chips av" style={{ width: 28, height: 28, fontSize: 11 }}>
+                        {emp.name.split(' ').map(x => x[0]).join('').toUpperCase()}
+                      </span>
+                      <div>
+                        <b style={{ color: '#111827', display: 'block' }}>{emp.name}</b>
+                        <small style={{ color: '#6b7280', fontSize: 10 }}>{emp.jobTitle}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#4b5563' }}>{emp.department}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', gap: 6, fontSize: 11 }}>
+                      {emp.gold > 0 && <span title={`${emp.gold} Gold Badges`}>🥇 {emp.gold}</span>}
+                      {emp.silver > 0 && <span title={`${emp.silver} Silver Badges`}>🥈 {emp.silver}</span>}
+                      {emp.bronze > 0 && <span title={`${emp.bronze} Bronze Badges`}>🥉 {emp.bronze}</span>}
+                      {emp.excellence > 0 && <span title={`${emp.excellence} Excellence Badges`}>🏆 {emp.excellence}</span>}
+                      {emp.totalBadges === 0 && <span style={{ color: '#9ca3af', fontSize: 11 }}>—</span>}
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#654bd2' }}>
+                    {emp.totalPoints} pts
+                  </td>
+                </tr>
+              ))}
+              {leaderboardData.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 16, textAlign: 'center', color: '#6b7280' }}>
+                    No leaderboard records found for current filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      {/* 5. Live Recognition Feed Cards */}
+      <Section title="Live Recognition Feed" note="Real-time nominations and awarded citations">
+        <WorkflowSummary workflows={workflows} completedWorkflows={completedWorkflows} breakdown={breakdown} moduleKey="recognition" />
+        
+        {allRecognitionWorkflows.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+            {allRecognitionWorkflows.map(wf => {
+              const meta = wf.metadata || {}
+              const isCompleted = wf.status === 'completed'
+              const badgeIcon = meta.badgeIcon || (meta.badgeTier === 'gold' ? '🥇' : meta.badgeTier === 'silver' ? '🥈' : meta.badgeTier === 'excellence' ? '🏆' : '🥉')
+              const nominee = meta.nomineeName || wf.subject_name || 'Team Member'
+              const nominator = meta.nominatorName || 'Colleague'
+              const categoryTag = meta.category || 'Service Excellence'
+              const reasonText = meta.reason || wf.title || 'Demonstrated outstanding dedication.'
+
+              return (
+                <div
+                  key={wf.id}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    border: '1px solid #ecebf0',
+                    background: '#ffffff',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 22 }}>{badgeIcon}</span>
+                      <div>
+                        <b style={{ fontSize: 13, color: '#111827' }}>{nominee}</b>
+                        <small style={{ display: 'block', fontSize: 11, color: '#6b7280' }}>
+                          Nominated by <strong style={{ color: '#4b5563' }}>{nominator}</strong>
+                        </small>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        padding: '3px 8px',
+                        borderRadius: 12,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        background: '#f3e8ff',
+                        color: '#6d28d9',
+                      }}>
+                        {categoryTag}
+                      </span>
+                      <span className={`status-mini ${isCompleted ? 'complete' : 'active'}`}>
+                        {isCompleted ? 'Badge Issued' : 'In Review'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#374151', lineHeight: 1.5, fontStyle: 'italic', background: '#faf9fc', padding: 8, borderRadius: 6, borderLeft: '3px solid #654bd2' }}>
+                    "{reasonText}"
+                  </p>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
+                    <span>Stage: {wf.current_stage || (isCompleted ? 'Final Approval' : 'Review')}</span>
+                    <span>{new Date(wf.created_at || Date.now()).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="module-biz-empty">No recognition nominations exist yet. Click "Nominate & Issue Badge" above to start!</p>
+        )}
+      </Section>
     </>
   )
 }
@@ -358,7 +694,7 @@ const VIEWS = {
   recognition: RecognitionBusiness,
 }
 
-export default function ModuleBusinessView({ moduleKey, data, workflows = [], completedWorkflows = [] }) {
+export default function ModuleBusinessView({ moduleKey, data, workflows = [], completedWorkflows = [], onOpenBadgePicker }) {
   const View = VIEWS[moduleKey]
   if (!View) return null
   const breakdown = data?.workflowBreakdown || []
@@ -369,6 +705,7 @@ export default function ModuleBusinessView({ moduleKey, data, workflows = [], co
         workflows={workflows}
         completedWorkflows={completedWorkflows}
         breakdown={breakdown}
+        onOpenBadgePicker={onOpenBadgePicker}
       />
     </div>
   )

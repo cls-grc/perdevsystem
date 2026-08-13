@@ -94,6 +94,7 @@ export default function WorkflowPage({
   module,
   itemIsEmployee = false,
   extraHeaderAction,
+  onOpenBadgePicker,
 }) {
   const role = getRole()
   const userId = getUserId()
@@ -766,6 +767,7 @@ const saveSchedule = async () => {
             data={analyticsData}
             workflows={workflows}
             completedWorkflows={completedWorkflows}
+            onOpenBadgePicker={onOpenBadgePicker}
           />
         </div>
       )}
