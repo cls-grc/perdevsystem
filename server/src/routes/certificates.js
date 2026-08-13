@@ -213,8 +213,8 @@ router.get('/', authorize('hr', 'supervisor', 'management', 'operations_manager'
                 )
 
                 await query(
-                  `INSERT INTO notifications(user_id, title, message, type, link)
-                   SELECT u.id, 'Certificate of Participation Issued', $1, 'certificate', '/certificates'
+                  `INSERT INTO notifications(user_id, title, message)
+                   SELECT u.id, 'Certificate of Participation Issued', $1
                    FROM users u WHERE u.employee_id = $2`,
                   [`Congratulations! You have received an official Certificate of Participation for "${sess.title}".`, emp.employee_id]
                 )
