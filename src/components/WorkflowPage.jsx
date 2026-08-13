@@ -182,6 +182,12 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
       setDefinitions(definitionResult.workflows[moduleKey] || [])
       setPeople(subjectResult.employees || [])
       setSubject(previous => previous || subjectResult.employees?.[0] || null)
+      if (active?.subject_name && subjectResult.employees) {
+        const match = subjectResult.employees.find(p => p.full_name === active.subject_name || p.id === active.subject_employee_id)
+        if (match) setEvaluatingSubject(match)
+      } else if (!evaluatingSubject && subjectResult.employees?.[0]) {
+        setEvaluatingSubject(subjectResult.employees[0])
+      }
       setWorkflow(active)
       setEvents(active ? (await api.workflow(active.id)).events || [] : [])
       setError('')
@@ -269,46 +275,52 @@ const currentFormValue = useMemo(() => {
     return formData[key] !== undefined ? formData[key] : {}
   }, [formData, workflow?.current_stage])
 
+  // Sync evaluatingSubject whenever active workflow changes
+  useEffect(() => {
+    if (workflow?.subject_name && people.length > 0) {
+      const match = people.find(p => p.full_name === workflow.subject_name || p.id === workflow.subject_employee_id)
+      if (match) setEvaluatingSubject(match)
+    }
+  }, [workflow?.id, workflow?.subject_name, workflow?.subject_employee_id, people])
+
   // Bidirectional alignment: picking a subject in the unified selector (top of
-  // the module) also fills the step form's "Employee to evaluate" field, and
-  // vice versa. This keeps the two selection points in sync.
+  // the module) or composer fills the step form's "employee" field, and vice versa.
   const hasEmployeeField = useMemo(() =>
     Boolean(currentFormConfig && (currentFormConfig.fields || []).some(f => f.name === 'employee')),
     [currentFormConfig],
   )
 
   useEffect(() => {
-    if (!workflow || !hasEmployeeField) return
-    const key = workflow.current_stage
-    if (evaluatingSubject?.full_name && currentFormValue?.employee !== evaluatingSubject.full_name) {
+    if (!hasEmployeeField) return
+    const key = workflow?.current_stage || ''
+    const activeSubjectName = workflow?.subject_name || evaluatingSubject?.full_name
+    if (activeSubjectName && currentFormValue?.employee !== activeSubjectName) {
       setFormData(prev => {
         const current = prev[key] || {}
-        if (current.employee === evaluatingSubject.full_name) return prev
-        return { ...prev, [key]: { ...current, employee: evaluatingSubject.full_name } }
+        if (current.employee === activeSubjectName) return prev
+        return { ...prev, [key]: { ...current, employee: activeSubjectName } }
       })
     }
-  }, [evaluatingSubject, workflow, hasEmployeeField, currentFormValue?.employee]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasEmployeeField, evaluatingSubject?.full_name, workflow?.subject_name, workflow?.current_stage, currentFormValue?.employee]) // eslint-disable-line react-hooks/exhaustive-deps
 
-// When the workflow moves to a new stage, seed a fresh initial value for the
+  // When the workflow moves to a new stage, seed a fresh initial value for the
   // stage's form/builder so the step always has a valid controlled value.
   useEffect(() => {
-    if (!workflow || !currentFormConfig) return
-    const key = workflow.current_stage
+    if (!currentFormConfig) return
+    const key = workflow?.current_stage || ''
     if (formData[key] !== undefined) return
     const initial = getInitialValue(currentFormConfig, role)
-    // Auto-invite the workflow's subject on participant-invite steps (e.g. the
-    // training "Invite participants" step). The participant chosen when the
-    // cycle started is automatically included, so HR doesn't have to re-select
-    // them; additional participants can still be added on top.
-if (initial !== undefined) {
+    if (initial !== undefined) {
       const inviteNames = (currentFormConfig.fields || []).find(f => f.name === 'invitees' || f.name === 'participants')
+      const hasEmp = (currentFormConfig.fields || []).find(f => f.name === 'employee')
       const isAssignBuilder = currentFormConfig.builder === 'assignEmployees'
       const isNominationsBuilder = currentFormConfig.builder === 'nominations'
-      const subjectName = workflow?.subject_name
+      const subjectName = workflow?.subject_name || evaluatingSubject?.full_name
       let seeded = initial
+      if (hasEmp && subjectName && typeof seeded === 'object' && !Array.isArray(seeded)) {
+        seeded = { ...seeded, employee: subjectName }
+      }
       if (isNominationsBuilder && subjectName && Array.isArray(initial)) {
-        // Succession nomination: the candidate chosen when the cycle started is
-        // automatically pre-filled so the department head doesn't re-enter it.
         const already = initial.some(row => row && row.employee === subjectName)
         seeded = already ? initial : [...initial, { employee: subjectName, rationale: '', targetRole: '' }]
       } else if (isAssignBuilder && subjectName && Array.isArray(initial)) {
@@ -319,7 +331,7 @@ if (initial !== undefined) {
       }
       setFormData(prev => (prev[key] !== undefined ? prev : { ...prev, [key]: seeded }))
     }
-  }, [workflow?.current_stage, currentFormConfig, role, workflow?.subject_name]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workflow?.current_stage, currentFormConfig, role, workflow?.subject_name, evaluatingSubject?.full_name]) // eslint-disable-line react-hooks/exhaustive-deps
 
 const setFormValue = useCallback((patchOrValue, meta) => {
     const key = workflow?.current_stage || ''
