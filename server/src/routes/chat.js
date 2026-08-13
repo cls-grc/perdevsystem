@@ -97,7 +97,16 @@ router.post('/', async (req, res, next) => {
     const subQueryParams = role === 'employee' ? [employeeId] : isSupervisorOrOpManager ? [userDepartment] : []
 
     // Safely query all database tables matching exact migrations schema
-    const [{ rows: employees }, { rows: gaps }, { rows: assignments }, { rows: resources }, { rows: succession }] = await Promise.all([
+    // Training-specific scope: employees can only see their own training
+    const trainingEmpJoin = role === 'employee'
+      ? ' JOIN training_participants tp ON tp.session_id = ts.id AND tp.employee_id = $1'
+      : isSupervisorOrOpManager
+      ? ` AND (ts.department = $1 OR ts.department = 'All Departments')`
+      : ''
+    const trainingParams = role === 'employee' ? [employeeId] : isSupervisorOrOpManager ? [userDepartment] : []
+    const trainingWhere = role === 'employee' ? 'WHERE 1=1' : 'WHERE 1=1'
+
+    const [{ rows: employees }, { rows: gaps }, { rows: assignments }, { rows: resources }, { rows: succession }, { rows: trainingSessions }, { rows: trainingParticipants }] = await Promise.all([
       query(`
         SELECT e.id, e.full_name, e.job_title, e.department, e.performance_score, e.competency_score, e.learning_progress 
         FROM employees e
@@ -138,6 +147,53 @@ router.post('/', async (req, res, next) => {
         ${subWhereClause}
         ORDER BY sp.readiness_score DESC
       `, subQueryParams).catch(() => ({ rows: [] })),
+
+      // Training Management: formal instructor-led sessions (separate from learning)
+      query(
+        role === 'employee'
+          ? `SELECT ts.id, ts.title, ts.category, ts.trainer, ts.venue, ts.start_date, ts.end_date, ts.status, ts.department,
+               tp.attendance, tp.evaluation_score
+             FROM training_sessions ts
+             JOIN training_participants tp ON tp.session_id = ts.id
+             WHERE tp.employee_id = $1
+             ORDER BY ts.start_date DESC LIMIT 20`
+          : isSupervisorOrOpManager
+          ? `SELECT ts.id, ts.title, ts.category, ts.trainer, ts.venue, ts.start_date, ts.end_date, ts.status, ts.department,
+               COUNT(tp.id)::int AS total_invited,
+               COUNT(tp.id) FILTER (WHERE tp.attendance IN ('present','late'))::int AS attended,
+               COUNT(tp.id) FILTER (WHERE tp.attendance = 'absent')::int AS absent
+             FROM training_sessions ts
+             LEFT JOIN training_participants tp ON tp.session_id = ts.id
+             WHERE (ts.department = $1 OR ts.department = 'All Departments')
+             GROUP BY ts.id ORDER BY ts.start_date DESC LIMIT 20`
+          : `SELECT ts.id, ts.title, ts.category, ts.trainer, ts.venue, ts.start_date, ts.end_date, ts.status, ts.department,
+               COUNT(tp.id)::int AS total_invited,
+               COUNT(tp.id) FILTER (WHERE tp.attendance IN ('present','late'))::int AS attended,
+               COUNT(tp.id) FILTER (WHERE tp.attendance = 'absent')::int AS absent
+             FROM training_sessions ts
+             LEFT JOIN training_participants tp ON tp.session_id = ts.id
+             GROUP BY ts.id ORDER BY ts.start_date DESC LIMIT 30`,
+        trainingParams
+      ).catch(() => ({ rows: [] })),
+
+      // Training participants summary (for HR/manager)
+      role !== 'employee'
+        ? query(
+            isSupervisorOrOpManager
+              ? `SELECT e.full_name, e.department, ts.title AS session_title, tp.attendance, tp.evaluation_score
+                 FROM training_participants tp
+                 JOIN employees e ON e.id = tp.employee_id
+                 JOIN training_sessions ts ON ts.id = tp.session_id
+                 WHERE e.department = $1
+                 ORDER BY ts.start_date DESC LIMIT 40`
+              : `SELECT e.full_name, e.department, ts.title AS session_title, tp.attendance, tp.evaluation_score
+                 FROM training_participants tp
+                 JOIN employees e ON e.id = tp.employee_id
+                 JOIN training_sessions ts ON ts.id = tp.session_id
+                 ORDER BY ts.start_date DESC LIMIT 40`,
+            isSupervisorOrOpManager ? [userDepartment] : []
+          ).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] }),
     ])
 
     // Calculate aggregated metrics for grounded context
@@ -145,6 +201,8 @@ router.post('/', async (req, res, next) => {
     const avgComp = employees.length ? Math.round(employees.reduce((acc, e) => acc + (Number(e.competency_score) || 0), 0) / employees.length) : 0
     const avgLearn = employees.length ? Math.round(employees.reduce((acc, e) => acc + (Number(e.learning_progress) || 0), 0) / employees.length) : 0
     const readyNowCount = succession.filter(s => s.readiness_band === 'ready_now').length
+    const completedTrainings = trainingSessions.filter(ts => ts.status === 'completed').length
+    const scheduledTrainings = trainingSessions.filter(ts => ts.status === 'scheduled').length
 
     const dataContext = {
       userRole: role,
@@ -157,6 +215,9 @@ router.post('/', async (req, res, next) => {
         averageLearningProgress: avgLearn,
         successionReadyNowCount: readyNowCount,
         totalLearningResources: resources.length,
+        totalTrainingSessions: trainingSessions.length,
+        completedTrainingSessions: completedTrainings,
+        scheduledTrainingSessions: scheduledTrainings,
       },
       employees: employees.map(e => ({
         name: e.full_name,
@@ -194,6 +255,27 @@ router.post('/', async (req, res, next) => {
         readinessBand: s.readiness_band,
         readinessScore: `${s.readiness_score}%`,
       })),
+      // TRAINING MANAGEMENT: Instructor-led formal training sessions (NOT the same as Learning)
+      trainingSessions: trainingSessions.map(ts => ({
+        title: ts.title,
+        category: ts.category,
+        trainer: ts.trainer || 'TBD',
+        venue: ts.venue,
+        startDate: ts.start_date,
+        endDate: ts.end_date,
+        status: ts.status,
+        department: ts.department,
+        ...(role === 'employee'
+          ? { myAttendance: ts.attendance, myEvaluationScore: ts.evaluation_score }
+          : { totalInvited: ts.total_invited, attended: ts.attended, absent: ts.absent }),
+      })),
+      trainingParticipantRecords: trainingParticipants.slice(0, 30).map(tp => ({
+        employee: tp.full_name,
+        department: tp.department,
+        session: tp.session_title,
+        attendance: tp.attendance,
+        evaluationScore: tp.evaluation_score,
+      })),
     }
 
     // Filter conversation history to avoid duplicating current user message
@@ -229,7 +311,14 @@ STRICT GROUNDING RULES:
 4. Always respect the user's scope (${dataContext.userScope}).
 5. Distinguish between current scores and target scores when explaining competency gaps.
 6. Provide direct, helpful, professional responses formatted cleanly with Markdown.
-7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).`
+7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).
+
+CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
+- "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
+- "Learning" or "Learning Management" refers EXCLUSIVELY to self-paced digital learning assignments and resources (found in the 'incompleteLearningActivities' and 'learningResourcesLibrary' keys).
+- When the user asks about training, workshops, sessions, attendance, or trainers → use ONLY data from 'trainingSessions' and 'trainingParticipantRecords'.
+- When the user asks about learning, e-learning, courses, course completion, or learning progress → use ONLY data from 'incompleteLearningActivities' and 'learningResourcesLibrary'.
+- NEVER mix training session data with learning resource data in the same answer unless explicitly asked to compare them.`
               },
               {
                 role: 'system',
