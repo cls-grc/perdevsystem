@@ -134,8 +134,12 @@ export default function TrainingManagement() {
   const loadSessionDetail = async sessionId => {
     try {
       const res = await api.trainingSession(sessionId)
-      setSelectedSessionDetail(res.session)
-      setSelectedSession(res.session)
+      const detail = {
+        ...res.session,
+        participants: res.participants || [],
+      }
+      setSelectedSessionDetail(detail)
+      setSelectedSession(detail)
       // Map participants attendance into state
       const attMap = {}
       ;(res.participants || []).forEach(p => {
