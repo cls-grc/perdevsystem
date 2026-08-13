@@ -94,7 +94,6 @@ export default function WorkflowPage({
   module,
   itemIsEmployee = false,
   extraHeaderAction,
-  onOpenBadgePicker,
 }) {
   const role = getRole()
   const userId = getUserId()
@@ -767,7 +766,6 @@ const saveSchedule = async () => {
             data={analyticsData}
             workflows={workflows}
             completedWorkflows={completedWorkflows}
-            onOpenBadgePicker={onOpenBadgePicker}
           />
         </div>
       )}
@@ -938,18 +936,12 @@ const saveSchedule = async () => {
             </>
 ) : (
             <div className="workflow-empty-state">
-              <div className="workflow-empty-illustration">{onOpenBadgePicker ? '🏆' : '📋'}</div>
-              <h3>{onOpenBadgePicker ? 'No active nomination' : 'No active workflow'}</h3>
-              <p>{canStart ? (onOpenBadgePicker ? 'Select a record, then submit a nomination badge to start the workflow.' : `Start a new ${title.toLowerCase()} to begin.`) : 'Your role does not have a start action for this workflow.'}</p>
+              <div className="workflow-empty-illustration">📋</div>
+              <h3>No active workflow</h3>
+              <p>{canStart ? `Start a new ${title.toLowerCase()} to begin.` : 'Your role does not have a start action for this workflow.'}</p>
               {canStart && (
-                <button
-                  className="module-primary"
-                  type="button"
-                  disabled={saving}
-                  onClick={onOpenBadgePicker ? onOpenBadgePicker : () => setComposerOpen(true)}
-                  style={onOpenBadgePicker ? { background: 'linear-gradient(135deg, #654bd2, #4f32c2)', border: 'none' } : {}}
-                >
-                  {onOpenBadgePicker ? '🏆 Nominate & Issue Badge' : (saving ? 'Creating...' : 'Create New Workflow')}
+                <button className="module-primary" type="button" disabled={saving} onClick={() => setComposerOpen(true)}>
+                  {saving ? 'Creating...' : 'Create New Workflow'}
                 </button>
               )}
             </div>

@@ -47,13 +47,6 @@ export const RECOGNITION_CATEGORIES = ['Customer Obsession', 'Leadership', 'Inno
 export const COMPETENCY_LEVELS = ['Foundation', 'Developing', 'Proficient', 'Expert']
 export const SUCCESSION_READINESS = ['Ready Now', 'Ready in 1-2 Years', 'Potential', 'Not Ready']
 
-export const RECOGNITION_BADGES = [
-  { id: 'gold', name: 'Gold Excellence', tier: 'Gold', points: 100, icon: '🥇', color: '#d97706', bg: '#fef3c7', border: '#fde68a', description: 'Outstanding contribution & exemplary leadership impact' },
-  { id: 'silver', name: 'Silver Service Hero', tier: 'Silver', points: 50, icon: '🥈', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1', description: 'Exceptional guest service & customer satisfaction hero' },
-  { id: 'bronze', name: 'Bronze Team Star', tier: 'Bronze', points: 25, icon: '🥉', color: '#9a3412', bg: '#ffedd5', border: '#fed7aa', description: 'Great teamwork, peer support & daily operational reliability' },
-  { id: 'excellence', name: 'Innovation & Safety', tier: 'Excellence', points: 75, icon: '🏆', color: '#6d28d9', bg: '#f3e8ff', border: '#ddd6fe', description: 'Creative problem solving, initiative & safety compliance' },
-]
-
 // KPI library — selecting one auto-fills name, description, weight, target,
 // measurement. HR only adjusts the weight/target values.
 export const KPI_LIBRARY = [
@@ -496,14 +489,12 @@ const recognition = {
   stepForms: {
     submitted: {
       title: 'Submit nomination',
-      description: 'Nominate a colleague with a badge tier, category, reason and supporting evidence.',
+      description: 'Nominate a colleague with a category, reason and supporting evidence.',
       fields: [
         { name: 'employee', label: 'Employee', type: 'employee', required: true },
-        { name: 'badge', label: 'Badge Tier & Award', type: 'badgePicker', required: true },
-        { name: 'category', label: 'Recognition category', type: 'select', required: true, options: ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork', 'Safety Champion'] },
-        { name: 'reason', label: 'Reason / Citation', type: 'textarea', required: true, placeholder: 'Describe the exceptional effort or achievement...' },
-        { name: 'commentSuggestions', label: 'Quick Suggestions', type: 'commentSuggestions', targetField: 'reason', options: ['Excellent contribution this period', 'Outstanding customer service', 'Great team collaboration', 'Consistently exceeds expectations', 'Deserves formal recognition'] },
-        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: false, hint: 'Link or description of supporting evidence (optional)' },
+        { name: 'category', label: 'Recognition category', type: 'select', required: true, options: ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork'] },
+        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
+        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: true, hint: 'Link or description of supporting evidence' },
       ],
     },
     supervisor_validation: {
