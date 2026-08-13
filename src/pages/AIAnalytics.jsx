@@ -66,29 +66,6 @@ export default function AIAnalytics() {
   const averageLearning = Number(totals.learning_completion || 0)
   const departments = [...new Set((data?.employees || []).map(employee => employee.department))].slice(0, 4)
 
-  const radarScores = useMemo(() => {
-    const emps = data?.employees || []
-    if (!emps.length) return [75, 80, 70, 85, 78]
-    const avgPerf = Number(totals.average_performance || 75)
-    const avgLearn = Number(totals.learning_completion || 70)
-    const avgComp = Math.round(emps.reduce((s, e) => s + Number(e.competency_score || 75), 0) / emps.length)
-    const succPct = emps.length ? Math.round(((totals.succession_ready || 0) / emps.length) * 100) : 65
-    const opsAvg = Math.round((avgPerf + avgComp) / 2)
-    return [avgComp, avgPerf, avgLearn, Math.min(95, Math.max(55, succPct * 2)), opsAvg]
-  }, [data, totals])
-
-  const radarPoints = useMemo(() => {
-    const cx = 90, cy = 75, maxR = 55
-    const angles = [-Math.PI / 2, -Math.PI / 10, (3 * Math.PI) / 10, (7 * Math.PI) / 10, (11 * Math.PI) / 10]
-    return angles.map((angle, i) => {
-      const score = Math.min(100, Math.max(25, radarScores[i]))
-      const r = (score / 100) * maxR
-      const x = Math.round(cx + r * Math.cos(angle))
-      const y = Math.round(cy + r * Math.sin(angle))
-      return `${x},${y}`
-    }).join(' ')
-  }, [radarScores])
-
   return <main className="ai-dashboard">
 <div className="ai-heading"><div><h1>AI-Assisted Performance & Learning Analytics</h1><p>Live hospitality performance, learning, and readiness intelligence.</p></div><div className="ai-actions">{isHr && <button onClick={generateExecutive} disabled={generating}>{generating ? 'Generating...' : 'Generate New Report'}</button>}{(report || insights) && <button onClick={() => printElementAsPdf('ai-report-content', 'PerDevSys Executive Report')} style={{ background: '#f0edff', color: '#5f48c5', border: '1px solid #d5cefc' }} title="Export report as PDF">⬇ PDF Export</button>}<button onClick={async () => { try { const rows = await api.exportEmployeesCsv(); const fmt = rows.map(e => ({'Employee Number': e.employee_number, 'Full Name': e.full_name, 'Department': e.department_name || e.department || '', 'Job Title': e.job_title || '', 'Performance Score': e.performance_score || 0, 'Learning Progress': e.learning_progress || 0, 'Status': e.is_active ? 'Active' : 'Inactive'})); downloadCsv(fmt, `employees-${new Date().toISOString().slice(0,10)}.csv`) } catch {}}} style={{ background: '#eef9f2', color: '#2d7f53', border: '1px solid #b8e8ce' }} title="Export all employee records to CSV">⬇ CSV Export</button></div></div>
     {error && <p className="ai-service-note">{error}</p>}
@@ -96,7 +73,7 @@ export default function AIAnalytics() {
       <div className="ai-main">
         <section className="ai-kpis">{[['Total employees', totals.total_employees], ['Average performance', percent(totals.average_performance)], ['Learning completion', percent(totals.learning_completion)], ['Succession ready', totals.succession_ready]].map(([label, value]) => <article key={label} title="Live value from the current database"><small>{label}</small><b>{value ?? '0'}</b><em>Live database value</em></article>)}</section>
         <section className="analytics-visuals">
-          <article className="radar-card"><div><small>Competency overview</small><b>Hospitality capability mix</b></div><svg viewBox="0 0 180 150" aria-label="Competency radar chart"><g className="radar-grid"><polygon points="90,10 145,48 124,122 56,122 35,48"/><polygon points="90,32 123,55 110,103 70,103 57,55"/><line x1="90" y1="10" x2="90" y2="122"/><line x1="35" y1="48" x2="124" y2="122"/><line x1="145" y1="48" x2="56" y2="122"/></g><polygon className="radar-fill" points={radarPoints}/></svg><div className="radar-labels"><span>Service</span><span>Leadership</span><span>Safety</span><span>Teamwork</span><span>Operations</span></div></article>
+          <article className="radar-card"><div><small>Competency overview</small><b>Hospitality capability mix</b></div><svg viewBox="0 0 180 150" aria-label="Competency radar chart"><g className="radar-grid"><polygon points="90,10 145,48 124,122 56,122 35,48"/><polygon points="90,32 123,55 110,103 70,103 57,55"/><line x1="90" y1="10" x2="90" y2="122"/><line x1="35" y1="48" x2="124" y2="122"/><line x1="145" y1="48" x2="56" y2="122"/></g><polygon className="radar-fill" points="90,23 132,57 112,111 63,107 49,56"/></svg><div className="radar-labels"><span>Service</span><span>Leadership</span><span>Safety</span><span>Teamwork</span><span>Operations</span></div></article>
           <article className="progress-card"><small>Learning and performance</small><b>Development momentum</b><div className="bar-row"><span>Performance</span><i><em style={{ width: `${averagePerformance}%` }}/></i><strong>{averagePerformance}%</strong></div><div className="bar-row"><span>Learning</span><i><em style={{ width: `${averageLearning}%` }}/></i><strong>{averageLearning}%</strong></div></article>
           <article className="heat-card"><small>Competency heat map</small><b>Department readiness</b><div className="heat-map">{departments.map((department, index) => <span key={department} className={`heat-${index + 1}`}>{department.slice(0, 2)}</span>)}</div><p>Current department coverage from workforce records.</p></article>
         </section>

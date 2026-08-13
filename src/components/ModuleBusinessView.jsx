@@ -318,78 +318,18 @@ function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) 
 }
 
 // ------------------------------ RECOGNITION -------------------------------
-function RecognitionBusiness({ workflows, completedWorkflows, breakdown, data }) {
+// No dedicated leaderboard table exists in the analytics payload, so we render
+// a workflow-oriented summary of recognition nominations (no fabricated tally).
+function RecognitionBusiness({ workflows, completedWorkflows, breakdown }) {
   const active = (workflows || []).filter(w => w.status === 'active')
   const completed = completedWorkflows || []
-  const employees = data?.employees || []
-
-  // Derive live leaderboard from completed recognition workflows and employee list
-  const leaderboard = useMemo(() => {
-    const counts = {}
-    completed.forEach(w => {
-      const name = w.subject_name || w.title || 'Team Member'
-      counts[name] = (counts[name] || 0) + 1
-    })
-    const list = Object.entries(counts).map(([name, count]) => {
-      const emp = employees.find(e => e.full_name?.toLowerCase() === name.toLowerCase())
-      const badge = count >= 3 ? 'Gold 🥇' : count === 2 ? 'Silver 🥈' : 'Bronze 🥉'
-      return {
-        name,
-        count,
-        badge,
-        department: emp?.department || 'Operations',
-        jobTitle: emp?.job_title || 'Hospitality Specialist',
-      }
-    }).sort((a, b) => b.count - a.count)
-
-    // Fallback entries from active employees if no completed recognitions exist yet
-    if (list.length === 0 && employees.length > 0) {
-      return employees.slice(0, 5).map((e, idx) => ({
-        name: e.full_name,
-        count: idx === 0 ? 3 : idx === 1 ? 2 : 1,
-        badge: idx === 0 ? 'Gold 🥇' : idx === 1 ? 'Silver 🥈' : 'Bronze 🥉',
-        department: e.department,
-        jobTitle: e.job_title || 'Staff',
-      }))
-    }
-    return list
-  }, [completed, employees])
-
   return (
     <>
-      <Section title="Recognition Leaderboard" note="Top Recognized Workforce Achievements">
-        {leaderboard.length > 0 ? (
-          <div className="employee-business-list" style={{ marginTop: 8 }}>
-            {leaderboard.map((item, index) => (
-              <div className="employee-business-row" key={item.name + index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #f3f4f6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, minWidth: 24, color: index === 0 ? '#b45309' : '#4b5563' }}>#{index + 1}</span>
-                  <span className="emp-chips av">{item.name.split(' ').map(w => w[0]).join('').toUpperCase()}</span>
-                  <div className="emp-info">
-                    <b style={{ fontSize: 13, color: '#111827' }}>{item.name}</b>
-                    <small style={{ color: '#6b7280', fontSize: 11 }}>{item.department}{item.jobTitle ? ` · ${item.jobTitle}` : ''}</small>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                    {item.badge}
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: '#5f48c5' }}>{item.count} Awards</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="module-biz-empty">No recognitions logged yet.</p>
-        )}
-      </Section>
-
-      <Section title="Recognition Feed & Summary" note="All recognition records are workflow-driven">
+      <Section title="Recognition feed" note="All recognition records are workflow-driven">
         <WorkflowSummary workflows={workflows} completedWorkflows={completedWorkflows} breakdown={breakdown} moduleKey="recognition" />
       </Section>
-
       {active.length > 0 && (
-        <Section title="Open Nominations" note="Awaiting supervisor or HR review">
+        <Section title="Open nominations" note="Awaiting the next assigned role">
           <ul className="open-nominations">
             {active.map(w => (
               <li key={w.id}>
@@ -400,6 +340,9 @@ function RecognitionBusiness({ workflows, completedWorkflows, breakdown, data })
             ))}
           </ul>
         </Section>
+      )}
+      {completed.length === 0 && active.length === 0 && (
+        <p className="module-biz-empty">No recognition nominations exist yet.</p>
       )}
     </>
   )

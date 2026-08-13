@@ -114,7 +114,7 @@ function App() {
             <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
             <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning key={`succ-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
             <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
-            <Route path="/certificates" element={['hr', 'supervisor', 'management', 'operations_manager', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
+            <Route path="/certificates" element={['hr', 'employee'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
             <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification key={`verify-${user.id}`} />} />
             <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
             <Route path="/audit" element={['hr', 'operations_manager', 'management'].includes(user.role) ? <AuditLogs key={`audit-${user.id}`} /> : <Navigate to="/" replace />} />

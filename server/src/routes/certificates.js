@@ -146,86 +146,9 @@ router.get('/templates', authorize('hr'), async (_req, res, next) => { try { con
 router.post('/templates', authorize('hr'), async (req, res, next) => { try { const input = templateSchema.parse(req.body); const { rows } = await query('INSERT INTO certificate_templates(name,certificate_title,subtitle,organization_name,body_text,logo_url,signatory_name,signatory_position,signature_url,background_url,validity_days,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *', [input.name, input.certificateTitle, input.subtitle, input.organizationName, input.bodyText, input.logoUrl || null, input.signatoryName, input.signatoryPosition || null, input.signatureUrl || null, input.backgroundUrl || null, input.validityDays || null, req.user.sub]); await logActivity({ req, user: req.user, action: 'certificate.template_create', category: 'certificate', targetId: rows[0].id, description: `${req.user.name} created certificate template ${input.name}` }); res.status(201).json({ template: rows[0] }) } catch (error) { next(error) } })
 router.patch('/templates/:id', authorize('hr'), async (req, res, next) => { try { const input = templateSchema.parse(req.body); const { rows } = await query('UPDATE certificate_templates SET name=$1,certificate_title=$2,subtitle=$3,organization_name=$4,body_text=$5,logo_url=$6,signatory_name=$7,signatory_position=$8,signature_url=$9,background_url=$10,validity_days=$11,updated_at=NOW() WHERE id=$12 AND is_active=true RETURNING *', [input.name, input.certificateTitle, input.subtitle, input.organizationName, input.bodyText, input.logoUrl || null, input.signatoryName, input.signatoryPosition || null, input.signatureUrl || null, input.backgroundUrl || null, input.validityDays || null, req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Active certificate template not found.' }); await logActivity({ req, user: req.user, action: 'certificate.template_update', category: 'certificate', targetId: req.params.id, description: `${req.user.name} updated certificate template ${rows[0].name}` }); res.json({ template: rows[0] }) } catch (error) { next(error) } })
 router.delete('/templates/:id', authorize('hr'), async (req, res, next) => { try { const { rows } = await query('UPDATE certificate_templates SET is_active=false,updated_at=NOW() WHERE id=$1 AND is_active=true RETURNING *', [req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Active certificate template not found.' }); await logActivity({ req, user: req.user, action: 'certificate.template_retire', category: 'certificate', targetId: req.params.id, description: `${req.user.name} retired certificate template ${rows[0].name}` }); res.json({ retired: true }) } catch (error) { next(error) } })
-router.get('/', authorize('hr', 'supervisor', 'management', 'operations_manager', 'employee'), async (req, res, next) => { try {
+router.get('/', authorize('hr', 'supervisor', 'employee'), async (req, res, next) => { try {
     // Auto-expire any certificates past their expiry date before returning the list.
     await query("UPDATE certificates SET status='expired', metadata=metadata || jsonb_build_object('expiredAt', NOW()::text) WHERE status='issued' AND expires_at IS NOT NULL AND expires_at < NOW()::date")
-
-    // Auto-backfill certificates for any completed training session participants who don't have one yet
-    try {
-      const completedSessions = await query(
-        `SELECT ts.id, ts.title, ts.start_date, ts.created_by 
-         FROM training_sessions ts 
-         WHERE LOWER(ts.status) = 'completed'`
-      )
-      if (completedSessions.rows.length > 0) {
-        let tplRes = await query(`SELECT id FROM certificate_templates WHERE is_active=true ORDER BY created_at ASC LIMIT 1`)
-        let templateId = tplRes.rows[0]?.id
-        if (!templateId) {
-          const sysUser = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`)
-          const createdBy = sysUser.rows[0]?.id
-          if (createdBy) {
-            const newTpl = await query(
-              `INSERT INTO certificate_templates(name, certificate_title, subtitle, organization_name, body_text, signatory_name, signatory_position, created_by)
-               VALUES('Certificate of Participation', 'Certificate of Participation', 'Training Excellence Program', 'PerDevSys Hospitality', 'For active participation and completion of professional development training.', 'HR Director', 'Human Resources', $1)
-               RETURNING id`,
-              [createdBy]
-            )
-            templateId = newTpl.rows[0].id
-          }
-        }
-
-        if (templateId) {
-          for (const sess of completedSessions.rows) {
-            const parts = await query(
-              `SELECT tp.employee_id, e.full_name, e.department, e.employee_number 
-               FROM training_participants tp 
-               JOIN employees e ON tp.employee_id = e.id 
-               WHERE tp.session_id = $1 AND LOWER(tp.attendance) IN ('present', 'late')`,
-              [sess.id]
-            )
-            for (const emp of parts.rows) {
-              const existing = await query(
-                `SELECT id FROM certificates WHERE employee_id = $1 AND metadata->>'sessionId' = $2`,
-                [emp.employee_id, String(sess.id)]
-              )
-              if (existing.rows.length === 0) {
-                const sysUser = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`)
-                const issuerId = sess.created_by || sysUser.rows[0]?.id
-                const certNum = `CERT-TRN-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
-                const achievement = `Successfully completed "${sess.title}" training session on ${String(sess.start_date || new Date().toISOString()).slice(0, 10)}.`
-                
-                await query(
-                  `INSERT INTO certificates(template_id, employee_id, certificate_number, achievement_text, awarded_at, issued_by, metadata)
-                   VALUES($1, $2, $3, $4, NOW()::date, $5, $6)`,
-                  [
-                    templateId,
-                    emp.employee_id,
-                    certNum,
-                    achievement,
-                    issuerId,
-                    JSON.stringify({
-                      sessionId: String(sess.id),
-                      sessionTitle: sess.title,
-                      employeeName: emp.full_name,
-                      department: emp.department,
-                    }),
-                  ]
-                )
-
-                await query(
-                  `INSERT INTO notifications(user_id, title, message, type, link)
-                   SELECT u.id, 'Certificate of Participation Issued', $1, 'certificate', '/certificates'
-                   FROM users u WHERE u.employee_id = $2`,
-                  [`Congratulations! You have received an official Certificate of Participation for "${sess.title}".`, emp.employee_id]
-                )
-              }
-            }
-          }
-        }
-      }
-    } catch (backfillErr) {
-      console.error('Cert backfill error:', backfillErr)
-    }
     const scope = await getScopeFilter(req.user)
     const params = []; let where = 'WHERE 1=1'
     if (scope.isEmployee) { params.push(scope.employeeId); where += ` AND c.employee_id=$${params.length}` }
