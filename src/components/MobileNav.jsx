@@ -102,8 +102,9 @@ const sectionsByRole = {
   ],
 }
 
-export default function MobileNav({ user, onLogout, open, onClose }) {
-  const sections = sectionsByRole[user.role] || sectionsByRole.employee
+export default function MobileNav({ user = {}, onLogout, open, onClose }) {
+  const role = user?.role || 'employee'
+  const sections = sectionsByRole[role] || sectionsByRole.employee
 
   const close = () => onClose && onClose()
 
@@ -142,11 +143,11 @@ export default function MobileNav({ user, onLogout, open, onClose }) {
 
             <div className="mobile-nav-profile">
               <span className="avatar avatar-lia">
-                {user.name?.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()}
+                {(user?.name || 'User').split(' ').filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase() || 'PDS'}
               </span>
               <div>
-                <b style={{ fontSize: 12, color: '#1f2230' }}>{user.name}</b>
-                <small style={{ display: 'block', fontSize: 10, color: '#7d8095' }}>{user.role}</small>
+                <b style={{ fontSize: 12, color: '#1f2230' }}>{user?.name || 'User'}</b>
+                <small style={{ display: 'block', fontSize: 10, color: '#7d8095' }}>{role}</small>
               </div>
               <button className="mobile-nav-signout" onClick={() => { close(); onLogout() }}>Sign out</button>
             </div>

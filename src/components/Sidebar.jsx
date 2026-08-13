@@ -156,10 +156,11 @@ export function Icon({name,size=20}){
   )
 }
 
-export default function Sidebar({user,onLogout}) {
-  const roleLabel = {hr:'HR Administrator',supervisor:'Department Head',management:'Senior Management',operations_manager:'Operations Manager',employee:'Employee'}[user.role] || user.role
-  const initials = user.name?.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()
-  const navSections = sectionsByRole[user.role] || sectionsByRole.employee
+export default function Sidebar({user = {}, onLogout}) {
+  const role = user?.role || 'employee'
+  const roleLabel = {hr:'HR Administrator',supervisor:'Department Head',management:'Senior Management',operations_manager:'Operations Manager',employee:'Employee'}[role] || role
+  const initials = (user?.name || 'User').split(' ').filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase() || 'PDS'
+  const navSections = sectionsByRole[role] || sectionsByRole.employee
 
   return (
     <aside className="sidebar">

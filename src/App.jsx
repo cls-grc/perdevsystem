@@ -35,7 +35,11 @@ import './responsive.css'
 
 function App() {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pds-user') || 'null') } catch { return null }
+    try {
+      const u = JSON.parse(localStorage.getItem('pds-user') || 'null')
+      if (u && typeof u === 'object' && (u.id || u.role || u.email || u.name)) return u
+      return null
+    } catch { return null }
   })
   const [dark, setDark] = useState(() => {
     try {
