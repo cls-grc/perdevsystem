@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   KPI_LIBRARY, LEARNING_TEMPLATES, COMPETENCY_TEMPLATES, GOAL_TEMPLATES,
   QUICK_COMMENTS, INTELLIGENT_DEFAULTS, COMPETENCY_LEVELS, LEARNING_CATEGORIES,
-  REVIEW_TYPES, RECOGNITION_CATEGORIES, TRAINING_CATEGORIES, SUCCESSION_READINESS,
+  REVIEW_TYPES, RECOGNITION_CATEGORIES, RECOGNITION_BADGES, TRAINING_CATEGORIES, SUCCESSION_READINESS,
   getRecommendedCoursesForGap,
 } from '../workflowConfig'
 import { api } from '../lib/api'
@@ -143,8 +143,36 @@ case 'rating':
           })}
         </div>
       )
-case 'commentSuggestions':
+    case 'commentSuggestions':
       return <CommentChips options={field.options || []} value={value || ''} onInsert={set} />
+    case 'badgePicker':
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, margin: '8px 0' }}>
+          {(RECOGNITION_BADGES || []).map(badge => {
+            const isSelected = value === badge.name || value === badge.id || (!value && badge.id === 'gold')
+            return (
+              <div
+                key={badge.id}
+                onClick={() => set(badge.name)}
+                style={{
+                  padding: 10,
+                  borderRadius: 10,
+                  border: `2px solid ${isSelected ? badge.color : '#e5e7eb'}`,
+                  backgroundColor: isSelected ? badge.bg : '#ffffff',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isSelected ? `0 4px 10px ${badge.color}25` : 'none',
+                }}
+              >
+                <div style={{ fontSize: 24, marginBottom: 2 }}>{badge.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: badge.color }}>{badge.name}</div>
+                <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1, fontWeight: 600 }}>+{badge.points} pts</div>
+              </div>
+            )
+          })}
+        </div>
+      )
     case 'template':
       return <TemplateSelect field={field} value={value || ''} onChange={set} />
     case 'aiGenerate':
@@ -1328,11 +1356,26 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
   const [error, setError] = useState('')
   const [section, setSection] = useState(0)
 
-  if (!formConfig) return null
-  const builder = formConfig.builder ? BUILDERS[formConfig.builder] : null
-  const fields = formConfig.fields || []
-  const progressive = formConfig.progressive && !builder && fields.length > 0
+  const builder = formConfig?.builder ? BUILDERS[formConfig.builder] : null
+  const fields = formConfig?.fields || []
+  const progressive = formConfig?.progressive && !builder && fields.length > 0
   const visibleFields = progressive ? fields.filter(f => f.section === undefined || f.section === section) : fields
+
+  // Auto-populate employee field from subject (e.g. Grace Lee) and default badge picker
+  useEffect(() => {
+    if (fields.length > 0) {
+      fields.forEach(field => {
+        if ((field.type === 'employee' || field.name === 'employee') && subject?.full_name && (!value || !value[field.name])) {
+          onChange(field.name, subject.full_name)
+        }
+        if (field.type === 'badgePicker' && (!value || !value[field.name])) {
+          onChange(field.name, RECOGNITION_BADGES?.[0]?.name || 'Gold Excellence')
+        }
+      })
+    }
+  }, [subject, fields])
+
+  if (!formConfig) return null
 
   const isRequiredFilled = useMemo(() => {
     if (builder) {

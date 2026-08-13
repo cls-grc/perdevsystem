@@ -496,12 +496,14 @@ const recognition = {
   stepForms: {
     submitted: {
       title: 'Submit nomination',
-      description: 'Nominate a colleague with a category, reason and supporting evidence.',
+      description: 'Nominate a colleague with a badge tier, category, reason and supporting evidence.',
       fields: [
         { name: 'employee', label: 'Employee', type: 'employee', required: true },
-        { name: 'category', label: 'Recognition category', type: 'select', required: true, options: ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork'] },
-        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: true, hint: 'Link or description of supporting evidence' },
+        { name: 'badge', label: 'Badge Tier & Award', type: 'badgePicker', required: true },
+        { name: 'category', label: 'Recognition category', type: 'select', required: true, options: ['Customer Obsession', 'Leadership', 'Innovation', 'Service Excellence', 'Teamwork', 'Safety Champion'] },
+        { name: 'reason', label: 'Reason / Citation', type: 'textarea', required: true, placeholder: 'Describe the exceptional effort or achievement...' },
+        { name: 'commentSuggestions', label: 'Quick Suggestions', type: 'commentSuggestions', targetField: 'reason', options: ['Excellent contribution this period', 'Outstanding customer service', 'Great team collaboration', 'Consistently exceeds expectations', 'Deserves formal recognition'] },
+        { name: 'evidence', label: 'Supporting evidence', type: 'fileHint', required: false, hint: 'Link or description of supporting evidence (optional)' },
       ],
     },
     supervisor_validation: {
