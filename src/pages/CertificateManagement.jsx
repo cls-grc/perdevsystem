@@ -45,7 +45,7 @@ function Preview({ template, certificate, compact = false }) {
 export default function CertificateManagement({ embedded = false }) {
   const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role } catch { return '' } })(); const hr = role === 'hr'; const operationsManager = role === 'operations_manager'
   const Container = embedded ? 'section' : 'main'
-  const CERTS_PER_PAGE = 8
+  const CERTS_PER_PAGE = 6
   const [currentPage, setCurrentPage] = useState(1)
   const [templates, setTemplates] = useState([]), [certificates, setCertificates] = useState([]), [employees, setEmployees] = useState([]), [template, setTemplate] = useState(null), [recipientIds, setRecipientIds] = useState([]), [achievement, setAchievement] = useState('For exceptional performance and meaningful contribution to the organization.'), [form, setForm] = useState(defaults), [showForm, setShowForm] = useState(false), [editingTemplate, setEditingTemplate] = useState(null), [error, setError] = useState(''), [notice, setNotice] = useState(''), [query, setQuery] = useState(''), [employeeQuery, setEmployeeQuery] = useState(''), [sortBy, setSortBy] = useState('newest'), [printCert, setPrintCert] = useState(null)
   const load = async () => { try { const calls = [api.certificates()]; if (hr) calls.push(api.certificateTemplates(), api.workflowSubjects()); const result = await Promise.all(calls); setCertificates(result[0].certificates || []); if (hr) { setTemplates(result[1].templates || []); setEmployees(result[2].employees || []); if (!template && result[1].templates?.[0]) setTemplate(result[1].templates[0]) } } catch (requestError) { setError(requestError.message) } }
@@ -65,8 +65,9 @@ export default function CertificateManagement({ embedded = false }) {
   const safePage = Math.min(currentPage, totalPages)
   const paginated = filtered.slice((safePage - 1) * CERTS_PER_PAGE, safePage * CERTS_PER_PAGE)
   const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)))
-  // Reset to page 1 whenever the filter or sort changes
-  useEffect(() => { setCurrentPage(1) }, [query, sortBy])
+  // Reset to page 1 when filter/sort changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => setCurrentPage(1), [query, sortBy])
   const getPaginationPages = () => {
     const pages = []
     const delta = 2
@@ -122,7 +123,7 @@ export default function CertificateManagement({ embedded = false }) {
     if (!code) return setError('This certificate has no verification code.')
     window.open(`/verify/certificate/${code}`, '_blank')
   }
-  const paginationMarkup = totalPages > 1 ? (
+  const Pagination = () => totalPages <= 1 ? null : (
     <div className="cert-pagination">
       <button className="cert-page-btn" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1} aria-label="Previous page">‹</button>
       {getPaginationPages().map((p, i) =>
@@ -132,8 +133,8 @@ export default function CertificateManagement({ embedded = false }) {
       <button className="cert-page-btn" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages} aria-label="Next page">›</button>
       <span className="cert-page-info">{(safePage - 1) * CERTS_PER_PAGE + 1}–{Math.min(safePage * CERTS_PER_PAGE, filtered.length)} of {filtered.length}</span>
     </div>
-  ) : null
-  const gallery = <div className="certificate-gallery-wrap"><div className="certificate-gallery">{paginated.map(c => <article className="certificate-card" key={c.id}><Preview certificate={c} compact/><div><span className={`certificate-status ${c.status}`}>{c.status}</span><h3>{hr ? c.employee_name : c.certificate_title}</h3><p>{c.certificate_number || date(c.awarded_at)}</p><p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p><button onClick={() => print(c)}>Print</button><button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button><button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>{hr && c.status === 'issued' && <><button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button><button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button></>}<button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify Page</button></div></article>)}{!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}</div>{paginationMarkup}</div>
+  )
+  const gallery = <div className="certificate-gallery-wrap"><div className="certificate-gallery">{paginated.map(c => <article className="certificate-card" key={c.id}><Preview certificate={c} compact/><div><span className={`certificate-status ${c.status}`}>{c.status}</span><h3>{hr ? c.employee_name : c.certificate_title}</h3><p>{c.certificate_number || date(c.awarded_at)}</p><p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p><button onClick={() => print(c)}>Print</button><button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button><button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>{hr && c.status === 'issued' && <><button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button><button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button></>}<button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify Page</button></div></article>)}{!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}</div><Pagination /></div>
   const employeeSearch = <div className="certificate-employee-search"><input className="certificate-search" value={employeeQuery} onChange={e => setEmployeeQuery(e.target.value)} placeholder="Search employee name, role, or department" aria-label="Search employees"/>{employeeQuery && <button className="certificate-clear" type="button" onClick={() => setEmployeeQuery('')} aria-label="Clear employee search">×</button>}</div>
   const printPortal = printCert && createPortal(<div className="certificate-print-root" role="dialog" aria-label="Print preview"><div className="certificate-print-sheet"><Preview template={printCert} certificate={printCert} /></div><button className="certificate-print-close" onClick={() => setPrintCert(null)}>× Close preview</button></div>, document.body)
   if (!hr) return <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}><header className="certificate-heading"><div><p className="eyebrow">{operationsManager ? 'Certificate monitoring' : 'My achievements'}</p><h1>{operationsManager ? 'Certificate management' : 'My Certificates'}</h1><span>{operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}</span></div></header><section className="certificate-archive"><div className="certificate-archive-inner"><h2>Issued certificates</h2>{archiveControls}</div>{gallery}</section>{printPortal}</Container>
