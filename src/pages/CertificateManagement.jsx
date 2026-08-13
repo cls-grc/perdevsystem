@@ -3,11 +3,44 @@ import { createPortal } from 'react-dom'
 import { flushSync } from 'react-dom'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
+import QRCodeImage from '../components/QRCodeImage'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
 const date = value => value ? new Date(value).toLocaleDateString() : '—'
 
-function Preview({ template, certificate, compact = false }) { const name = certificate?.employee_name || '{{Employee Name}}'; const text = (certificate?.achievement_text || template?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', name); return <article className={`certificate-preview ${compact ? 'compact' : ''}`}>{template?.logo_url && <img className="certificate-logo" src={template.logo_url} alt="Organization logo"/>}<div className="certificate-seal">PDS</div><small>{template?.organization_name || certificate?.organization_name || 'PerDevSys Hospitality'}</small><h2>{template?.certificate_title || certificate?.certificate_title || 'Certificate of Excellence'}</h2><em>{template?.subtitle || certificate?.subtitle || 'Recognition of achievement'}</em><p>This certificate is presented to</p><h1>{name}</h1><div className="certificate-rule"/><p className="certificate-body">{text}</p><div className="certificate-foot"><span>Date awarded<br/><b>{date(certificate?.awarded_at)}</b></span><span className="certificate-qr">▦<small>{certificate?.verification_code?.slice(0, 8) || 'VERIFY'}</small></span><span>{template?.signature_url && <img className="certificate-signature" src={template.signature_url} alt="Authorized signature"/>}Authorized by<br/><b>{template?.signatory_name || certificate?.signatory_name || 'Authorized signatory'}</b></span></div><footer>Certificate No. {certificate?.certificate_number || 'PDS-YYYY-00000000'}</footer></article> }
+function Preview({ template, certificate, compact = false }) {
+  const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+  const name = certificate?.employee_name || '{{Employee Name}}'
+  const text = (certificate?.achievement_text || template?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', name)
+  const verifyCode = certificate?.verification_code
+  const verifyUrl = verifyCode ? `${publicAppUrl}/verify/certificate/${verifyCode}` : `${publicAppUrl}/verify/certificate/SAMPLE-VERIFICATION-CODE`
+
+  return (
+    <article className={`certificate-preview ${compact ? 'compact' : ''}`}>
+      {template?.logo_url && <img className="certificate-logo" src={template.logo_url} alt="Organization logo"/>}
+      <div className="certificate-seal">PDS</div>
+      <small>{template?.organization_name || certificate?.organization_name || 'PerDevSys Hospitality'}</small>
+      <h2>{template?.certificate_title || certificate?.certificate_title || 'Certificate of Excellence'}</h2>
+      <em>{template?.subtitle || certificate?.subtitle || 'Recognition of achievement'}</em>
+      <p>This certificate is presented to</p>
+      <h1>{name}</h1>
+      <div className="certificate-rule"/>
+      <p className="certificate-body">{text}</p>
+      <div className="certificate-foot">
+        <span>Date awarded<br/><b>{date(certificate?.awarded_at)}</b></span>
+        <span className="certificate-qr">
+          <QRCodeImage value={verifyUrl} size={compact ? 44 : 64} />
+          <small>VERIFY ONLINE</small>
+        </span>
+        <span>
+          {template?.signature_url && <img className="certificate-signature" src={template.signature_url} alt="Authorized signature"/>}
+          Authorized by<br/><b>{template?.signatory_name || certificate?.signatory_name || 'Authorized signatory'}</b>
+        </span>
+      </div>
+      <footer>Certificate No. {certificate?.certificate_number || 'PDS-YYYY-00000000'}{verifyCode ? ` · Code: ${verifyCode}` : ''}</footer>
+    </article>
+  )
+}
 
 export default function CertificateManagement({ embedded = false }) {
   const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role } catch { return '' } })(); const hr = role === 'hr'; const operationsManager = role === 'operations_manager'
@@ -17,7 +50,7 @@ export default function CertificateManagement({ embedded = false }) {
   useEffect(() => { load() }, [])
   const recipients = employees.filter(person => recipientIds.includes(person.id))
   const filtered = useMemo(() => {
-    const matched = certificates.filter(c => `${c.employee_name} ${c.certificate_title} ${c.status} ${c.certificate_number || ''}`.toLowerCase().includes(query.toLowerCase()))
+    const matched = certificates.filter(c => `${c.employee_name} ${c.certificate_title} ${c.status} ${c.certificate_number || ''} ${c.verification_code || ''}`.toLowerCase().includes(query.toLowerCase()))
     switch (sortBy) {
       case 'oldest': return [...matched].sort((a, b) => new Date(a.issued_at || a.awarded_at || 0) - new Date(b.issued_at || b.awarded_at || 0))
       case 'name': return [...matched].sort((a, b) => (a.employee_name || '').localeCompare(b.employee_name || ''))
@@ -39,7 +72,7 @@ export default function CertificateManagement({ embedded = false }) {
     try { await api.revokeCertificate(certificate.id, reason.trim()); await load() } catch (requestError) { setError(requestError.message) }
   }
   const checkExpiry = async () => { try { const result = await api.checkExpiredCertificates(); if (result.expired > 0) { await load(); setNotice(`${result.expired} expired certificate(s) updated.`); } else { setNotice('No expired certificates found.'); } } catch (requestError) { setError(requestError.message) } }
-  const archiveControls = <div className="certificate-archive-tools">{hr && <button className="certificate-expiry-btn" onClick={checkExpiry} title="Mark expired certificates">Expire outdated</button>}<label className="certificate-search-label"><input className="certificate-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search certificates…" aria-label="Search certificates"/>{query && <button className="certificate-clear" type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button>}</label><label className="certificate-sort-label">Sort<select className="certificate-sort" value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort certificates"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">By employee</option><option value="status">By status</option></select></label></div>
+  const archiveControls = <div className="certificate-archive-tools">{hr && <button className="certificate-expiry-btn" onClick={checkExpiry} title="Mark expired certificates">Expire outdated</button>}<label className="certificate-search-label"><input className="certificate-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search certificates or verification code…" aria-label="Search certificates"/>{query && <button className="certificate-clear" type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button>}</label><label className="certificate-sort-label">Sort<select className="certificate-sort" value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort certificates"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">By employee</option><option value="status">By status</option></select></label></div>
   const print = async certificate => {
     const fresh = await api.certificates()
     const current = fresh.certificates?.find(c => c.id === certificate.id) || certificate
@@ -56,17 +89,20 @@ export default function CertificateManagement({ embedded = false }) {
       window.addEventListener('afterprint', () => setPrintCert(null), { once: true })
     }, 30)
   }
+  const copyVerificationLink = certificate => {
+    const code = certificate.verification_code
+    if (!code) return setError('Certificate verification code is missing.')
+    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+    const url = `${publicAppUrl}/verify/certificate/${code}`
+    navigator.clipboard.writeText(url)
+    setNotice(`✓ Copied verification link: ${url}`)
+  }
   const verifyCertificate = async certificate => {
     const code = certificate.verification_code
-    if (!code) return setError('This certificate has no verification code. Try regenerating it.')
-    try {
-      const result = await api.verifyCertificate(code)
-      setNotice(`✓ ${result.status === 'issued' ? 'Valid' : result.status} certificate — ${result.employeeName}, ${result.title}`)
-    } catch (requestError) {
-      setError(requestError.message)
-    }
+    if (!code) return setError('This certificate has no verification code.')
+    window.open(`/verify/certificate/${code}`, '_blank')
   }
-  const gallery = <div className="certificate-gallery">{filtered.map(c => <article className="certificate-card" key={c.id}><Preview certificate={c} compact/><div><span className={`certificate-status ${c.status}`}>{c.status}</span><h3>{hr ? c.employee_name : c.certificate_title}</h3><p>{c.certificate_number || date(c.awarded_at)}</p><button onClick={() => print(c)}>Print</button><button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button>{hr && c.status === 'issued' && <><button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button><button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button></>}<button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify</button></div></article>)}{!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}</div>
+  const gallery = <div className="certificate-gallery">{filtered.map(c => <article className="certificate-card" key={c.id}><Preview certificate={c} compact/><div><span className={`certificate-status ${c.status}`}>{c.status}</span><h3>{hr ? c.employee_name : c.certificate_title}</h3><p>{c.certificate_number || date(c.awarded_at)}</p><p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p><button onClick={() => print(c)}>Print</button><button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button><button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>{hr && c.status === 'issued' && <><button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button><button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button></>}<button className="certificate-verify-btn" onClick={() => verifyCertificate(c)}>Verify Page</button></div></article>)}{!filtered.length && <div className="certificate-empty">No certificates {query ? 'match your search' : 'yet'}.</div>}</div>
   const employeeSearch = <div className="certificate-employee-search"><input className="certificate-search" value={employeeQuery} onChange={e => setEmployeeQuery(e.target.value)} placeholder="Search employee name, role, or department" aria-label="Search employees"/>{employeeQuery && <button className="certificate-clear" type="button" onClick={() => setEmployeeQuery('')} aria-label="Clear employee search">×</button>}</div>
   const printPortal = printCert && createPortal(<div className="certificate-print-root" role="dialog" aria-label="Print preview"><div className="certificate-print-sheet"><Preview template={printCert} certificate={printCert} /></div><button className="certificate-print-close" onClick={() => setPrintCert(null)}>× Close preview</button></div>, document.body)
   if (!hr) return <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}><header className="certificate-heading"><div><p className="eyebrow">{operationsManager ? 'Certificate monitoring' : 'My achievements'}</p><h1>{operationsManager ? 'Certificate management' : 'My Certificates'}</h1><span>{operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}</span></div></header><section className="certificate-archive"><div className="certificate-archive-inner"><h2>Issued certificates</h2>{archiveControls}</div>{gallery}</section>{printPortal}</Container>

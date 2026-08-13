@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import QRCode from 'qrcode'
 import { query, transaction } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
@@ -11,25 +12,127 @@ const router = Router()
 // middleware so third parties can validate certificate authenticity without a token.
 router.get('/verify/:code', async (req, res, next) => {
   try {
-    const { rows } = await query(`SELECT c.certificate_number, c.achievement_text, c.awarded_at, c.expires_at, c.status,
-      e.full_name AS employee_name, t.certificate_title, t.organization_name, t.signatory_name, t.signatory_position
+    const code = req.params.code
+    const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status, c.revoked_at, c.revoked_reason,
+      e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
       FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
-      WHERE c.verification_code=$1`, [req.params.code])
-    if (!rows[0]) return res.status(404).json({ error: 'Certificate not found. The verification code may be invalid.' })
-    const cert = rows[0]
-    res.json({
-      verified: true,
+      WHERE c.verification_code::text=$1 OR c.id::text=$1 OR c.certificate_number=$1`, [code])
+    if (!rows[0]) {
+      return res.status(404).json({
+        valid: false,
+        message: 'Certificate not found.'
+      })
+    }
+    let cert = rows[0]
+    if (cert.status === 'issued' && cert.expires_at && new Date(cert.expires_at) < new Date(new Date().setHours(0,0,0,0))) {
+      await query("UPDATE certificates SET status='expired', metadata=metadata || jsonb_build_object('expiredAt', NOW()::text) WHERE id=$1", [cert.id])
+      cert.status = 'expired'
+    }
+    const publicCert = {
       certificateNumber: cert.certificate_number,
-      employeeName: cert.employee_name,
+      certificateType: cert.template_name || cert.certificate_title || 'Excellence Certificate',
       title: cert.certificate_title,
-      organization: cert.organization_name,
+      subtitle: cert.subtitle,
+      recipientName: cert.employee_name,
+      issuedDate: cert.awarded_at,
+      expiryDate: cert.expires_at,
+      status: cert.status === 'issued' ? 'valid' : cert.status,
+      issuer: cert.organization_name,
       achievement: cert.achievement_text,
-      awardedAt: cert.awarded_at,
-      expiresAt: cert.expires_at,
-      status: cert.status,
       signatory: cert.signatory_name,
       signatoryPosition: cert.signatory_position,
+      logoUrl: cert.logo_url,
+      signatureUrl: cert.signature_url,
+      verificationCode: cert.verification_code,
+      revokedAt: cert.revoked_at,
+      revokedReason: cert.revoked_reason
+    }
+
+    if (cert.status === 'revoked') {
+      return res.json({
+        valid: false,
+        status: 'revoked',
+        message: 'This certificate has been revoked.',
+        certificate: publicCert
+      })
+    }
+    if (cert.status === 'expired') {
+      return res.json({
+        valid: false,
+        status: 'expired',
+        message: 'This certificate has expired.',
+        certificate: publicCert
+      })
+    }
+    return res.json({
+      valid: true,
+      status: 'valid',
+      verified: true,
+      certificate: publicCert
     })
+  } catch (error) { next(error) }
+})
+
+router.get('/verify/:code/pdf', async (req, res, next) => {
+  try {
+    const code = req.params.code
+    const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status,
+      e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
+      FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
+      WHERE c.verification_code::text=$1 OR c.id::text=$1 OR c.certificate_number=$1`, [code])
+    if (!rows[0]) return res.status(404).json({ valid: false, message: 'Certificate not found.' })
+    const cert = rows[0]
+    const baseUrl = process.env.PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:5173'
+    const verifyUrl = `${baseUrl}/verify/certificate/${cert.verification_code}`
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 200 })
+
+    const title = `${cert.certificate_title} - ${cert.employee_name}`
+    res.setHeader('Content-Type', 'text/html')
+    res.setHeader('Content-Disposition', `inline; filename="${cert.certificate_number}.html"`)
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+<style>
+  body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; background: #f4f0ff; }
+  .cert { width: 850px; background: linear-gradient(135deg, #fcfbff 0%, #f4f0ff 100%); border: 3px solid #654bd2; border-radius: 16px; padding: 48px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; }
+  .org { font-size: 12px; color: #7c778a; letter-spacing: 2px; text-transform: uppercase; }
+  h1 { font-size: 32px; color: #282631; margin: 10px 0 4px; }
+  .sub { font-size: 14px; color: #654bd2; font-weight: 600; }
+  .recipient { font-size: 36px; color: #654bd2; font-weight: 800; margin: 20px 0 10px; }
+  .rule { width: 100px; height: 3px; background: #654bd2; margin: 0 auto 16px; }
+  .body { font-size: 14px; color: #4a4656; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+  .foot { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; font-size: 12px; color: #7c778a; }
+  .foot b { display: block; color: #282631; font-size: 14px; margin-top: 4px; }
+  .qr { text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .qr img { width: 85px; height: 85px; border-radius: 4px; border: 1px solid #e4e1f7; }
+  .qr small { display: block; font-size: 9px; color: #654bd2; font-weight: 600; margin-top: 3px; }
+  .number { margin-top: 30px; font-size: 11px; color: #9b97a6; }
+  @media print { body { background: none; } .cert { border: none; box-shadow: none; width: 100%; } }
+</style>
+</head>
+<body onload="if (window.location.search.includes('print=true')) window.print()">
+<div class="cert">
+  <div class="org">${cert.organization_name}</div>
+  <h1>${cert.certificate_title}</h1>
+  <div class="sub">${cert.subtitle || 'Certificate of Recognition'}</div>
+  <p style="color:#7c778a; margin-top: 24px;">This certificate is proudly presented to</p>
+  <div class="recipient">${cert.employee_name}</div>
+  <div class="rule"></div>
+  <div class="body">${cert.achievement_text}</div>
+  <div class="foot">
+    <div>Awarded Date<br><b>${new Date(cert.awarded_at).toLocaleDateString()}</b></div>
+    <div class="qr">
+      <img src="${qrDataUrl}" alt="QR Code">
+      <small>VERIFY ONLINE</small>
+    </div>
+    <div>Authorized Signatory<br><b>${cert.signatory_name}</b><br><small>${cert.signatory_position || ''}</small></div>
+  </div>
+  <div class="number">Certificate No. ${cert.certificate_number} · Verification Code: ${cert.verification_code}</div>
+</div>
+</body>
+</html>`)
   } catch (error) { next(error) }
 })
 
