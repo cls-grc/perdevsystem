@@ -200,7 +200,7 @@ export default function CertificateVerification() {
               <div className="certificate-foot">
                 <span>Date awarded<br /><b>{formatDate(cert.issuedDate)}</b></span>
                 <div className="certificate-qr-container">
-                  <QRCodeImage value={verifyUrl} size={70} />
+                  <QRCodeImage value={verifyUrl} size={90} />
                   <small style={{ fontSize: 7, color: '#654bd2', marginTop: 2, display: 'block' }}>VERIFY ONLINE</small>
                 </div>
                 <span>
@@ -215,7 +215,7 @@ export default function CertificateVerification() {
 
         {/* FOOTER VERIFICATION SECURE SEAL */}
         <div className="verify-footer-seal">
-          <QRCodeImage value={verifyUrl} size={64} />
+          <QRCodeImage value={verifyUrl} size={90} />
           <div>
             <strong>Authentic PerDevSys Certificate</strong>
             <p>Verification Code: <code>{cert.verificationCode || verificationCode}</code></p>

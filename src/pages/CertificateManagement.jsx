@@ -29,7 +29,7 @@ function Preview({ template, certificate, compact = false }) {
       <div className="certificate-foot">
         <span>Date awarded<br/><b>{date(certificate?.awarded_at)}</b></span>
         <span className="certificate-qr">
-          <QRCodeImage value={verifyUrl} size={compact ? 44 : 64} />
+          <QRCodeImage value={verifyUrl} size={compact ? 70 : 90} />
           <small>VERIFY ONLINE</small>
         </span>
         <span>

@@ -84,7 +84,7 @@ router.get('/verify/:code/pdf', async (req, res, next) => {
     const cert = rows[0]
     const baseUrl = process.env.PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:5173'
     const verifyUrl = `${baseUrl}/verify/certificate/${cert.verification_code}`
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 200 })
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 260 })
 
     const title = `${cert.certificate_title} - ${cert.employee_name}`
     res.setHeader('Content-Type', 'text/html')
@@ -106,7 +106,7 @@ router.get('/verify/:code/pdf', async (req, res, next) => {
   .foot { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; font-size: 12px; color: #7c778a; }
   .foot b { display: block; color: #282631; font-size: 14px; margin-top: 4px; }
   .qr { text-align: center; display: flex; flex-direction: column; align-items: center; }
-  .qr img { width: 85px; height: 85px; border-radius: 4px; border: 1px solid #e4e1f7; }
+  .qr img { width: 110px; height: 110px; border-radius: 4px; border: 1px solid #e4e1f7; }
   .qr small { display: block; font-size: 9px; color: #654bd2; font-weight: 600; margin-top: 3px; }
   .number { margin-top: 30px; font-size: 11px; color: #9b97a6; }
   @media print { body { background: none; } .cert { border: none; box-shadow: none; width: 100%; } }
