@@ -63,32 +63,118 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // Explicit Employee RBAC Guard:
-    // If role is employee and they ask about coworkers or other departments, block immediately.
-    const isCoworkerQuery = (
-      textLower.includes('coworker') ||
-      textLower.includes('colleague') ||
-      textLower.includes('other employee') ||
-      textLower.includes('highest performance') ||
-      textLower.includes('top employee') ||
-      textLower.includes('who had') ||
-      textLower.includes('everyone') ||
-      textLower.includes('organization') ||
-      textLower.includes('department average')
-    )
+    const DEPARTMENT_KEYWORDS = [
+      { name: 'Front Office', keywords: ['front office', 'front desk', 'reception', 'concierge'] },
+      { name: 'Housekeeping', keywords: ['housekeeping', 'house keeper', 'housekeeper', 'cleaning staff'] },
+      { name: 'Kitchen', keywords: ['kitchen', 'culinary', 'cook', 'chef'] },
+      { name: 'Food & Beverage', keywords: ['food & beverage', 'food and beverage', 'f&b', 'restaurant', 'dining', 'bar'] },
+      { name: 'Human Resources', keywords: ['human resources', 'hr department', 'hr team'] },
+      { name: 'Operations', keywords: ['operations department', 'operations team'] },
+      { name: 'Executive Office', keywords: ['executive office', 'executive team', 'senior management'] },
+    ]
 
-    if (role === 'employee' && isCoworkerQuery) {
-      return res.json({
-        answer: 'Authorization notice: As an employee, you are authorized to access only your own personal performance, competency, and learning records. Organizational and peer data is restricted to HR and management.',
-        dataContextSummary: 'Access Blocked — Scope Violation',
-        grounded: true,
+    // Fetch all active employees for cross-department name verification
+    const allEmpsRes = await query('SELECT id, full_name, department FROM employees WHERE is_active = true').catch(() => ({ rows: [] }))
+    const allSystemEmployees = allEmpsRes.rows || []
+
+    // -------------------------------------------------------------------------
+    // STEP 1.1: RBAC SCOPE GUARD - EMPLOYEE ROLE
+    // -------------------------------------------------------------------------
+    if (role === 'employee') {
+      const isCoworkerQuery = (
+        textLower.includes('coworker') ||
+        textLower.includes('colleague') ||
+        textLower.includes('other employee') ||
+        textLower.includes('highest performance') ||
+        textLower.includes('top employee') ||
+        textLower.includes('who had') ||
+        textLower.includes('everyone') ||
+        textLower.includes('organization') ||
+        textLower.includes('department average') ||
+        textLower.includes('team roster') ||
+        textLower.includes('all employees')
+      )
+
+      const mentionedAnyDept = DEPARTMENT_KEYWORDS.some(d => d.keywords.some(k => textLower.includes(k)))
+      const otherEmployee = allSystemEmployees.find(e => {
+        if (e.id === employeeId) return false
+        const nameLower = e.full_name.toLowerCase()
+        const nameParts = nameLower.split(' ').filter(p => p.length >= 3)
+        if (textLower.includes(nameLower)) return true
+        if (nameParts.length >= 2 && nameParts.every(p => textLower.includes(p))) return true
+        return false
       })
+
+      if (isCoworkerQuery || mentionedAnyDept || otherEmployee) {
+        const targetDesc = otherEmployee
+          ? `records for **${otherEmployee.full_name}**`
+          : 'departmental and peer records'
+        return res.json({
+          answer: `Sorry, that is not part of your authorized scope. As an **Employee**, you are authorized to view only your own personal performance, competency, and learning records.\n\nAccess to ${targetDesc} is restricted to Supervisors and HR/Management.`,
+          dataContextSummary: 'Access Restricted — Scope Boundary Enforced',
+          grounded: true,
+        })
+      }
     }
 
-    // Manager / Supervisor RBAC Scope check:
+    // -------------------------------------------------------------------------
+    // STEP 1.2: RBAC SCOPE GUARD - SUPERVISOR & OPERATIONS MANAGER ROLES
+    // -------------------------------------------------------------------------
     const isSupervisorOrOpManager = role === 'supervisor' || role === 'operations_manager'
-    if (isSupervisorOrOpManager && !userDepartment) {
-      return res.status(403).json({ error: 'Your account requires an assigned department to use the AI assistant.' })
+    if (isSupervisorOrOpManager) {
+      if (!userDepartment) {
+        return res.status(403).json({ error: 'Your account requires an assigned department to use the AI assistant.' })
+      }
+
+      // Check if user is asking about another department by name/keyword
+      const mentionedOtherDept = DEPARTMENT_KEYWORDS.find(d => 
+        d.name.toLowerCase() !== userDepartment.toLowerCase() &&
+        d.keywords.some(k => textLower.includes(k))
+      )
+
+      if (mentionedOtherDept) {
+        return res.json({
+          answer: `Sorry, that is not part of your authorized scope. As a **${role === 'supervisor' ? 'Supervisor' : 'Operations Manager'}** for the **${userDepartment}** Department, your access is strictly restricted to **${userDepartment}** personnel and operations.\n\nViewing records or employees for the **${mentionedOtherDept.name}** Department is restricted to authorized department supervisors and HR/Management.`,
+          dataContextSummary: 'Access Restricted — Scope Boundary Enforced',
+          grounded: true,
+        })
+      }
+
+      // Check if user is asking about an employee in another department
+      const otherDeptEmployee = allSystemEmployees.find(e => {
+        if (e.department.toLowerCase() === userDepartment.toLowerCase()) return false
+        const nameLower = e.full_name.toLowerCase()
+        const nameParts = nameLower.split(' ').filter(p => p.length >= 3)
+        if (textLower.includes(nameLower)) return true
+        if (nameParts.length >= 2 && nameParts.every(p => textLower.includes(p))) return true
+        return false
+      })
+
+      if (otherDeptEmployee) {
+        return res.json({
+          answer: `Sorry, that is not part of your authorized scope. **${otherDeptEmployee.full_name}** belongs to the **${otherDeptEmployee.department}** Department.\n\nAs a **${role === 'supervisor' ? 'Supervisor' : 'Operations Manager'}** for **${userDepartment}**, you are only authorized to view records and insights for employees within the **${userDepartment}** Department.`,
+          dataContextSummary: 'Access Restricted — Scope Boundary Enforced',
+          grounded: true,
+        })
+      }
+
+      // Check if user is asking for hotel-wide or organization-wide rosters
+      const isOrgWideQuery = (
+        textLower.includes('all department') ||
+        textLower.includes('all employee') ||
+        textLower.includes('entire hotel') ||
+        textLower.includes('organization average') ||
+        textLower.includes('hotel roster') ||
+        textLower.includes('every department')
+      )
+
+      if (isOrgWideQuery) {
+        return res.json({
+          answer: `Sorry, that is not part of your authorized scope. As a **${role === 'supervisor' ? 'Supervisor' : 'Operations Manager'}**, your access is restricted to the **${userDepartment}** Department.\n\nOrganization-wide analytics and cross-department rosters are restricted to HR and Senior Management.`,
+          dataContextSummary: 'Access Restricted — Scope Boundary Enforced',
+          grounded: true,
+        })
+      }
     }
 
     // -------------------------------------------------------------------------
