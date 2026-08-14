@@ -303,17 +303,25 @@ router.post('/', async (req, res, next) => {
             messages: [
               {
                 role: 'system',
-                content: `You are the database-grounded AI Assistant for PerDevSys (Performance & Capability Development System).
-STRICT GROUNDING RULES:
+                content: `You are the executive and operational AI Assistant for PerDevSys (Performance & Capability Development System).
+STRICT GROUNDING & QUALITY RULES:
 1. You MUST ONLY answer using the authorized database records provided in the context below.
-2. NEVER fabricate employee names, performance scores, courses, gaps, or succession bands.
+2. NEVER fabricate employee names, performance scores, courses, competency gaps, training sessions, or numbers.
 3. If data is not present in the provided JSON context, explicitly state: "Based on available system records, that information is not recorded in the database."
-4. Always respect the user's scope (${dataContext.userScope}).
+4. Always respect the user's role (${dataContext.userRole}) and authorized scope (${dataContext.userScope}).
 5. Distinguish between current scores and target scores when explaining competency gaps.
-6. Provide direct, helpful, professional responses formatted cleanly with Markdown.
+6. PROVIDE COMPREHENSIVE, IN-DEPTH, STRUCTURED RESPONSES:
+   - When asked for suggestions, advice, or recommendations (e.g. "as a supervisor, what can you suggest on giving them learning courses?", "how to improve my team", "what learning courses to assign"):
+     a) Address the user directly in their role (e.g. "As a Supervisor...", "As a Department Head...") with thoughtful managerial insights.
+     b) Provide an overview of current team metrics (Performance, Competency, Learning Completion, Active Gaps).
+     c) For each employee, break down their specific competency gaps, current in-progress courses, and exact matching courses from 'learningResourcesLibrary' (including title, hours, provider).
+     d) If a gap does not have a matching course in the library, state that explicitly.
+     e) Conclude with structured, actionable supervisory next steps (e.g. course assignment, progress follow-up, milestone check-ins).
+   - Format cleanly with professional Markdown (clear headings, bullet lists, bold highlights).
+   - NEVER provide brief, lazy one-line summaries when asked for guidance or capability analysis.
 7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).
-8. When the user asks to list or show employees (e.g. "list employees under my department", "who are my department employees", "list employees"), list each employee individually with their full name, job title, department, performance score, competency score, and learning progress. Do NOT summarize into just a total count.
-9. When the user asks for learning recommendations (e.g. "give me a learning recommendation for them", "recommend learning for my team", "what should they study"), provide per-employee recommendations STRICTLY grounded in the provided data:
+8. When the user asks to list or show employees (e.g. "list employees under my department", "who are my department employees", "list employees"), list each employee individually with their full name, job title, department, performance score, competency score, and learning progress, plus summary averages. Do NOT summarize into just a total count.
+9. When the user asks for learning recommendations, provide per-employee recommendations STRICTLY grounded in the provided data:
    - For each employee in the 'employees' array, check 'topCompetencyGaps' for their recorded gaps and 'incompleteLearningActivities' for courses they already have assigned but haven't finished.
    - Only recommend courses that LITERALLY EXIST in 'learningResourcesLibrary'. NEVER invent a course name, title, or provider.
    - If a gap exists but no matching resource is found in the library, say so explicitly (e.g. "No matching resource currently available in the library for this gap").
@@ -335,7 +343,7 @@ CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
               { role: 'user', content: message }
             ],
             temperature: 0.2,
-            max_tokens: 600,
+            max_tokens: 1800,
           }),
         })
 
@@ -377,8 +385,126 @@ function generateGroundedFallback(prompt, ctx) {
   const learning = ctx.incompleteLearningActivities || []
   const resources = ctx.learningResourcesLibrary || []
   const succession = ctx.successionPipeline || []
+  const trainings = ctx.trainingSessions || []
 
-  // List employees under department / scope
+  const roleTitle = ctx.userRole === 'supervisor'
+    ? 'Supervisor'
+    : ctx.userRole === 'operations_manager'
+    ? 'Department Head / Operations Manager'
+    : ctx.userRole === 'hr_admin'
+    ? 'HR Administrator'
+    : ctx.userRole === 'employee'
+    ? 'Employee'
+    : 'Manager'
+
+  const scopeName = ctx.userScope.startsWith('department_')
+    ? `the ${ctx.userScope.replace('department_', '').toUpperCase()} Department`
+    : ctx.userScope === 'self_only'
+    ? 'Your Personal Scope'
+    : 'the Entire Organization'
+
+  // 1. Learning recommendations / suggestions for team or department
+  const isLearningRecommendationQuery = (
+    p.includes('suggest') ||
+    p.includes('recommend') ||
+    p.includes('what can you suggest') ||
+    p.includes('what can u suggest') ||
+    p.includes('giving them') ||
+    p.includes('give them') ||
+    p.includes('learning course') ||
+    p.includes('learning recommendation') ||
+    p.includes('recommend learning') ||
+    p.includes('recommend a learning') ||
+    p.includes('recommend course') ||
+    p.includes('what should they') ||
+    p.includes('what should my team') ||
+    p.includes('learning path') ||
+    p.includes('suggest learning') ||
+    p.includes('training recommendation') ||
+    p.includes('development plan') ||
+    p.includes('development recommendation') ||
+    p.includes('how to improve') ||
+    p.includes('how can i help') ||
+    (p.includes('course') && (p.includes('team') || p.includes('them') || p.includes('assign') || p.includes('give') || p.includes('suggest') || p.includes('supervisor') || p.includes('manager')))
+  )
+
+  if (isLearningRecommendationQuery) {
+    if (!empList.length) {
+      return `As a **${roleTitle}** overseeing **${scopeName}**, based on current system records, there are no employee records found in your authorized scope to generate learning recommendations.`
+    }
+
+    const lines = [
+      `### 📋 Supervisory Learning & Capability Recommendations`,
+      `As a **${roleTitle}** overseeing **${scopeName}**, here is a data-driven capability analysis and learning action plan grounded strictly in current system records:\n`,
+      `#### 1. 📊 Team Capability & Baseline Summary`,
+      `• **Monitored Team Members**: ${ctx.metrics.totalEmployees}`,
+      `• **Average Performance Score**: **${ctx.metrics.averagePerformance}%**`,
+      `• **Average Competency Score**: **${ctx.metrics.averageCompetency}%**`,
+      `• **Learning Completion Rate**: **${ctx.metrics.averageLearningProgress}%**`,
+      `• **Identified Competency Gaps in Scope**: **${gaps.length}** active gap(s)`,
+      `• **Available Learning Resources in Library**: **${resources.length}** course(s)\n`,
+      `---\n`,
+      `#### 2. 🎯 Targeted Learning Recommendations by Employee`,
+    ]
+
+    let foundAnyDetails = false
+
+    empList.forEach(emp => {
+      const empGaps = gaps
+        .filter(g => g.employee === emp.name)
+        .sort((a, b) => parseFloat(b.gap) - parseFloat(a.gap))
+
+      const empIncomplete = learning
+        .filter(l => l.employee === emp.name)
+
+      foundAnyDetails = true
+      lines.push(`\n##### **${emp.name}** — ${emp.role} (${emp.department})`)
+      lines.push(`• **Current Standing**: Performance: **${emp.performanceScore}** | Competency: **${emp.competencyScore}** | Learning Progress: **${emp.learningProgress}**`)
+
+      if (empGaps.length) {
+        lines.push(`• **Priority Competency Gaps & Matched Courses**:`)
+        empGaps.forEach(g => {
+          const gapLower = g.competency.toLowerCase()
+          const matchedResource = resources.find(r =>
+            r.category.toLowerCase().includes(gapLower) ||
+            r.title.toLowerCase().includes(gapLower)
+          )
+          if (matchedResource) {
+            lines.push(
+              `  - Gap in **${g.competency}** (Current: ${g.currentScore} → Target: ${g.targetScore}, Gap: **${g.gap}**)` +
+              `\n    → **Recommended System Course**: **"${matchedResource.title}"** (${matchedResource.durationHours} hrs · Category: ${matchedResource.category} · Provider: ${matchedResource.provider})`
+            )
+          } else {
+            lines.push(
+              `  - Gap in **${g.competency}** (Current: ${g.currentScore} → Target: ${g.targetScore}, Gap: **${g.gap}**)` +
+              `\n    → _Note: No matching course currently exists in the system library for "${g.competency}". Consider requesting a new module._`
+            )
+          }
+        })
+      } else {
+        lines.push(`• **Competency Gaps**: No active competency gaps recorded in system assessments.`)
+      }
+
+      if (empIncomplete.length) {
+        lines.push(`• **Pending In-Progress Activities to Follow Up**:`)
+        empIncomplete.forEach(l => {
+          lines.push(`  - ⏳ Incomplete: **"${l.course}"** (${l.progress} completed · Status: ${l.status})`)
+        })
+      }
+    })
+
+    lines.push(
+      `\n---\n`,
+      `#### 3. 🛠️ Actionable Supervisory Next Steps`,
+      `1. **Assign Targeted Library Modules**: Enroll employees directly in the matching system courses identified above to address specific competency deficiencies.`,
+      `2. **Set Completion Milestones**: Schedule weekly 1-on-1 progress reviews with staff having pending learning activities to ensure timely module completion.`,
+      `3. **Schedule Post-Training Competency Re-Assessments**: Once courses are finished, conduct follow-up evaluations to verify skill acquisition and formally close recorded gaps.`
+    )
+
+    return lines.join('\n')
+  }
+
+  // 2. List employees under department / scope
   const isEmployeeListQuery = (
     p.includes('list employee') ||
     p.includes('list the employee') ||
@@ -400,155 +526,59 @@ function generateGroundedFallback(prompt, ctx) {
 
   if (isEmployeeListQuery) {
     if (!empList.length) {
-      return `Based on available database records, no employee records were found for your authorized scope (**${ctx.userScope}**).`
+      return `As a **${roleTitle}**, based on available database records, no employee records were found for **${scopeName}**.`
     }
-    const items = empList.map(e => `• **${e.name}** — ${e.role} (${e.department}) · Performance: ${e.performanceScore} · Competency: ${e.competencyScore} · Learning: ${e.learningProgress}`).join('\n')
-    const scopeLabel = ctx.userScope.startsWith('department_')
-      ? `department (**${ctx.userScope.replace('department_', '')}**)`
-      : `authorized scope (**${ctx.userScope}**)`
-    return `Based on current authorized database records, here ${empList.length === 1 ? 'is the 1 employee' : `are the ${empList.length} employees`} under your ${scopeLabel}:\n\n${items}`
+    const items = empList.map(e => `• **${e.name}** — ${e.role} (${e.department})\n  - Performance: **${e.performanceScore}** | Competency: **${e.competencyScore}** | Learning Progress: **${e.learningProgress}**`).join('\n\n')
+    return `### 👥 Department Employee Roster\nAs a **${roleTitle}** overseeing **${scopeName}**, here ${empList.length === 1 ? 'is the 1 monitored employee' : `are the ${empList.length} monitored employees`} in your team:\n\n${items}\n\n---\n**Department Summary**: Average Performance is **${ctx.metrics.averagePerformance}%**, Average Competency is **${ctx.metrics.averageCompetency}%**, and Average Learning Progress is **${ctx.metrics.averageLearningProgress}%**.`
   }
 
-  // Highest performance
+  // 3. Highest performance
   if (p.includes('highest performance') || p.includes('top performance') || p.includes('best score')) {
     if (!empList.length) return 'Based on available records, no employee performance data is present in your scope.'
     const top = empList[0]
-    return `Based on current database records, **${top.name}** (${top.role} · ${top.department}) has the highest recorded performance score at **${top.performanceScore}**.`
+    return `### 🏆 Top Performance Record\nBased on current system records for **${scopeName}**:\n\n• **Top Performer**: **${top.name}** (${top.role} · ${top.department})\n• **Performance Score**: **${top.performanceScore}**\n• **Competency Score**: **${top.competencyScore}**\n• **Learning Completion**: **${top.learningProgress}**\n\n**Supervisory Insight**: ${top.name} demonstrates high performance and may be a candidate for leadership tracks or mentoring peers.`
   }
 
-  // Department largest gap / average
-  if (p.includes('largest competency gap') || p.includes('department gap') || p.includes('competency gap') || p.includes('priority')) {
-    if (!gaps.length) return 'Based on available records, no active competency gaps are currently detected across assessed employees.'
+  // 4. Department largest gap / competency overview
+  if (p.includes('largest competency gap') || p.includes('department gap') || p.includes('competency gap') || p.includes('skill gap')) {
+    if (!gaps.length) return `Based on available database records for **${scopeName}**, there are currently no active competency gaps recorded across assessed employees.`
     const topGap = gaps[0]
-    return `Based on available competency records, the largest skill gap is detected for **${topGap.employee}** (${topGap.department}) in **${topGap.competency}** with a gap of **${topGap.gap}** (Current: ${topGap.currentScore}, Target: ${topGap.targetScore}). Across all records, the average competency level is **${ctx.metrics.averageCompetency}%**.`
+    const gapList = gaps.slice(0, 5).map((g, idx) => `${idx + 1}. **${g.employee}** (${g.department}) — **${g.competency}**: Current **${g.currentScore}** vs Target **${g.targetScore}** (Gap: **${g.gap}**)`).join('\n')
+    return `### 📉 Priority Competency Gap Analysis\nAs a **${roleTitle}**, here is the competency gap breakdown for **${scopeName}**:\n\n• **Highest Priority Gap**: **${topGap.employee}** (${topGap.department}) in **${topGap.competency}** with a gap of **${topGap.gap}** (Current: ${topGap.currentScore}, Target: ${topGap.targetScore}).\n• **Team Average Competency Level**: **${ctx.metrics.averageCompetency}%**\n\n#### Top Recorded Competency Gaps:\n${gapList}\n\n**Recommended Next Step**: Review targeted learning courses in the system library to address these specific competency deficiencies.`
   }
 
-  // Learning recommendations for team / department
-  const isLearningRecommendationQuery = (
-    p.includes('learning recommendation') ||
-    p.includes('recommend learning') ||
-    p.includes('recommend a learning') ||
-    p.includes('recommend course') ||
-    p.includes('what should they') ||
-    p.includes('what should my team') ||
-    p.includes('learning path') ||
-    p.includes('suggest learning') ||
-    p.includes('suggest a learning') ||
-    p.includes('suggest course') ||
-    p.includes('training recommendation') ||
-    (p.includes('recommend') && (p.includes('them') || p.includes('team') || p.includes('staff') || p.includes('employee') || p.includes('department')))
-  )
-
-  if (isLearningRecommendationQuery) {
-    if (!empList.length) {
-      return 'Based on available database records, no employee records were found for your authorized scope to generate learning recommendations.'
-    }
-
-    const lines = [
-      `**Learning Recommendations** — Grounded in system database records for your scope (${ctx.userScope}).`,
-      `Data sources used: competency gap assessments, incomplete learning assignments, and the learning resources library.\n`,
-    ]
-
-    let hasAnyRecommendation = false
-
-    empList.forEach(emp => {
-      const empGaps = gaps
-        .filter(g => g.employee === emp.name)
-        .sort((a, b) => parseFloat(b.gap) - parseFloat(a.gap))
-        .slice(0, 3)
-
-      const empIncomplete = learning
-        .filter(l => l.employee === emp.name)
-        .slice(0, 3)
-
-      const empHasData = empGaps.length > 0 || empIncomplete.length > 0
-      if (!empHasData) return // skip employees with no recorded data — do not invent
-
-      hasAnyRecommendation = true
-      lines.push(`\n**${emp.name}** (${emp.role} · ${emp.department})`)
-      lines.push(`Current scores — Performance: ${emp.performanceScore} | Competency: ${emp.competencyScore} | Learning: ${emp.learningProgress}`)
-
-      // 1. Competency gap recommendations — only suggest resources that EXIST in library
-      if (empGaps.length) {
-        lines.push('\n  _Competency Gaps:_')
-        empGaps.forEach(g => {
-          const gapCompetencyLower = g.competency.toLowerCase()
-          const matchedResource = resources.find(r =>
-            r.category.toLowerCase().includes(gapCompetencyLower) ||
-            r.title.toLowerCase().includes(gapCompetencyLower)
-          )
-          if (matchedResource) {
-            lines.push(
-              `  • Gap: **${g.competency}** (${g.currentScore} → target ${g.targetScore}, gap: ${g.gap})` +
-              `\n    → Recommended from library: **"${matchedResource.title}"** | Category: ${matchedResource.category} | ${matchedResource.durationHours}h | Provider: ${matchedResource.provider}`
-            )
-          } else {
-            lines.push(
-              `  • Gap: **${g.competency}** (${g.currentScore} → target ${g.targetScore}, gap: ${g.gap})` +
-              `\n    → No matching resource currently available in the library for this competency. Consider adding one.`
-            )
-          }
-        })
-      }
-
-      // 2. Incomplete learning activities — already assigned in the system
-      if (empIncomplete.length) {
-        lines.push('\n  _Incomplete Assigned Courses (already in system):_')
-        empIncomplete.forEach(l => {
-          lines.push(`  • Complete: **"${l.course}"** — Progress: ${l.progress} | Status: ${l.status}`)
-        })
-      }
-    })
-
-    if (!hasAnyRecommendation) {
-      lines.push(
-        '\nNo competency gap assessments or incomplete learning assignments are recorded for the employees in your scope.',
-        'Once assessments and learning assignments are added in the system, recommendations will appear here.'
-      )
-    }
-
-    return lines.join('\n')
+  // 5. Incomplete learning activities
+  if (p.includes('incomplete learning') || p.includes('unfinished course') || p.includes('pending learning') || p.includes('need to complete')) {
+    if (!learning.length) return `Based on available learning records for **${scopeName}**, there are currently no incomplete learning activities recorded.`
+    const items = learning.map(l => `• **${l.employee}** (${l.department || 'Department'})\n  - Course: **"${l.course}"** | Progress: **${l.progress}** | Status: **${l.status}**`).join('\n\n')
+    return `### ⏳ Incomplete Learning Assignments\nBased on system records for **${scopeName}**, the following team members have pending learning modules:\n\n${items}\n\n**Supervisory Action**: Remind team members to complete their pending modules to improve departmental learning progress (currently averaging **${ctx.metrics.averageLearningProgress}%**).`
   }
 
-  // Incomplete learning activities
-  if (p.includes('incomplete learning') || p.includes('learning activities') || p.includes('unfinished course') || p.includes('need to complete')) {
-    if (!learning.length) return 'Based on available learning records, there are currently no incomplete learning activities recorded for your authorized scope.'
-    const items = learning.slice(0, 5).map(l => `• **${l.employee}**: "${l.course}" (${l.progress} complete, Status: ${l.status})`).join('\n')
-    return `Based on available database records, the following incomplete learning activities were found:\n\n${items}`
-  }
-
-  // Ready Now succession
-  if (p.includes('ready now') || p.includes('succession ready') || p.includes('successor')) {
+  // 6. Ready Now succession
+  if (p.includes('ready now') || p.includes('succession') || p.includes('successor')) {
     const readyNow = succession.filter(s => s.readinessBand === 'ready_now')
-    if (!readyNow.length) return 'Based on current succession records, there are no employees currently categorized in the **Ready Now** band.'
-    const items = readyNow.map(s => `• **${s.employee}** (${s.jobTitle} · ${s.department}) — Readiness Score: ${s.readinessScore}`).join('\n')
-    return `Based on current database records, there ${readyNow.length === 1 ? 'is 1 employee' : `are ${readyNow.length} employees`} in the **Ready Now** succession band:\n\n${items}`
+    if (!readyNow.length) return `Based on current succession records for **${scopeName}**, there are no employees currently categorized in the **Ready Now** band.`
+    const items = readyNow.map(s => `• **${s.employee}** — ${s.jobTitle} (${s.department})\n  - Readiness Score: **${s.readinessScore}** | Status: **Ready Now**`).join('\n\n')
+    return `### 🌟 Succession Pipeline — Ready Now Candidates\nBased on verified succession records for **${scopeName}**, there ${readyNow.length === 1 ? 'is 1 candidate' : `are ${readyNow.length} candidates`} ready for promotion or critical role transition:\n\n${items}`
   }
 
-  // Learning resources
-  if (p.includes('learning resource') || p.includes('course') || p.includes('customer service')) {
-    const csResources = resources.filter(r => 
-      r.category.toLowerCase().includes('customer service') ||
-      r.title.toLowerCase().includes('customer service')
-    )
-    const count = csResources.length
-    if (p.includes('customer service')) {
-      if (count === 0) return 'There are currently 0 learning resources related to Customer Service in the available system records.'
-      const items = csResources.map(r => `• **${r.title}** (${r.durationHours || 2} hrs, Provider: ${r.provider})`).join('\n')
-      return `There are currently **${count}** learning resources related to Customer Service in the available system records:\n\n${items}`
-    }
-    return `The system currently contains **${resources.length}** learning resources in the database library.`
+  // 7. Learning resources library catalog inquiry
+  if (p.includes('library') || p.includes('available course') || p.includes('catalog') || p.includes('learning resource')) {
+    if (!resources.length) return 'There are currently no learning resources registered in the system database library.'
+    const items = resources.map(r => `• **"${r.title}"**\n  - Category: **${r.category}** | Duration: **${r.durationHours || 2} hrs** | Provider: **${r.provider}**`).join('\n\n')
+    return `### 📚 System Learning Resources Library\nThe database currently contains **${resources.length}** available learning resource(s):\n\n${items}\n\n**Note**: You can assign any of these modules to employees to address identified competency gaps.`
   }
 
-  // Personal score query (for employee)
+  // 8. Personal score query (for employee)
   if (p.includes('my last performance') || p.includes('my performance') || p.includes('my score') || p.includes('my competency') || p.includes('my record')) {
     if (!empList.length) return 'No employee record found for your account.'
     const self = empList[0]
-    return `Based on your official system records:\n\n• **Employee**: ${self.name}\n• **Role**: ${self.role} (${self.department})\n• **Performance Score**: ${self.performanceScore}\n• **Competency Score**: ${self.competencyScore}\n• **Learning Progress**: ${self.learningProgress}`
+    return `### 👤 Personal Performance & Capability Profile\nBased on your official system records:\n\n• **Employee**: **${self.name}**\n• **Role**: **${self.role}** (${self.department})\n• **Performance Score**: **${self.performanceScore}**\n• **Competency Score**: **${self.competencyScore}**\n• **Learning Progress**: **${self.learningProgress}**\n\n**Guidance**: Continue working on your learning modules to further elevate your competency and performance ratings.`
   }
 
-  // General grounded summary fallback
-  return `Based on current authorized database records (${ctx.userScope}):\n\n• **Monitored Employees**: ${ctx.metrics.totalEmployees}\n• **Average Performance**: ${ctx.metrics.averagePerformance}%\n• **Average Competency**: ${ctx.metrics.averageCompetency}%\n• **Learning Completion**: ${ctx.metrics.averageLearningProgress}%\n• **Succession Ready Now**: ${ctx.metrics.successionReadyNowCount} employee(s)\n\nYou can ask specific questions about top performance, skill gaps, learning activities, or succession readiness.`
+  // 9. General grounded executive summary fallback
+  return `### 📊 Supervisory Overview & System Metrics\nAs a **${roleTitle}** overseeing **${scopeName}**, here is your current data-grounded system summary:\n\n• **Monitored Team Members**: **${ctx.metrics.totalEmployees}**\n• **Average Performance**: **${ctx.metrics.averagePerformance}%**\n• **Average Competency**: **${ctx.metrics.averageCompetency}%**\n• **Learning Completion**: **${ctx.metrics.averageLearningProgress}%**\n• **Succession Ready Now Candidates**: **${ctx.metrics.successionReadyNowCount}**\n• **Registered Learning Resources in Library**: **${resources.length}**\n• **Formal Training Sessions**: **${trainings.length}**\n\n**What would you like to explore next?**\n- Ask for **learning recommendations** for your team or specific employees\n- Inquire about **top competency gaps** and skill improvement plans\n- Review **incomplete learning activities** or **succession readiness**`
 }
 
 export default router
+
