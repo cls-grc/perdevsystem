@@ -56,6 +56,7 @@ supervisor: [
       links: [
         { to: '/learning', label: 'Team Learning', icon: 'book' },
         { to: '/training', label: 'Training Attendance', icon: 'calendar' },
+        { to: '/certificates', label: 'Team Certificates', icon: 'award' },
         { to: '/succession', label: 'Succession Nominations', icon: 'users' }
       ]
     }
@@ -87,7 +88,8 @@ operations_manager: [
     {
       title: 'Administration',
       links: [
-        { to: '/employees', label: 'Employee Records', icon: 'users' }
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
 {
@@ -125,7 +127,8 @@ employee: [
       title: 'Monitoring',
       links: [
         { to: '/learning', label: 'My Learning', icon: 'book' },
-        { to: '/training', label: 'My Training', icon: 'calendar' }
+        { to: '/training', label: 'My Training', icon: 'calendar' },
+        { to: '/certificates', label: 'My Certificates', icon: 'award' }
       ]
     }
   ]

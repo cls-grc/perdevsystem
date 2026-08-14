@@ -46,6 +46,7 @@ const sectionsByRole = {
       links: [
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' },
         { to: '/succession', label: 'Succession', icon: 'users' },
       ],
     },
@@ -63,7 +64,7 @@ const sectionsByRole = {
   ],
   operations_manager: [
     { title: 'Overview', links: [{ to: '/', label: 'Analytics', icon: 'grid' }] },
-    { title: 'Administration', links: [{ to: '/employees', label: 'Employee Records', icon: 'users' }] },
+    { title: 'Administration', links: [{ to: '/employees', label: 'Employee Records', icon: 'users' }, { to: '/certificates', label: 'Certificates', icon: 'award' }] },
     {
       title: 'Operations',
       links: [
@@ -97,6 +98,7 @@ const sectionsByRole = {
       links: [
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
+        { to: '/certificates', label: 'My Certificates', icon: 'award' },
       ],
     },
   ],
