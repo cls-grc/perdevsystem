@@ -15,6 +15,22 @@ const chatSchema = z.object({
   })).optional().default([]),
 })
 
+// Department -> Allowed Competencies Map for strict RBAC domain integrity
+const DEPARTMENT_COMPETENCY_ALLOWLIST = {
+  'Front Office': ['Customer Service', 'Communication', 'Conflict Resolution', 'Reservation Management', 'Upselling', 'Teamwork', 'Compliance', 'Leadership'],
+  'Housekeeping': ['Housekeeping Standards', 'Compliance', 'Teamwork', 'Customer Service', 'Communication', 'Leadership', 'Operational Standards'],
+  'Kitchen': ['Kitchen Operations', 'Food Safety', 'Compliance', 'Teamwork', 'Leadership', 'Technical Skills'],
+  'Food & Beverage': ['Customer Service', 'Food Safety', 'Upselling', 'Communication', 'Teamwork', 'Conflict Resolution', 'Compliance', 'Leadership'],
+  'Human Resources': ['Compliance', 'Communication', 'Conflict Resolution', 'Leadership', 'Teamwork', 'Operational Management'],
+  'Operations': ['Operational Management', 'Financial Acumen', 'Leadership', 'Communication', 'Compliance', 'Customer Service', 'Teamwork'],
+  'Executive Office': ['Operational Management', 'Financial Acumen', 'Leadership', 'Communication', 'Compliance', 'Customer Service', 'Teamwork'],
+}
+
+function isCompetencyAllowedForDepartment(comp, dept) {
+  if (!dept || !DEPARTMENT_COMPETENCY_ALLOWLIST[dept]) return true
+  return DEPARTMENT_COMPETENCY_ALLOWLIST[dept].some(allowed => allowed.toLowerCase() === (comp || '').toLowerCase())
+}
+
 /**
  * AI CHAT DATA PIPELINE & RBAC ENGINE
  * 
@@ -204,6 +220,9 @@ router.post('/', async (req, res, next) => {
     const completedTrainings = trainingSessions.filter(ts => ts.status === 'completed').length
     const scheduledTrainings = trainingSessions.filter(ts => ts.status === 'scheduled').length
 
+    // Filter competency gaps strictly by department relevance
+    const filteredGaps = gaps.filter(g => isCompetencyAllowedForDepartment(g.competency, g.department))
+
     const dataContext = {
       userRole: role,
       userScope: role === 'employee' ? 'self_only' : isSupervisorOrOpManager ? `department_${userDepartment}` : 'organization_wide',
@@ -227,7 +246,7 @@ router.post('/', async (req, res, next) => {
         competencyScore: `${e.competency_score}%`,
         learningProgress: `${e.learning_progress}%`,
       })),
-      topCompetencyGaps: gaps.slice(0, 10).map(g => ({
+      topCompetencyGaps: filteredGaps.slice(0, 10).map(g => ({
         employee: g.full_name,
         competency: g.competency,
         currentScore: `${g.score}%`,
@@ -335,6 +354,12 @@ STRICT GROUNDING & QUALITY RULES:
       c) Grounded Course Recommendations (matched from 'learningResourcesLibrary' for any gaps)
       d) Actionable Supervisory Recommendations / Coaching Next Steps.
     - NEVER return a generic department summary when a specific person is asked about!
+11. STRICT DEPARTMENT RBAC & DOMAIN RELEVANCE:
+    - Every recommendation, insight, skill gap, and course suggestion MUST belong strictly to the employee's department and job role.
+    - For Front Office staff (e.g. Receptionist, Concierge, Front Desk), ONLY discuss Front Office competencies and courses (Customer Service, Communication, Conflict Resolution, Reservation Management, Upselling, Teamwork, Compliance, Leadership).
+    - NEVER suggest Kitchen Operations or Food Safety to Front Office or Housekeeping staff.
+    - NEVER suggest Front Desk or Reservation courses to Kitchen staff.
+    - Respect department authorization and operational scope at all times.
 
 CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 - "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
@@ -389,7 +414,9 @@ CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 function generateGroundedFallback(prompt, ctx) {
   const p = prompt.toLowerCase()
   const empList = ctx.employees || []
-  const gaps = ctx.topCompetencyGaps || []
+  const allGaps = ctx.topCompetencyGaps || []
+  // Enforce strict department RBAC filtering on competency gaps
+  const gaps = allGaps.filter(g => isCompetencyAllowedForDepartment(g.competency, g.department))
   const learning = ctx.incompleteLearningActivities || []
   const resources = ctx.learningResourcesLibrary || []
   const succession = ctx.successionPipeline || []
