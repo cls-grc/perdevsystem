@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 
 const pct = value => `${Math.round(Number(value || 0))}%`
@@ -7,6 +8,7 @@ const getRole = () => {
 }
 
 export default function RoleHome({ role, name }) {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -140,13 +142,41 @@ export default function RoleHome({ role, name }) {
         ? 'Monitor analytics and certificate status across the operation.'
         : 'Complete your current review step and continue your assigned learning activities.'
 
+  const cardRoutes = {
+    'Certificates': '/certificates',
+    'Certificate status': '/certificates',
+    'My performance': '/performance',
+    'Team performance': '/performance',
+    'Learning progress': '/learning',
+    'Learning completion': '/learning',
+    'Competency': '/competency',
+    'Training completion': '/training',
+    'Succession ready': '/succession',
+    'Succession approvals': '/succession',
+  }
+
   const cards = data?.cards || []
 
   return <main className="role-home">
     <div><h1>{title}</h1><p>{description}</p></div>
     {error && <div className="role-home-error" role="alert"><p>{error}</p><button onClick={load}>Retry</button></div>}
     <section>
-      {cards.map(([label, value, detail, live]) => <article key={label}><small>{label}</small><b>{value}</b><p>{detail}</p><em className="role-live">{live}</em></article>)}
+      {cards.map(([label, value, detail, live]) => {
+        const targetRoute = cardRoutes[label]
+        return (
+          <article
+            key={label}
+            onClick={targetRoute ? () => navigate(targetRoute) : undefined}
+            style={{ cursor: targetRoute ? 'pointer' : 'default', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+            title={targetRoute ? `View ${label}` : undefined}
+          >
+            <small>{label}</small>
+            <b>{value}</b>
+            <p>{detail}</p>
+            <em className="role-live">{live}</em>
+          </article>
+        )
+      })}
     </section>
     <div className="role-home-action"><h2>{nextTitle}</h2><p>{nextDetail}</p></div>
   </main>
