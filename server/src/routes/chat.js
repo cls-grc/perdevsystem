@@ -64,18 +64,28 @@ router.post('/', async (req, res, next) => {
     }
 
     const DEPARTMENT_KEYWORDS = [
-      { name: 'Front Office', keywords: ['front office', 'front desk', 'reception', 'concierge'] },
-      { name: 'Housekeeping', keywords: ['housekeeping', 'house keeper', 'housekeeper', 'cleaning staff'] },
-      { name: 'Kitchen', keywords: ['kitchen', 'culinary', 'cook', 'chef'] },
-      { name: 'Food & Beverage', keywords: ['food & beverage', 'food and beverage', 'f&b', 'restaurant', 'dining', 'bar'] },
-      { name: 'Human Resources', keywords: ['human resources', 'hr department', 'hr team'] },
-      { name: 'Operations', keywords: ['operations department', 'operations team'] },
-      { name: 'Executive Office', keywords: ['executive office', 'executive team', 'senior management'] },
+      { name: 'Front Office', keywords: ['front office'] },
+      { name: 'Housekeeping', keywords: ['housekeeping'] },
+      { name: 'Kitchen', keywords: ['kitchen department', 'kitchen team', 'culinary department', 'kitchen staff'] },
+      { name: 'Food & Beverage', keywords: ['food & beverage', 'food and beverage', 'f&b department', 'restaurant department'] },
+      { name: 'Human Resources', keywords: ['human resources department', 'hr department'] },
+      { name: 'Operations', keywords: ['operations department'] },
+      { name: 'Executive Office', keywords: ['executive office department', 'executive office'] },
     ]
 
     // Fetch all active employees for cross-department name verification
     const allEmpsRes = await query('SELECT id, full_name, department FROM employees WHERE is_active = true').catch(() => ({ rows: [] }))
     const allSystemEmployees = allEmpsRes.rows || []
+
+    const isExplicitSelfDepartmentQuery = (
+      textLower.includes('my department') ||
+      textLower.includes('my team') ||
+      textLower.includes('under my') ||
+      textLower.includes('in my department') ||
+      textLower.includes('our department') ||
+      textLower.includes('our team') ||
+      (userDepartment && textLower.includes(userDepartment.toLowerCase()))
+    )
 
     // -------------------------------------------------------------------------
     // STEP 1.1: RBAC SCOPE GUARD - EMPLOYEE ROLE
@@ -92,7 +102,9 @@ router.post('/', async (req, res, next) => {
         textLower.includes('organization') ||
         textLower.includes('department average') ||
         textLower.includes('team roster') ||
-        textLower.includes('all employees')
+        textLower.includes('all employees') ||
+        textLower.includes('my department') ||
+        textLower.includes('under my department')
       )
 
       const mentionedAnyDept = DEPARTMENT_KEYWORDS.some(d => d.keywords.some(k => textLower.includes(k)))
@@ -126,7 +138,7 @@ router.post('/', async (req, res, next) => {
         return res.status(403).json({ error: 'Your account requires an assigned department to use the AI assistant.' })
       }
 
-      // Check if user is asking about another department by name/keyword
+      // Check if user explicitly asks about a different department
       const mentionedOtherDept = DEPARTMENT_KEYWORDS.find(d => 
         d.name.toLowerCase() !== userDepartment.toLowerCase() &&
         d.keywords.some(k => textLower.includes(k))
@@ -140,7 +152,7 @@ router.post('/', async (req, res, next) => {
         })
       }
 
-      // Check if user is asking about an employee in another department
+      // Check if user is asking about a specific employee in another department
       const otherDeptEmployee = allSystemEmployees.find(e => {
         if (e.department.toLowerCase() === userDepartment.toLowerCase()) return false
         const nameLower = e.full_name.toLowerCase()
@@ -158,14 +170,18 @@ router.post('/', async (req, res, next) => {
         })
       }
 
-      // Check if user is asking for hotel-wide or organization-wide rosters
-      const isOrgWideQuery = (
+      // Check if user is asking for hotel-wide or organization-wide rosters (excluding queries for their own department/team)
+      const isOrgWideQuery = !isExplicitSelfDepartmentQuery && (
         textLower.includes('all department') ||
-        textLower.includes('all employee') ||
+        textLower.includes('all departments') ||
+        textLower.includes('every department') ||
+        textLower.includes('all hotel employees') ||
+        textLower.includes('all employees in the hotel') ||
+        textLower.includes('all employees in the organization') ||
         textLower.includes('entire hotel') ||
         textLower.includes('organization average') ||
         textLower.includes('hotel roster') ||
-        textLower.includes('every department')
+        textLower.includes('whole company')
       )
 
       if (isOrgWideQuery) {
