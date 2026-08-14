@@ -462,6 +462,10 @@ STRICT GROUNDING & QUALITY RULES:
     - NEVER suggest Kitchen Operations or Food Safety to Front Office or Housekeeping staff.
     - NEVER suggest Front Desk or Reservation courses to Kitchen staff.
     - Respect department authorization and operational scope at all times.
+12. WHEN THE USER IS AN EMPLOYEE (userScope: 'self_only' / role: 'employee'):
+    - Always address the employee personally and directly (e.g. "Based on your official system records...", "Your personal performance rating...").
+    - NEVER use managerial or supervisory headings (such as "Supervisory Overview", "Monitored Team Members", "Overseeing Your Scope", "Your Team").
+    - Frame all answers as personal capability growth, skill improvement, and course completion steps.
 
 CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 - "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
@@ -525,6 +529,8 @@ function generateGroundedFallback(prompt, ctx) {
   const trainings = ctx.trainingSessions || []
   const trainingParticipants = ctx.trainingParticipantRecords || []
 
+  const isSelfScope = ctx.userRole === 'employee' || ctx.userScope === 'self_only'
+
   const roleTitle = ctx.userRole === 'supervisor'
     ? 'Supervisor'
     : ctx.userRole === 'operations_manager'
@@ -560,7 +566,7 @@ function generateGroundedFallback(prompt, ctx) {
     return false
   })
 
-  if (matchedEmployee) {
+  if (matchedEmployee && !isSelfScope) {
     const empGaps = gaps.filter(g => g.employee && g.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
     const empIncomplete = learning.filter(l => l.employee && l.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
     const empSuccession = succession.find(s => s.employee && s.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
@@ -656,15 +662,36 @@ function generateGroundedFallback(prompt, ctx) {
     return lines.join('\n')
   }
 
-  // 1. Specific Competency Gaps Query (e.g. "Which employees in my department have competency gaps?", "largest competency gap")
+  // 1. Specific Competency Gaps Query (e.g. "What competencies should I improve?", "Which employees in my department have competency gaps?")
   const isCompetencyGapQuery = (
     p.includes('gap') ||
-    p.includes('competency') ||
-    p.includes('skill gap') ||
+    p.includes('competenc') || // matches competency, competencies, competence
+    p.includes('skill') ||
+    p.includes('improve') ||
     p.includes('deficien')
   )
 
   if (isCompetencyGapQuery) {
+    if (isSelfScope) {
+      if (!gaps.length) {
+        return `### 🎯 Personal Competency Standing\nBased on your official system assessments, you currently have **no active competency gaps**! All assessed competencies meet or exceed your role's required targets.`
+      }
+
+      const itemsList = gaps.map(g => {
+        const gapLower = g.competency.toLowerCase()
+        const matchedResource = resources.find(r =>
+          r.category.toLowerCase().includes(gapLower) ||
+          r.title.toLowerCase().includes(gapLower)
+        )
+        const matchInfo = matchedResource
+          ? `\n  → **Recommended Course from Library**: **"${matchedResource.title}"** (${matchedResource.durationHours} hrs · Category: ${matchedResource.category} · Provider: ${matchedResource.provider})`
+          : ''
+        return `• **${g.competency}**: Current **${g.currentScore}** vs Required **${g.targetScore}** (Gap: **${g.gap}**)${matchInfo}`
+      }).join('\n\n')
+
+      return `### 🎯 Competency Areas for Improvement\nBased on your official system assessments, here are your target competency areas:\n\n${itemsList}\n\n---\n**Growth Tip**: Enrolling in and completing these modules will help raise your overall competency score (currently **${ctx.metrics.averageCompetency}%**) and support your career progression.`
+    }
+
     if (!gaps.length) {
       return `### 📉 Department Competency Gap Assessment\nAs a **${roleTitle}** overseeing **${scopeName}**, based on verified database records, there are currently **no active competency gaps** recorded for employees in your department. All assessed competencies currently meet or exceed their target scores.`
     }
@@ -697,7 +724,7 @@ function generateGroundedFallback(prompt, ctx) {
     return `### 📉 Identified Competency Gaps in ${scopeName}\nAs a **${roleTitle}**, here is the breakdown of employees with active competency gaps based on system assessments:\n\n${employeeBlocks}\n\n---\n**Department Summary**: Total of **${gaps.length}** active competency gap(s) identified across **${Object.keys(gapsByEmployee).length}** employee(s). Department Average Competency is **${ctx.metrics.averageCompetency}%**.\n\n**Next Steps**: Assign targeted modules from the library or schedule 1-on-1 coaching sessions to address these specific gaps.`
   }
 
-  // 2. Incomplete Learning Activities Query (e.g. "Show incomplete learning activities in my department.", "pending learning")
+  // 2. Incomplete Learning Activities Query (e.g. "What learning activities do I still need to complete?", "Show incomplete learning activities")
   const isIncompleteLearningQuery = (
     p.includes('incomplete') ||
     p.includes('unfinished') ||
@@ -706,10 +733,21 @@ function generateGroundedFallback(prompt, ctx) {
     p.includes('learning assignment') ||
     p.includes('course progress') ||
     p.includes('need to complete') ||
+    p.includes('still need') ||
+    p.includes('my course') ||
     p.includes('not completed')
   )
 
   if (isIncompleteLearningQuery) {
+    if (isSelfScope) {
+      if (!learning.length) {
+        return `### 📚 Your Learning Activities\nYou're all caught up! You currently have **no incomplete or pending learning activities** recorded. All assigned modules are 100% completed.`
+      }
+
+      const items = learning.map(l => `• **"${l.course}"**\n  - Progress: **${l.progress}** | Status: **${l.status}**`).join('\n\n')
+      return `### 📚 Your Pending Learning Assignments\nBased on your official system records, here are the active learning modules assigned to you:\n\n${items}\n\n---\n**Tip**: Completing your remaining modules will boost your personal learning completion rate (currently at **${ctx.metrics.averageLearningProgress}%**).`
+    }
+
     if (!learning.length) {
       return `### ⏳ Department Learning Activities\nAs a **${roleTitle}** overseeing **${scopeName}**, based on current system records, there are currently **no incomplete or pending learning activities** recorded for your team. All assigned modules are 100% completed!`
     }
@@ -718,7 +756,7 @@ function generateGroundedFallback(prompt, ctx) {
     return `### ⏳ Incomplete Learning Assignments in ${scopeName}\nAs a **${roleTitle}**, here are the team members with pending or in-progress learning assignments:\n\n${items}\n\n---\n**Supervisory Action**: Follow up with these employees during your next check-in to ensure timely completion. Department learning completion is currently averaging **${ctx.metrics.averageLearningProgress}%**.`
   }
 
-  // 3. Learning recommendations / suggestions for team or department
+  // 3. Learning recommendations / suggestions
   const isLearningRecommendationQuery = (
     p.includes('suggest') ||
     p.includes('recommend') ||
@@ -738,7 +776,49 @@ function generateGroundedFallback(prompt, ctx) {
 
   if (isLearningRecommendationQuery) {
     if (!empList.length) {
-      return `As a **${roleTitle}** overseeing **${scopeName}**, based on current system records, there are no employee records found in your authorized scope to generate learning recommendations.`
+      return isSelfScope
+        ? 'Based on available system records, no personal employee profile was found.'
+        : `As a **${roleTitle}** overseeing **${scopeName}**, based on current system records, there are no employee records found in your authorized scope to generate learning recommendations.`
+    }
+
+    if (isSelfScope) {
+      const self = empList[0]
+      const selfGaps = gaps
+      const selfIncomplete = learning
+
+      const lines = [
+        `### 🎯 Your Personal Learning & Development Plan`,
+        `Based on your official records (**${self.name}** — ${self.role}):\n`,
+        `• **Current Standing**: Performance: **${self.performanceScore}** | Competency: **${self.competencyScore}** | Learning Progress: **${self.learningProgress}**\n`,
+      ]
+
+      if (selfGaps.length) {
+        lines.push(`#### 📌 Targeted Modules for Your Skill Gaps:`)
+        selfGaps.forEach(g => {
+          const gapLower = g.competency.toLowerCase()
+          const matchedResource = resources.find(r =>
+            r.category.toLowerCase().includes(gapLower) ||
+            r.title.toLowerCase().includes(gapLower)
+          )
+          if (matchedResource) {
+            lines.push(
+              `• Gap in **${g.competency}** (Current: **${g.currentScore}** → Target: **${g.targetScore}**)` +
+              `\n  → **Enroll in**: **"${matchedResource.title}"** (${matchedResource.durationHours} hrs · Category: ${matchedResource.category} · Provider: ${matchedResource.provider})`
+            )
+          } else {
+            lines.push(`• Priority gap in **${g.competency}**: Current **${g.currentScore}** → Target **${g.targetScore}**`)
+          }
+        })
+      }
+
+      if (selfIncomplete.length) {
+        lines.push(`\n#### ⏳ In-Progress Assignments to Complete:`)
+        selfIncomplete.forEach(l => {
+          lines.push(`• **"${l.course}"** (${l.progress} completed · Status: ${l.status})`)
+        })
+      }
+
+      return lines.join('\n')
     }
 
     const lines = [
@@ -817,7 +897,7 @@ function generateGroundedFallback(prompt, ctx) {
     p === 'employees' || p === 'my team' || p === 'employee list' || p === 'team list' || p === 'department employees'
   )
 
-  if (isEmployeeListQuery) {
+  if (isEmployeeListQuery && !isSelfScope) {
     if (!empList.length) {
       return `As a **${roleTitle}**, based on available database records, no employee records were found for **${scopeName}**.`
     }
@@ -848,13 +928,18 @@ function generateGroundedFallback(prompt, ctx) {
   }
 
   // 8. Personal score query (for employee)
-  if (p.includes('my last performance') || p.includes('my performance') || p.includes('my score') || p.includes('my competency') || p.includes('my record')) {
+  if (p.includes('my last performance') || p.includes('my performance') || p.includes('my score') || p.includes('my competency') || p.includes('my record') || p.includes('last performance score')) {
     if (!empList.length) return 'No employee record found for your account.'
     const self = empList[0]
-    return `### 👤 Personal Performance & Capability Profile\nBased on your official system records:\n\n• **Employee**: **${self.name}**\n• **Role**: **${self.role}** (${self.department})\n• **Performance Score**: **${self.performanceScore}**\n• **Competency Score**: **${self.competencyScore}**\n• **Learning Progress**: **${self.learningProgress}**\n\n**Guidance**: Continue working on your learning modules to further elevate your competency and performance ratings.`
+    return `### 👤 Personal Performance & Capability Profile\nBased on your official system records:\n\n• **Employee**: **${self.name}**\n• **Role / Job Title**: **${self.role}** (${self.department})\n• **Performance Score**: **${self.performanceScore}**\n• **Competency Score**: **${self.competencyScore}**\n• **Learning Progress**: **${self.learningProgress}**\n\n**Guidance**: Continue working on your learning modules to further elevate your competency and performance ratings.`
   }
 
-  // 9. General grounded executive summary fallback
+  // 9. General grounded executive summary fallback (Role-Specific)
+  if (isSelfScope) {
+    const self = empList[0] || {}
+    return `### 👤 Personal Performance & Development Overview\nBased on your official system records (**${self.name || 'Your Profile'}**):\n\n• **Job Role**: **${self.role || 'Employee'}** (${self.department || 'Your Department'})\n• **Performance Rating**: **${ctx.metrics.averagePerformance}%**\n• **Competency Score**: **${ctx.metrics.averageCompetency}%**\n• **Learning Completion**: **${ctx.metrics.averageLearningProgress}%**\n• **Active Skill Gaps**: **${gaps.length}** area(s)\n• **Pending Learning Modules**: **${learning.length}** assignment(s)\n\n**Quick Questions You Can Ask:**\n- *"What competencies should I improve?"*\n- *"What learning activities do I still need to complete?"*\n- *"What was my last performance score?"*`
+  }
+
   return `### 📊 Supervisory Overview & System Metrics\nAs a **${roleTitle}** overseeing **${scopeName}**, here is your current data-grounded system summary:\n\n• **Monitored Team Members**: **${ctx.metrics.totalEmployees}**\n• **Average Performance**: **${ctx.metrics.averagePerformance}%**\n• **Average Competency**: **${ctx.metrics.averageCompetency}%**\n• **Learning Completion**: **${ctx.metrics.averageLearningProgress}%**\n• **Succession Ready Now Candidates**: **${ctx.metrics.successionReadyNowCount}**\n• **Registered Learning Resources in Library**: **${resources.length}**\n• **Formal Training Sessions**: **${trainings.length}**\n\n**What would you like to explore next?**\n- Ask for **learning recommendations** for your team or specific employees\n- Inquire about **top competency gaps** and skill improvement plans\n- Review **incomplete learning activities** or **succession readiness**`
 }
 

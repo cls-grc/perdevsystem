@@ -218,7 +218,8 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav }) {
       </>
     )}
 
-    <AIChatDrawer isOpen={aiChatOpen} onClose={() => setAiChatOpen(false)} />
+    <AIChatDrawer isOpen={aiChatOpen} onClose={() => setAiChatOpen(false)} onOpen={() => setAiChatOpen(true)} />
     <EmailOutboxDrawer isOpen={outboxOpen} onClose={() => setOutboxOpen(false)} />
   </>
 }
+

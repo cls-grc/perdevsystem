@@ -96,11 +96,21 @@ function parseInlineBold(text) {
   })
 }
 
-export default function AIChatDrawer({ isOpen, onClose }) {
+export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
   const user = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}') || {} } catch { return {} } })()
   const role = user.role || 'employee'
   const storageKey = `pds-ai-chat-${user.id || 'guest'}`
   const samples = SAMPLE_PROMPTS_BY_ROLE[role] || SAMPLE_PROMPTS_BY_ROLE.employee
+
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  // When parent opens the drawer explicitly (e.g. from topbar button), restore from minimized state
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false)
+    }
+  }, [isOpen])
 
   // Load persisted chat history for this user (survives page refresh).
   // History is only cleared on logout (see App.jsx handleLogout).
@@ -134,12 +144,90 @@ export default function AIChatDrawer({ isOpen, onClose }) {
   }, [messages, storageKey])
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isMinimized) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, isOpen])
+  }, [messages, isOpen, isMinimized])
 
-  if (!isOpen) return null
+  const handleOpen = () => {
+    setIsMinimized(false)
+    if (onOpen) onOpen()
+  }
+
+  const handleMinimize = (e) => {
+    e.stopPropagation()
+    setIsMinimized(true)
+  }
+
+  const handleToggleMaximize = (e) => {
+    e.stopPropagation()
+    setIsMaximized(prev => !prev)
+  }
+
+  const handleClose = (e) => {
+    if (e) e.stopPropagation()
+    setIsMinimized(false)
+    if (onClose) onClose()
+  }
+
+  // Floating trigger button displayed on lower-right when drawer is closed or minimized
+  const floatingTrigger = (!isOpen || isMinimized) ? (
+    <button
+      type="button"
+      className="ai-chat-floating-btn"
+      onClick={handleOpen}
+      title="Open AI Assistant Chatbox"
+      aria-label="Open AI Assistant"
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 9990,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 18px',
+        borderRadius: 28,
+        background: 'linear-gradient(135deg, #654bd2 0%, #402b98 100%)',
+        color: '#ffffff',
+        border: '1.5px solid rgba(255, 255, 255, 0.25)',
+        boxShadow: '0 8px 24px rgba(101, 75, 210, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)',
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 600,
+        transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        outline: 'none',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+        e.currentTarget.style.boxShadow = '0 12px 30px rgba(101, 75, 210, 0.55), 0 4px 12px rgba(0, 0, 0, 0.2)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'none'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(101, 75, 210, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
+      }}
+    >
+      <span style={{ fontSize: 16, display: 'inline-block', filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' }}>✦</span>
+      <span>AI Assistant</span>
+      {isMinimized && (
+        <span
+          title="Active Chat Session"
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#34d399',
+            boxShadow: '0 0 8px #34d399',
+            display: 'inline-block',
+          }}
+        />
+      )}
+    </button>
+  ) : null
+
+  if (!isOpen || isMinimized) {
+    return floatingTrigger
+  }
 
   const handleSend = async (textToSend) => {
     const prompt = (textToSend || input).trim()
@@ -182,47 +270,137 @@ export default function AIChatDrawer({ isOpen, onClose }) {
   }
 
   return (
-    <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="AI Chat Assistant" onClick={onClose}>
-      <aside
-        className="settings-dialog ai-chat-drawer"
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: 'min(580px, 92vw)',
-          height: '88vh',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 0,
-          borderRadius: 16,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Drawer Header */}
-        <div className="ai-chat-header" style={{
-          padding: '16px 20px',
-          background: 'linear-gradient(135deg, #1e1b2e, #2d264a)',
-          color: '#fff',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 18 }}>✦</span>
-              <h2 style={{ margin: 0, fontSize: 16, color: '#fff' }}>AI Assistant Chatbox</h2>
+    <>
+      <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="AI Chat Assistant" onClick={handleClose}>
+        <aside
+          className="settings-dialog ai-chat-drawer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            width: isMaximized ? 'min(920px, 95vw)' : 'min(580px, 92vw)',
+            height: isMaximized ? '92vh' : '88vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 0,
+            borderRadius: 16,
+            overflow: 'hidden',
+            transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1), height 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.35)',
+          }}
+        >
+          {/* Drawer Header with Window Controls */}
+          <div className="ai-chat-header" style={{
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, #1e1b2e 0%, #2d264a 100%)',
+            color: '#fff',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18, color: '#b9a5ff' }}>✦</span>
+                <h2 style={{ margin: 0, fontSize: 16, color: '#fff', fontWeight: 700 }}>AI Assistant Chatbox</h2>
+                {isMaximized && (
+                  <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, color: '#d8d1f7' }}>
+                    Expanded
+                  </span>
+                )}
+              </div>
+              <small style={{ color: '#b6b0d6', fontSize: 11 }}>
+                Smart Analytics · Role Scope: <b style={{ textTransform: 'uppercase', color: '#a795ff' }}>{role}</b>
+              </small>
             </div>
-            <small style={{ color: '#b6b0d6', fontSize: 11 }}>
-              Smart Analytics · Role Scope: <b style={{ textTransform: 'uppercase', color: '#8f7bf0' }}>{role}</b>
-            </small>
+
+            {/* Action Buttons: Minimize, Maximize/Restore, Close */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Minimize button */}
+              <button
+                type="button"
+                onClick={handleMinimize}
+                title="Minimize to floating widget on lower right"
+                aria-label="Minimize"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 6,
+                  color: '#e2dff0',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)' }}
+              >
+                −
+              </button>
+
+              {/* Maximize / Restore Toggle button */}
+              <button
+                type="button"
+                onClick={handleToggleMaximize}
+                title={isMaximized ? 'Restore standard width' : 'Maximize window for larger view'}
+                aria-label={isMaximized ? 'Restore' : 'Maximize'}
+                style={{
+                  background: isMaximized ? 'rgba(101, 75, 210, 0.4)' : 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 6,
+                  color: '#e2dff0',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isMaximized ? 'rgba(101, 75, 210, 0.4)' : 'rgba(255, 255, 255, 0.1)' }}
+              >
+                {isMaximized ? '🗗' : '⤢'}
+              </button>
+
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={handleClose}
+                title="Close chatbox"
+                aria-label="Close"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 6,
+                  color: '#e2dff0',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease, color 0.15s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.75)'
+                  e.currentTarget.style.color = '#fff'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+                  e.currentTarget.style.color = '#e2dff0'
+                }}
+              >
+                ×
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#ccc', fontSize: 22, cursor: 'pointer' }}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+
 
         {/* Data Scope & Security Banner */}
         <div style={{
@@ -375,5 +553,7 @@ export default function AIChatDrawer({ isOpen, onClose }) {
         </form>
       </aside>
     </div>
+  </>
   )
 }
+
