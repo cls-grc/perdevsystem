@@ -656,7 +656,69 @@ function generateGroundedFallback(prompt, ctx) {
     return lines.join('\n')
   }
 
-  // 1. Learning recommendations / suggestions for team or department
+  // 1. Specific Competency Gaps Query (e.g. "Which employees in my department have competency gaps?", "largest competency gap")
+  const isCompetencyGapQuery = (
+    p.includes('gap') ||
+    p.includes('competency') ||
+    p.includes('skill gap') ||
+    p.includes('deficien')
+  )
+
+  if (isCompetencyGapQuery) {
+    if (!gaps.length) {
+      return `### 📉 Department Competency Gap Assessment\nAs a **${roleTitle}** overseeing **${scopeName}**, based on verified database records, there are currently **no active competency gaps** recorded for employees in your department. All assessed competencies currently meet or exceed their target scores.`
+    }
+
+    // Group gaps by employee
+    const gapsByEmployee = {}
+    gaps.forEach(g => {
+      if (!gapsByEmployee[g.employee]) {
+        gapsByEmployee[g.employee] = { department: g.department, items: [] }
+      }
+      gapsByEmployee[g.employee].items.push(g)
+    })
+
+    const employeeBlocks = Object.entries(gapsByEmployee).map(([empName, data]) => {
+      const itemsList = data.items.map(item => {
+        const gapLower = item.competency.toLowerCase()
+        const matchedResource = resources.find(r =>
+          r.category.toLowerCase().includes(gapLower) ||
+          r.title.toLowerCase().includes(gapLower)
+        )
+        const matchInfo = matchedResource
+          ? `\n    → _Suggested Library Module_: **"${matchedResource.title}"** (${matchedResource.durationHours} hrs · ${matchedResource.provider})`
+          : ''
+        return `  • **${item.competency}**: Current **${item.currentScore}** vs Target **${item.targetScore}** (Gap: **${item.gap}**)${matchInfo}`
+      }).join('\n')
+
+      return `#### **${empName}** (${data.department})\n${itemsList}`
+    }).join('\n\n')
+
+    return `### 📉 Identified Competency Gaps in ${scopeName}\nAs a **${roleTitle}**, here is the breakdown of employees with active competency gaps based on system assessments:\n\n${employeeBlocks}\n\n---\n**Department Summary**: Total of **${gaps.length}** active competency gap(s) identified across **${Object.keys(gapsByEmployee).length}** employee(s). Department Average Competency is **${ctx.metrics.averageCompetency}%**.\n\n**Next Steps**: Assign targeted modules from the library or schedule 1-on-1 coaching sessions to address these specific gaps.`
+  }
+
+  // 2. Incomplete Learning Activities Query (e.g. "Show incomplete learning activities in my department.", "pending learning")
+  const isIncompleteLearningQuery = (
+    p.includes('incomplete') ||
+    p.includes('unfinished') ||
+    p.includes('pending') ||
+    p.includes('learning activit') ||
+    p.includes('learning assignment') ||
+    p.includes('course progress') ||
+    p.includes('need to complete') ||
+    p.includes('not completed')
+  )
+
+  if (isIncompleteLearningQuery) {
+    if (!learning.length) {
+      return `### ⏳ Department Learning Activities\nAs a **${roleTitle}** overseeing **${scopeName}**, based on current system records, there are currently **no incomplete or pending learning activities** recorded for your team. All assigned modules are 100% completed!`
+    }
+
+    const items = learning.map(l => `• **${l.employee}** (${l.department || 'Department'})\n  - Course: **"${l.course}"** | Progress: **${l.progress}** | Status: **${l.status}**`).join('\n\n')
+    return `### ⏳ Incomplete Learning Assignments in ${scopeName}\nAs a **${roleTitle}**, here are the team members with pending or in-progress learning assignments:\n\n${items}\n\n---\n**Supervisory Action**: Follow up with these employees during your next check-in to ensure timely completion. Department learning completion is currently averaging **${ctx.metrics.averageLearningProgress}%**.`
+  }
+
+  // 3. Learning recommendations / suggestions for team or department
   const isLearningRecommendationQuery = (
     p.includes('suggest') ||
     p.includes('recommend') ||
@@ -665,14 +727,7 @@ function generateGroundedFallback(prompt, ctx) {
     p.includes('giving them') ||
     p.includes('give them') ||
     p.includes('learning course') ||
-    p.includes('learning recommendation') ||
-    p.includes('recommend learning') ||
-    p.includes('recommend a learning') ||
-    p.includes('recommend course') ||
-    p.includes('what should they') ||
-    p.includes('what should my team') ||
     p.includes('learning path') ||
-    p.includes('suggest learning') ||
     p.includes('training recommendation') ||
     p.includes('development plan') ||
     p.includes('development recommendation') ||
@@ -700,8 +755,6 @@ function generateGroundedFallback(prompt, ctx) {
       `#### 2. 🎯 Targeted Learning Recommendations by Employee`,
     ]
 
-    let foundAnyDetails = false
-
     empList.forEach(emp => {
       const empGaps = gaps
         .filter(g => g.employee === emp.name)
@@ -710,7 +763,6 @@ function generateGroundedFallback(prompt, ctx) {
       const empIncomplete = learning
         .filter(l => l.employee === emp.name)
 
-      foundAnyDetails = true
       lines.push(`\n##### **${emp.name}** — ${emp.role} (${emp.department})`)
       lines.push(`• **Current Standing**: Performance: **${emp.performanceScore}** | Competency: **${emp.competencyScore}** | Learning Progress: **${emp.learningProgress}**`)
 
@@ -757,24 +809,12 @@ function generateGroundedFallback(prompt, ctx) {
     return lines.join('\n')
   }
 
-  // 2. List employees under department / scope
+  // 4. List employees under department / scope (Roster only)
   const isEmployeeListQuery = (
-    p.includes('list employee') ||
-    p.includes('list the employee') ||
-    p.includes('list of employee') ||
-    p.includes('show employee') ||
-    p.includes('show the employee') ||
-    p.includes('department employee') ||
-    p.includes('under my department') ||
-    p.includes('in my department') ||
-    p.includes('who are the employee') ||
-    p.includes('who is in my department') ||
-    p.includes('who works') ||
-    p.includes('my team') ||
-    p.includes('team member') ||
-    p.includes('my staff') ||
-    p.includes('employee list') ||
-    (p.includes('employee') && (p.includes('list') || p.includes('show') || p.includes('who') || p.includes('all')))
+    (p.includes('list') && (p.includes('employee') || p.includes('staff') || p.includes('member') || p.includes('team') || p.includes('roster'))) ||
+    (p.includes('show') && (p.includes('employee') || p.includes('staff') || p.includes('roster') || p.includes('team'))) ||
+    (p.includes('who') && (p.includes('work') || p.includes('are the employee') || p.includes('is in my department') || p.includes('are my staff') || p.includes('are the staff') || p.includes('is under me'))) ||
+    p === 'employees' || p === 'my team' || p === 'employee list' || p === 'team list' || p === 'department employees'
   )
 
   if (isEmployeeListQuery) {
@@ -785,32 +825,17 @@ function generateGroundedFallback(prompt, ctx) {
     return `### 👥 Department Employee Roster\nAs a **${roleTitle}** overseeing **${scopeName}**, here ${empList.length === 1 ? 'is the 1 monitored employee' : `are the ${empList.length} monitored employees`} in your team:\n\n${items}\n\n---\n**Department Summary**: Average Performance is **${ctx.metrics.averagePerformance}%**, Average Competency is **${ctx.metrics.averageCompetency}%**, and Average Learning Progress is **${ctx.metrics.averageLearningProgress}%**.`
   }
 
-  // 3. Highest performance
-  if (p.includes('highest performance') || p.includes('top performance') || p.includes('best score')) {
+  // 5. Highest performance
+  if (p.includes('highest performance') || p.includes('top performance') || p.includes('best score') || p.includes('top performer')) {
     if (!empList.length) return 'Based on available records, no employee performance data is present in your scope.'
     const top = empList[0]
     return `### 🏆 Top Performance Record\nBased on current system records for **${scopeName}**:\n\n• **Top Performer**: **${top.name}** (${top.role} · ${top.department})\n• **Performance Score**: **${top.performanceScore}**\n• **Competency Score**: **${top.competencyScore}**\n• **Learning Completion**: **${top.learningProgress}**\n\n**Supervisory Insight**: ${top.name} demonstrates high performance and may be a candidate for leadership tracks or mentoring peers.`
   }
 
-  // 4. Department largest gap / competency overview
-  if (p.includes('largest competency gap') || p.includes('department gap') || p.includes('competency gap') || p.includes('skill gap')) {
-    if (!gaps.length) return `Based on available database records for **${scopeName}**, there are currently no active competency gaps recorded across assessed employees.`
-    const topGap = gaps[0]
-    const gapList = gaps.slice(0, 5).map((g, idx) => `${idx + 1}. **${g.employee}** (${g.department}) — **${g.competency}**: Current **${g.currentScore}** vs Target **${g.targetScore}** (Gap: **${g.gap}**)`).join('\n')
-    return `### 📉 Priority Competency Gap Analysis\nAs a **${roleTitle}**, here is the competency gap breakdown for **${scopeName}**:\n\n• **Highest Priority Gap**: **${topGap.employee}** (${topGap.department}) in **${topGap.competency}** with a gap of **${topGap.gap}** (Current: ${topGap.currentScore}, Target: ${topGap.targetScore}).\n• **Team Average Competency Level**: **${ctx.metrics.averageCompetency}%**\n\n#### Top Recorded Competency Gaps:\n${gapList}\n\n**Recommended Next Step**: Review targeted learning courses in the system library to address these specific competency deficiencies.`
-  }
-
-  // 5. Incomplete learning activities
-  if (p.includes('incomplete learning') || p.includes('unfinished course') || p.includes('pending learning') || p.includes('need to complete')) {
-    if (!learning.length) return `Based on available learning records for **${scopeName}**, there are currently no incomplete learning activities recorded.`
-    const items = learning.map(l => `• **${l.employee}** (${l.department || 'Department'})\n  - Course: **"${l.course}"** | Progress: **${l.progress}** | Status: **${l.status}**`).join('\n\n')
-    return `### ⏳ Incomplete Learning Assignments\nBased on system records for **${scopeName}**, the following team members have pending learning modules:\n\n${items}\n\n**Supervisory Action**: Remind team members to complete their pending modules to improve departmental learning progress (currently averaging **${ctx.metrics.averageLearningProgress}%**).`
-  }
-
   // 6. Ready Now succession
-  if (p.includes('ready now') || p.includes('succession') || p.includes('successor')) {
+  if (p.includes('ready now') || p.includes('succession') || p.includes('successor') || p.includes('pipeline')) {
     const readyNow = succession.filter(s => s.readinessBand === 'ready_now')
-    if (!readyNow.length) return `Based on current succession records for **${scopeName}**, there are no employees currently categorized in the **Ready Now** band.`
+    if (!readyNow.length) return `### 🌟 Succession Pipeline\nBased on current succession records for **${scopeName}**, there are currently no employees categorized in the **Ready Now** band.`
     const items = readyNow.map(s => `• **${s.employee}** — ${s.jobTitle} (${s.department})\n  - Readiness Score: **${s.readinessScore}** | Status: **Ready Now**`).join('\n\n')
     return `### 🌟 Succession Pipeline — Ready Now Candidates\nBased on verified succession records for **${scopeName}**, there ${readyNow.length === 1 ? 'is 1 candidate' : `are ${readyNow.length} candidates`} ready for promotion or critical role transition:\n\n${items}`
   }
@@ -834,4 +859,5 @@ function generateGroundedFallback(prompt, ctx) {
 }
 
 export default router
+
 
