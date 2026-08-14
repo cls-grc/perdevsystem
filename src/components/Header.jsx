@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Icon } from './Sidebar'
 import { api } from '../lib/api'
-import AIChatDrawer from './AIChatDrawer'
 import EmailOutboxDrawer from './EmailOutboxDrawer'
 
 function getNotifMeta(item) {
@@ -26,11 +25,10 @@ function timeAgo(dateString) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export default function Header({ user, onToggle, dark, onOpenMobileNav }) {
+export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAiChat }) {
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
-  const [aiChatOpen, setAiChatOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notifFilter, setNotifFilter] = useState('all')
@@ -88,7 +86,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav }) {
         <button
           className="header-text-button ai-chat-btn"
           type="button"
-          onClick={() => setAiChatOpen(true)}
+          onClick={() => onOpenAiChat && onOpenAiChat()}
         >
           ✦ AI Assistant
         </button>
@@ -218,8 +216,6 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav }) {
       </>
     )}
 
-    <AIChatDrawer isOpen={aiChatOpen} onClose={() => setAiChatOpen(false)} onOpen={() => setAiChatOpen(true)} />
     <EmailOutboxDrawer isOpen={outboxOpen} onClose={() => setOutboxOpen(false)} />
   </>
 }
-

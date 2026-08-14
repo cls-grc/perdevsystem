@@ -17,6 +17,7 @@ import CertificateVerification from './pages/CertificateVerification'
 import EmployeeManagement from './pages/EmployeeManagement'
 import AuditLogs from './pages/AuditLogs'
 import Register from './pages/Register'
+import AIChatDrawer from './components/AIChatDrawer'
 import './index.css'
 import './buttonStyles.css'
 import './employeeSearch.css'
@@ -45,6 +46,7 @@ function App() {
     }
   })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [aiChatOpen, setAiChatOpen] = useState(false)
 
   useEffect(() => {
     const root = document.documentElement
@@ -104,7 +106,14 @@ function App() {
       <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
         <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
         <div className="flex-1 min-h-screen flex flex-col fixed-main">
-          <Header key={`hdr-${user.id}`} user={user} onToggle={() => setDark((s) => !s)} dark={dark} onOpenMobileNav={() => setMobileNavOpen(true)} />
+          <Header
+            key={`hdr-${user.id}`}
+            user={user}
+            onToggle={() => setDark((s) => !s)}
+            dark={dark}
+            onOpenMobileNav={() => setMobileNavOpen(true)}
+            onOpenAiChat={() => setAiChatOpen(true)}
+          />
           <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
           <Routes>
             <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
@@ -123,6 +132,12 @@ function App() {
           </Routes>
         </div>
       </div>
+      {/* Global AI Chat Drawer — persists across ALL pages/modules */}
+      <AIChatDrawer
+        isOpen={aiChatOpen}
+        onClose={() => setAiChatOpen(false)}
+        onOpen={() => setAiChatOpen(true)}
+      />
     </BrowserRouter>
   )
 }
