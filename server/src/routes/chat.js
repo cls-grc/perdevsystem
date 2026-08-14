@@ -313,6 +313,7 @@ STRICT GROUNDING RULES:
 6. Provide direct, helpful, professional responses formatted cleanly with Markdown.
 7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).
 8. When the user asks to list or show employees (e.g. "list employees under my department", "who are my department employees", "list employees"), list each employee individually with their full name, job title, department, performance score, competency score, and learning progress. Do NOT summarize into just a total count.
+9. When the user asks for learning recommendations (e.g. "give me a learning recommendation for them", "recommend learning for my team", "what should they study"), provide per-employee recommendations. For each employee: identify their lowest competency scores and any incomplete learning activities, then recommend specific learning resources from the 'learningResourcesLibrary' that address those gaps. Format as a section per employee with their name as a heading and bullet-pointed recommendations.
 
 CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 - "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
@@ -415,6 +416,85 @@ function generateGroundedFallback(prompt, ctx) {
     if (!gaps.length) return 'Based on available records, no active competency gaps are currently detected across assessed employees.'
     const topGap = gaps[0]
     return `Based on available competency records, the largest skill gap is detected for **${topGap.employee}** (${topGap.department}) in **${topGap.competency}** with a gap of **${topGap.gap}** (Current: ${topGap.currentScore}, Target: ${topGap.targetScore}). Across all records, the average competency level is **${ctx.metrics.averageCompetency}%**.`
+  }
+
+  // Learning recommendations for team / department
+  const isLearningRecommendationQuery = (
+    p.includes('learning recommendation') ||
+    p.includes('recommend learning') ||
+    p.includes('recommend a learning') ||
+    p.includes('recommend course') ||
+    p.includes('what should they') ||
+    p.includes('what should my team') ||
+    p.includes('learning path') ||
+    p.includes('suggest learning') ||
+    p.includes('suggest a learning') ||
+    p.includes('suggest course') ||
+    p.includes('training recommendation') ||
+    (p.includes('recommend') && (p.includes('them') || p.includes('team') || p.includes('staff') || p.includes('employee') || p.includes('department')))
+  )
+
+  if (isLearningRecommendationQuery) {
+    if (!empList.length) return 'Based on available database records, no employee records were found for your authorized scope to generate learning recommendations.'
+
+    const lines = ['**Learning Recommendations** — Based on current database records (competency gaps & incomplete activities):\n']
+
+    empList.forEach(emp => {
+      lines.push(`\n**${emp.name}** (${emp.role} · ${emp.department})`)
+
+      // Find this employee's competency gaps (lowest first)
+      const empGaps = gaps
+        .filter(g => g.employee === emp.name)
+        .sort((a, b) => parseFloat(b.gap) - parseFloat(a.gap))
+        .slice(0, 2)
+
+      // Find this employee's incomplete learning activities
+      const empIncomplete = learning
+        .filter(l => l.employee === emp.name)
+        .slice(0, 2)
+
+      if (empGaps.length) {
+        empGaps.forEach(g => {
+          // Try to find a matching resource
+          const match = resources.find(r =>
+            r.category.toLowerCase().includes(g.competency.toLowerCase()) ||
+            r.title.toLowerCase().includes(g.competency.toLowerCase())
+          )
+          if (match) {
+            lines.push(`  • Address **${g.competency}** gap (${g.currentScore} → ${g.targetScore}): enroll in **"${match.title}"** (${match.durationHours}h, ${match.provider})`)
+          } else {
+            lines.push(`  • Priority gap in **${g.competency}**: current ${g.currentScore}, target ${g.targetScore} — seek relevant training or coaching`)
+          }
+        })
+      }
+
+      if (empIncomplete.length) {
+        empIncomplete.forEach(l => {
+          lines.push(`  • Complete in-progress course: **"${l.course}"** (${l.progress} done, Status: ${l.status})`)
+        })
+      }
+
+      if (!empGaps.length && !empIncomplete.length) {
+        // General recommendation based on lowest score
+        const lowestScore = Math.min(
+          parseFloat(emp.performanceScore),
+          parseFloat(emp.competencyScore),
+          parseFloat(emp.learningProgress)
+        )
+        const focus = parseFloat(emp.competencyScore) === lowestScore
+          ? 'competency development'
+          : parseFloat(emp.learningProgress) === lowestScore
+          ? 'completing pending learning assignments'
+          : 'performance improvement coaching'
+        lines.push(`  • Focus on **${focus}** (Current: Performance ${emp.performanceScore}, Competency ${emp.competencyScore}, Learning ${emp.learningProgress})`)
+        if (resources.length) {
+          const suggested = resources[0]
+          lines.push(`  • Suggested: **"${suggested.title}"** (${suggested.durationHours}h, ${suggested.provider})`)
+        }
+      }
+    })
+
+    return lines.join('\n')
   }
 
   // Incomplete learning activities
