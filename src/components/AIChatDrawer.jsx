@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 
 const SAMPLE_PROMPTS_BY_ROLE = {
   hr: [
+    "List all employees across the organization.",
     "Who had the highest performance score this year?",
     "Which department has the largest competency gap?",
     "Which employees have incomplete learning activities?",
@@ -10,17 +11,20 @@ const SAMPLE_PROMPTS_BY_ROLE = {
     "What learning resources are related to customer service competency?",
   ],
   management: [
+    "List all employees across the organization.",
     "Who had the highest performance score this year?",
     "Which department has the largest competency gap?",
     "Which employees are Ready Now for succession?",
     "What is the average performance across the organization?",
   ],
   operations_manager: [
+    "List all employees under my department.",
     "Which employees in my department have competency gaps?",
     "Show incomplete learning activities in my department.",
     "Which department team members have top performance?",
   ],
   supervisor: [
+    "List all employees under my department.",
     "Which employees in my department have competency gaps?",
     "Show incomplete learning activities in my department.",
     "Which employees have recommended learning paths?",

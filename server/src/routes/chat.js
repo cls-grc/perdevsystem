@@ -312,6 +312,7 @@ STRICT GROUNDING RULES:
 5. Distinguish between current scores and target scores when explaining competency gaps.
 6. Provide direct, helpful, professional responses formatted cleanly with Markdown.
 7. Always format bold headings, action labels, and item titles using double asterisks (e.g. **Action Steps**, **Identify Learning Needs:**).
+8. When the user asks to list or show employees (e.g. "list employees under my department", "who are my department employees", "list employees"), list each employee individually with their full name, job title, department, performance score, competency score, and learning progress. Do NOT summarize into just a total count.
 
 CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 - "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
@@ -370,6 +371,37 @@ function generateGroundedFallback(prompt, ctx) {
   const learning = ctx.incompleteLearningActivities || []
   const resources = ctx.learningResourcesLibrary || []
   const succession = ctx.successionPipeline || []
+
+  // List employees under department / scope
+  const isEmployeeListQuery = (
+    p.includes('list employee') ||
+    p.includes('list the employee') ||
+    p.includes('list of employee') ||
+    p.includes('show employee') ||
+    p.includes('show the employee') ||
+    p.includes('department employee') ||
+    p.includes('under my department') ||
+    p.includes('in my department') ||
+    p.includes('who are the employee') ||
+    p.includes('who is in my department') ||
+    p.includes('who works') ||
+    p.includes('my team') ||
+    p.includes('team member') ||
+    p.includes('my staff') ||
+    p.includes('employee list') ||
+    (p.includes('employee') && (p.includes('list') || p.includes('show') || p.includes('who') || p.includes('all')))
+  )
+
+  if (isEmployeeListQuery) {
+    if (!empList.length) {
+      return `Based on available database records, no employee records were found for your authorized scope (**${ctx.userScope}**).`
+    }
+    const items = empList.map(e => `• **${e.name}** — ${e.role} (${e.department}) · Performance: ${e.performanceScore} · Competency: ${e.competencyScore} · Learning: ${e.learningProgress}`).join('\n')
+    const scopeLabel = ctx.userScope.startsWith('department_')
+      ? `department (**${ctx.userScope.replace('department_', '')}**)`
+      : `authorized scope (**${ctx.userScope}**)`
+    return `Based on current authorized database records, here ${empList.length === 1 ? 'is the 1 employee' : `are the ${empList.length} employees`} under your ${scopeLabel}:\n\n${items}`
+  }
 
   // Highest performance
   if (p.includes('highest performance') || p.includes('top performance') || p.includes('best score')) {
