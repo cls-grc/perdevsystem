@@ -327,6 +327,14 @@ STRICT GROUNDING & QUALITY RULES:
    - If a gap exists but no matching resource is found in the library, say so explicitly (e.g. "No matching resource currently available in the library for this gap").
    - If an employee has no gap records and no incomplete activities, say so — do NOT invent generic advice or make up focus areas.
    - Format: one section per employee as a markdown heading, with bullet points for each recommendation.
+10. When the user asks about a SPECIFIC EMPLOYEE (e.g. "what are your insights about Maria Lopez?", "tell me about Maria Lopez", "how is Maria doing?", "status of Maria", "Maria Lopez performance"):
+    - Locate the employee in the 'employees' array.
+    - Provide a complete individual capability and performance profile:
+      a) Performance & Capability Snapshot (Name, Role, Department, Performance Score, Competency Score, Learning Progress, Succession Band)
+      b) Key Supervisory Insights & Capability Assessment (strengths, skill gaps, learning activity status, training participation)
+      c) Grounded Course Recommendations (matched from 'learningResourcesLibrary' for any gaps)
+      d) Actionable Supervisory Recommendations / Coaching Next Steps.
+    - NEVER return a generic department summary when a specific person is asked about!
 
 CRITICAL MODULE DISAMBIGUATION — READ CAREFULLY:
 - "Training Management" or "Training" refers EXCLUSIVELY to formal, instructor-led training sessions (found in the 'trainingSessions' key of the context). These are scheduled events with trainers, venues, dates, and attendance tracking.
@@ -386,6 +394,7 @@ function generateGroundedFallback(prompt, ctx) {
   const resources = ctx.learningResourcesLibrary || []
   const succession = ctx.successionPipeline || []
   const trainings = ctx.trainingSessions || []
+  const trainingParticipants = ctx.trainingParticipantRecords || []
 
   const roleTitle = ctx.userRole === 'supervisor'
     ? 'Supervisor'
@@ -402,6 +411,121 @@ function generateGroundedFallback(prompt, ctx) {
     : ctx.userScope === 'self_only'
     ? 'Your Personal Scope'
     : 'the Entire Organization'
+
+  // 0. Specific Individual Employee Inquiry (e.g. "insights about Maria Lopez", "tell me about Maria Lopez", "Maria Lopez status")
+  const matchedEmployee = empList.find(e => {
+    const fullNameLower = e.name.toLowerCase()
+    const nameParts = fullNameLower.split(' ').filter(part => part.length >= 2)
+    // Full name match (e.g. "maria lopez")
+    if (p.includes(fullNameLower)) return true
+    // Both first and last names present
+    if (nameParts.length >= 2 && nameParts.every(part => p.includes(part))) return true
+    // Single name part with inquiry intent keywords (e.g. "maria", "lopez")
+    if (nameParts.length >= 1 && nameParts.some(part => {
+      if (part.length < 3) return false
+      const inquiryKeywords = ['about', 'insight', 'status', 'score', 'gap', 'performance', 'who is', 'how is', 'tell me', 'profile', 'progress', 'recommendation for', 'suggest for', 'details of', 'evaluat']
+      return p.includes(part) && inquiryKeywords.some(k => p.includes(k))
+    })) {
+      return true
+    }
+    return false
+  })
+
+  if (matchedEmployee) {
+    const empGaps = gaps.filter(g => g.employee && g.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
+    const empIncomplete = learning.filter(l => l.employee && l.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
+    const empSuccession = succession.find(s => s.employee && s.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
+    const empTrainings = trainingParticipants.filter(tp => tp.employee && tp.employee.toLowerCase() === matchedEmployee.name.toLowerCase())
+
+    const perfNum = parseFloat(matchedEmployee.performanceScore) || 0
+    const perfRating = perfNum >= 90
+      ? 'Outstanding (Top Tier Performance)'
+      : perfNum >= 80
+      ? 'Strong (Meets Operational Standards)'
+      : perfNum >= 70
+      ? 'Satisfactory (Developing Core Competence)'
+      : 'Needs Improvement (Priority Coaching Required)'
+
+    const successionInfo = empSuccession
+      ? (empSuccession.readinessBand === 'ready_now'
+          ? `**Ready Now** (Immediate Leadership/Role Candidate · Readiness Score: **${empSuccession.readinessScore}**)`
+          : empSuccession.readinessBand === 'ready_1_2_years'
+          ? `**Ready in 1–2 Years** (High Potential Pipeline · Readiness Score: **${empSuccession.readinessScore}**)`
+          : `**Developing** (Readiness Score: **${empSuccession.readinessScore}**)`)
+      : 'Not currently listed in succession pipeline assessments.'
+
+    const lines = [
+      `### 👤 Employee Insights & Capability Profile: **${matchedEmployee.name}**`,
+      `As a **${roleTitle}** overseeing **${scopeName}**, here is a data-grounded performance, capability, and development analysis for **${matchedEmployee.name}**:\n`,
+      `---`,
+      `#### 1. 📊 Performance & Capability Snapshot`,
+      `• **Full Name**: **${matchedEmployee.name}**`,
+      `• **Role / Job Title**: **${matchedEmployee.role}** (${matchedEmployee.department})`,
+      `• **Performance Score**: **${matchedEmployee.performanceScore}** — _${perfRating}_`,
+      `• **Competency Rating**: **${matchedEmployee.competencyScore}**`,
+      `• **Learning Progress**: **${matchedEmployee.learningProgress}** completion`,
+      `• **Succession Readiness**: ${successionInfo}\n`,
+      `---`,
+      `#### 2. 🔍 Key Supervisory Insights & Capability Assessment`,
+    ]
+
+    // Competency Gaps & Course Recommendations
+    if (empGaps.length) {
+      lines.push(`• **Identified Competency Gaps & Course Matches**:`)
+      empGaps.forEach(g => {
+        const gapLower = g.competency.toLowerCase()
+        const matchedResource = resources.find(r =>
+          r.category.toLowerCase().includes(gapLower) ||
+          r.title.toLowerCase().includes(gapLower)
+        )
+        if (matchedResource) {
+          lines.push(
+            `  - Gap in **${g.competency}** (Current: **${g.currentScore}** → Target: **${g.targetScore}**, Gap: **${g.gap}**)` +
+            `\n    → **Recommended System Course**: **"${matchedResource.title}"** (${matchedResource.durationHours} hrs · Category: ${matchedResource.category} · Provider: ${matchedResource.provider})`
+          )
+        } else {
+          lines.push(
+            `  - Gap in **${g.competency}** (Current: **${g.currentScore}** → Target: **${g.targetScore}**, Gap: **${g.gap}**)` +
+            `\n    → _Note: No matching course currently exists in the system library for "${g.competency}". Consider arranging coaching._`
+          )
+        }
+      })
+    } else {
+      lines.push(`• **Competency Gaps**: No active competency gaps recorded in system assessments. Demonstrating stable capability across assessed areas.`)
+    }
+
+    // Incomplete Learning Activities
+    if (empIncomplete.length) {
+      lines.push(`• **Pending / Incomplete Learning Modules**:`)
+      empIncomplete.forEach(l => {
+        lines.push(`  - ⏳ In-Progress: **"${l.course}"** (${l.progress} completed · Status: **${l.status}**)`)
+      })
+    } else {
+      lines.push(`• **Learning Course Status**: All assigned e-learning modules are currently up to date.`)
+    }
+
+    // Training Sessions
+    if (empTrainings.length) {
+      lines.push(`• **Formal Workshop / Training Attendance**:`)
+      empTrainings.forEach(tp => {
+        lines.push(`  - Session: **"${tp.session}"** (Attendance: **${tp.attendance || 'Attended'}** · Score: **${tp.evaluationScore ? tp.evaluationScore + '%' : 'Completed'}**)`)
+      })
+    }
+
+    lines.push(
+      `\n---`,
+      `#### 3. 💡 Supervisory Recommendations for ${matchedEmployee.name}`,
+      empGaps.length
+        ? `1. **Assign Targeted Training**: Enroll ${matchedEmployee.name} in the recommended courses above to close the recorded **${empGaps.map(g => g.competency).join(', ')}** gap(s).`
+        : `1. **Sustain High Performance**: Acknowledge ${matchedEmployee.name}'s strong competency alignment and explore advanced mentoring opportunities.`,
+      empIncomplete.length
+        ? `2. **Course Completion Follow-Up**: Set a milestone target date with ${matchedEmployee.name} to finish the remaining modules in **"${empIncomplete[0].course}"**.`
+        : `2. **Continuous Learning**: Review the library catalog for next-level skill building modules suitable for ${matchedEmployee.name}'s career track.`,
+      `3. **Development Check-In**: Conduct a 1-on-1 development dialogue to align personal goals with departmental operational standards.`
+    )
+
+    return lines.join('\n')
+  }
 
   // 1. Learning recommendations / suggestions for team or department
   const isLearningRecommendationQuery = (
