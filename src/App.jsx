@@ -47,6 +47,7 @@ function App() {
   })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiChatOpen, setAiChatOpen] = useState(false)
+  const [sessionNotice, setSessionNotice] = useState('')
 
   useEffect(() => {
     const root = document.documentElement
@@ -59,6 +60,64 @@ function App() {
       localStorage.setItem('pds-theme', dark ? 'dark' : 'light')
     } catch (e) {}
   }, [dark])
+
+  const handleLogout = async (reason = '') => {
+    const refreshToken = localStorage.getItem('pds-refresh-token')
+    if (refreshToken) {
+      try { await api.logout(refreshToken) } catch { /* best-effort */ }
+    }
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('pds-user') || '{}') || {}
+      if (currentUser.id) localStorage.removeItem(`pds-ai-chat-${currentUser.id}`)
+    } catch { /* best-effort */ }
+    localStorage.removeItem('pds-token')
+    localStorage.removeItem('pds-refresh-token')
+    localStorage.removeItem('pds-user')
+    localStorage.removeItem('pds-last-activity')
+    setUser(null)
+    if (reason) {
+      setSessionNotice(reason)
+    }
+  }
+
+  // 3-minute session inactivity auto-logout
+  useEffect(() => {
+    if (!user) return
+
+    const TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes
+    const CHECK_INTERVAL_MS = 3000 // check every 3 seconds
+
+    const updateActivity = () => {
+      localStorage.setItem('pds-last-activity', String(Date.now()))
+    }
+
+    // Set initial activity timestamp on mount / login
+    updateActivity()
+
+    let lastRecorded = Date.now()
+    const handleUserActivity = () => {
+      const now = Date.now()
+      if (now - lastRecorded > 1000) {
+        lastRecorded = now
+        updateActivity()
+      }
+    }
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
+    events.forEach((event) => window.addEventListener(event, handleUserActivity, { passive: true }))
+
+    const intervalId = setInterval(() => {
+      const lastActivity = Number(localStorage.getItem('pds-last-activity') || Date.now())
+      if (Date.now() - lastActivity >= TIMEOUT_MS) {
+        handleLogout('You have been logged out due to 3 minutes of inactivity.')
+      }
+    }, CHECK_INTERVAL_MS)
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, handleUserActivity))
+      clearInterval(intervalId)
+    }
+  }, [user])
 
   // Public route (certificate verification) — render without auth wrapper when unauthenticated
   if (window.location.pathname.startsWith('/verify/certificate/')) {
@@ -78,28 +137,13 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Login onLogin={setUser} />} />
+          <Route path="*" element={<Login onLogin={(u) => { setSessionNotice(''); setUser(u) }} notice={sessionNotice} />} />
         </Routes>
       </BrowserRouter>
     )
   }
 
-  if (!user) return <Login onLogin={setUser} />
-
-  const handleLogout = async () => {
-    const refreshToken = localStorage.getItem('pds-refresh-token')
-    if (refreshToken) {
-      try { await api.logout(refreshToken) } catch { /* best-effort */ }
-    }
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('pds-user') || '{}') || {}
-      if (currentUser.id) localStorage.removeItem(`pds-ai-chat-${currentUser.id}`)
-    } catch { /* best-effort */ }
-    localStorage.removeItem('pds-token')
-    localStorage.removeItem('pds-refresh-token')
-    localStorage.removeItem('pds-user')
-    setUser(null)
-  }
+  if (!user) return <Login onLogin={(u) => { setSessionNotice(''); setUser(u) }} notice={sessionNotice} />
 
   return (
     <BrowserRouter>

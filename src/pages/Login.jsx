@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -30,6 +30,26 @@ export default function Login({ onLogin }) {
         <div className="login-mark">▣</div>
         <h1>Welcome to PerDevSys</h1>
         <p>Sign in to manage workforce development and generate protected AI insights.</p>
+        {notice && !error && (
+          <div
+            className="login-notice"
+            style={{
+              marginBottom: 14,
+              borderRadius: 8,
+              padding: '10px 12px',
+              background: '#eff6ff',
+              color: '#1e40af',
+              border: '1px solid #bfdbfe',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span>⏰</span>
+            <span>{notice}</span>
+          </div>
+        )}
         {error && <div className="login-error">{error}</div>}
         <label>
           Email
