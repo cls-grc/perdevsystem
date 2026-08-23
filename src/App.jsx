@@ -68,12 +68,18 @@ function App() {
     }
     try {
       const currentUser = JSON.parse(localStorage.getItem('pds-user') || '{}') || {}
-      if (currentUser.id) localStorage.removeItem(`pds-ai-chat-${currentUser.id}`)
+      if (currentUser?.id) localStorage.removeItem(`pds-ai-chat-${currentUser.id}`)
     } catch { /* best-effort */ }
     localStorage.removeItem('pds-token')
     localStorage.removeItem('pds-refresh-token')
     localStorage.removeItem('pds-user')
     localStorage.removeItem('pds-last-activity')
+    
+    // Cleanly reset URL to '/' so unauthenticated state doesn't get stuck on a protected subpath
+    if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/verify/')) {
+      window.history.replaceState(null, '', '/')
+    }
+
     setUser(null)
     if (reason) {
       setSessionNotice(reason)
@@ -119,69 +125,116 @@ function App() {
     }
   }, [user])
 
-  // Public route (certificate verification) — render without auth wrapper when unauthenticated
-  if (window.location.pathname.startsWith('/verify/certificate/')) {
-    return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification />} />
-          <Route path="*" element={<CertificateVerification />} />
-        </Routes>
-      </BrowserRouter>
-    )
-  }
-
-  // Public route (register) — render without auth wrapper
-  if (window.location.pathname === '/register' && !user) {
-    return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Login onLogin={(u) => { setSessionNotice(''); setUser(u) }} notice={sessionNotice} />} />
-        </Routes>
-      </BrowserRouter>
-    )
-  }
-
-  if (!user) return <Login onLogin={(u) => { setSessionNotice(''); setUser(u) }} notice={sessionNotice} />
-
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
-        <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
-        <div className="flex-1 min-h-screen flex flex-col fixed-main">
-          <Header
-            key={`hdr-${user.id}`}
-            user={user}
-            onToggle={() => setDark((s) => !s)}
-            dark={dark}
-            onOpenMobileNav={() => setMobileNavOpen(true)}
-            onOpenAiChat={() => setAiChatOpen(true)}
-          />
-          <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-          <Routes>
-            <Route path="/" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
-            <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
-            <Route path="/competency" element={<CompetencyManagement key={`comp-${user.id}`} />} />
-            <Route path="/learning" element={<LearningManagement key={`learn-${user.id}`} />} />
-            <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
-            <Route path="/succession" element={['hr','supervisor','management','operations_manager'].includes(user.role)?<SuccessionPlanning key={`succ-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
-            <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
-            <Route path="/certificates" element={['hr', 'employee', 'supervisor', 'operations_manager'].includes(user.role) ? <CertificateManagement key={`cert-${user.id}`} /> : <Navigate to="/" replace />} />
-            <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification key={`verify-${user.id}`} />} />
-            <Route path="/employees" element={['hr', 'operations_manager', 'supervisor'].includes(user.role) ? <EmployeeManagement key={`emp-${user.id}`} /> : <Navigate to="/" replace />} />
-            <Route path="/audit" element={['hr', 'operations_manager', 'management'].includes(user.role) ? <AuditLogs key={`audit-${user.id}`} /> : <Navigate to="/" replace />} />
-            <Route path="/register" element={<Register key={`reg-${user.id}`} />} />
-            <Route path="*" element={['hr','operations_manager'].includes(user.role)?<AIAnalytics key={`analytics-${user.id}`} />:<RoleHome key={`home-${user.id}`} role={user.role} name={user.name}/>} />
-          </Routes>
-        </div>
-      </div>
-      {/* Global AI Chat Drawer — persists across ALL pages/modules */}
-      <AIChatDrawer
-        isOpen={aiChatOpen}
-        onClose={() => setAiChatOpen(false)}
-        onOpen={() => setAiChatOpen(true)}
-      />
+      <Routes>
+        {/* Public route: Certificate verification */}
+        <Route path="/verify/certificate/:verificationCode" element={<CertificateVerification />} />
+
+        {/* Public route: Register with invitation token */}
+        <Route
+          path="/register"
+          element={!user ? <Register /> : <Navigate to="/" replace />}
+        />
+
+        {/* Main application or Login fallback */}
+        <Route
+          path="/*"
+          element={
+            !user ? (
+              <Login
+                onLogin={(u) => {
+                  setSessionNotice('')
+                  setUser(u)
+                }}
+                notice={sessionNotice}
+              />
+            ) : (
+              <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
+                <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} />
+                <div className="flex-1 min-h-screen flex flex-col fixed-main">
+                  <Header
+                    key={`hdr-${user.id}`}
+                    user={user}
+                    onToggle={() => setDark((s) => !s)}
+                    dark={dark}
+                    onOpenMobileNav={() => setMobileNavOpen(true)}
+                    onOpenAiChat={() => setAiChatOpen(true)}
+                  />
+                  <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        ['hr', 'operations_manager'].includes(user.role) ? (
+                          <AIAnalytics key={`analytics-${user.id}`} />
+                        ) : (
+                          <RoleHome key={`home-${user.id}`} role={user.role} name={user.name} />
+                        )
+                      }
+                    />
+                    <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
+                    <Route path="/competency" element={<CompetencyManagement key={`comp-${user.id}`} />} />
+                    <Route path="/learning" element={<LearningManagement key={`learn-${user.id}`} />} />
+                    <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
+                    <Route
+                      path="/succession"
+                      element={
+                        ['hr', 'supervisor', 'management', 'operations_manager'].includes(user.role) ? (
+                          <SuccessionPlanning key={`succ-${user.id}`} />
+                        ) : (
+                          <RoleHome key={`home-${user.id}`} role={user.role} name={user.name} />
+                        )
+                      }
+                    />
+                    <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
+                    <Route
+                      path="/certificates"
+                      element={
+                        ['hr', 'employee', 'supervisor', 'operations_manager'].includes(user.role) ? (
+                          <CertificateManagement key={`cert-${user.id}`} />
+                        ) : (
+                          <Navigate to="/" replace />
+                        )
+                      }
+                    />
+                    <Route
+                      path="/employees"
+                      element={
+                        ['hr', 'operations_manager', 'supervisor'].includes(user.role) ? (
+                          <EmployeeManagement key={`emp-${user.id}`} />
+                        ) : (
+                          <Navigate to="/" replace />
+                        )
+                      }
+                    />
+                    <Route
+                      path="/audit"
+                      element={
+                        ['hr', 'operations_manager', 'management'].includes(user.role) ? (
+                          <AuditLogs key={`audit-${user.id}`} />
+                        ) : (
+                          <Navigate to="/" replace />
+                        )
+                      }
+                    />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </div>
+              </div>
+            )
+          }
+        />
+      </Routes>
+
+      {/* Global AI Chat Drawer — persists across all pages when authenticated */}
+      {user && (
+        <AIChatDrawer
+          isOpen={aiChatOpen}
+          onClose={() => setAiChatOpen(false)}
+          onOpen={() => setAiChatOpen(true)}
+        />
+      )}
     </BrowserRouter>
   )
 }
