@@ -30,3 +30,6 @@ lint-output.txt
 *_lines.txt
 tmp_*.txt
 .vercel
+
+# Environment variables
+server/.env
