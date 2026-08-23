@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Icon } from './Sidebar'
 import { api } from '../lib/api'
 import EmailOutboxDrawer from './EmailOutboxDrawer'
+import TwoFactorModal from './TwoFactorModal'
 
 function getNotifMeta(item) {
   const t = (item.title || '').toLowerCase()
@@ -30,6 +31,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
+  const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notifFilter, setNotifFilter] = useState('all')
 
@@ -102,7 +104,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           </button>
         )}
         <button className="header-text-button"><Icon name="book" size={15}/>Learn</button>
-        {user?.role !== 'operations_manager' && <button className="header-text-button"><Icon name="settings" size={15}/>Settings</button>}
+        {user?.role !== 'operations_manager' && <button className="header-text-button" onClick={() => setTwoFactorOpen(true)}><Icon name="settings" size={15}/>Settings</button>}
         <button className="icon-button notif-bell" onClick={showNotifications} aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}>
           <Icon name="bell" size={18}/>
           {unread > 0 && (
@@ -217,5 +219,6 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
     )}
 
     <EmailOutboxDrawer isOpen={outboxOpen} onClose={() => setOutboxOpen(false)} />
+    {twoFactorOpen && <TwoFactorModal onClose={() => setTwoFactorOpen(false)} />}
   </>
 }

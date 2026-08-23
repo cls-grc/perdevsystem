@@ -48,6 +48,11 @@ async function request(path, options = {}, _retried = false) {
 
 export const api = {
   login: (email, password) => request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  verify2FA: (tempToken, code) => request('/api/auth/verify-2fa', { method: 'POST', body: JSON.stringify({ tempToken, code }) }),
+  get2FAStatus: () => request('/api/auth/2fa/status'),
+  setup2FA: () => request('/api/auth/2fa/setup', { method: 'POST', body: '{}' }),
+  enable2FA: (code) => request('/api/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+  disable2FA: (password) => request('/api/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password }) }),
   refreshToken: (refreshToken) => request('/api/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   logout: (refreshToken) => request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),

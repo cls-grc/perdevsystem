@@ -8,6 +8,13 @@ import { config } from '../config.js'
 import { authenticate, authorize } from '../middleware.js'
 import { sendEmail } from '../services/email.js'
 import { logActivity } from '../services/activity.js'
+import {
+  generateSecret,
+  getOtpAuthURI,
+  generateQRCodeDataUrl,
+  verifyTOTP,
+  generateBackupCodes,
+} from '../services/totp.js'
 
 const router = Router()
 
@@ -34,13 +41,32 @@ const refreshSchema = z.object({ refreshToken: z.string().min(1).optional() })
 const forgotSchema = z.object({ email: z.string().email() })
 const resetSchema = z.object({ token: z.string().min(1), password: strongPassword })
 
-// Security Rate Limiting: max 5 login attempts per IP per 2 minutes (perfect for presentation testing)
+const verify2FASchema = z.object({
+  tempToken: z.string().min(1),
+  code: z.string().min(6).max(20),
+})
+const enable2FASchema = z.object({
+  code: z.string().min(6).max(20),
+})
+const disable2FASchema = z.object({
+  password: z.string().min(1),
+})
+
+// Security Rate Limiting: max 5 login attempts per IP per 2 minutes
 const loginLimiter = rateLimit({
   windowMs: 2 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Security Rate Limit: Too many failed login attempts (5 limit reached). Please wait 2 minutes before trying again.' },
+})
+
+const twoFactorLimiter = rateLimit({
+  windowMs: 2 * 60 * 1000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Security Rate Limit: Too many verification attempts. Please wait 2 minutes before trying again.' },
 })
 
 // Helper: generate access token (15min) + refresh token (7d)
@@ -63,12 +89,13 @@ async function generateTokens(user, req) {
   return { accessToken, refreshToken }
 }
 
-// POST /api/auth/login — rate-limited (5 attempts / 2 mins), returns tokens
+// POST /api/auth/login — rate-limited (5 attempts / 2 mins), returns tokens or 2FA prompt
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentials.parse(req.body)
     const { rows } = await query(`
       SELECT u.id, u.email, u.password_hash, u.role, u.full_name, u.employee_id,
+             u.two_factor_enabled, u.two_factor_secret,
              e.department, e.department_id
       FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
@@ -76,10 +103,26 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     `, [email.toLowerCase()])
     const user = rows[0]
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      // Record failed login attempt for the audit trail (actor may be unresolved).
+      // Record failed login attempt for the audit trail
       await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'login.failed', category: 'auth', description: `Failed login attempt for ${email.toLowerCase()}` })
       return res.status(401).json({ error: 'Invalid email or password.' })
     }
+
+    // Step 2: Check if Two-Factor Authentication is enabled
+    if (user.two_factor_enabled && user.two_factor_secret) {
+      const tempToken = jwt.sign(
+        { sub: user.id, is2FAPending: true, email: user.email },
+        config.jwtSecret,
+        { expiresIn: '5m' }
+      )
+      return res.json({
+        require2FA: true,
+        tempToken,
+        email: user.email,
+        message: 'Two-factor authentication required. Please enter the 6-digit code from your Google Authenticator app.',
+      })
+    }
+
     const tokens = await generateTokens(user, req)
     // Record successful login for the audit trail.
     await logActivity({ req, user: { sub: user.id, role: user.role, name: user.full_name }, action: 'login.success', category: 'auth', description: `${user.full_name} signed in` })
@@ -95,7 +138,77 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id },
+      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id, twoFactorEnabled: Boolean(user.two_factor_enabled) },
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/auth/verify-2fa — verify TOTP / Google Authenticator code during login
+router.post('/verify-2fa', twoFactorLimiter, async (req, res, next) => {
+  try {
+    const { tempToken, code } = verify2FASchema.parse(req.body)
+    let decoded
+    try {
+      decoded = jwt.verify(tempToken, config.jwtSecret)
+    } catch {
+      return res.status(401).json({ error: '2FA session has expired or is invalid. Please sign in again.' })
+    }
+
+    if (!decoded.is2FAPending || !decoded.sub) {
+      return res.status(401).json({ error: 'Invalid 2FA session token.' })
+    }
+
+    const { rows } = await query(`
+      SELECT u.id, u.email, u.role, u.full_name, u.employee_id,
+             u.two_factor_enabled, u.two_factor_secret, u.two_factor_backup_codes,
+             e.department, e.department_id
+      FROM users u
+      LEFT JOIN employees e ON e.id = u.employee_id
+      WHERE u.id = $1 AND u.is_active = true
+    `, [decoded.sub])
+
+    const user = rows[0]
+    if (!user || !user.two_factor_enabled || !user.two_factor_secret) {
+      return res.status(400).json({ error: 'Two-factor authentication is not active for this account.' })
+    }
+
+    const cleanCode = code.trim().toUpperCase()
+    const isValidTOTP = verifyTOTP(cleanCode, user.two_factor_secret)
+
+    // Check backup codes if TOTP didn't match
+    let usedBackupCode = false
+    const backupCodes = Array.isArray(user.two_factor_backup_codes) ? user.two_factor_backup_codes : []
+    if (!isValidTOTP && backupCodes.includes(cleanCode)) {
+      usedBackupCode = true
+      const updatedBackupCodes = backupCodes.filter(b => b !== cleanCode)
+      await query('UPDATE users SET two_factor_backup_codes = $1 WHERE id = $2', [JSON.stringify(updatedBackupCodes), user.id])
+    }
+
+    if (!isValidTOTP && !usedBackupCode) {
+      await logActivity({ req, user: { sub: user.id, role: user.role, name: user.full_name }, action: 'login.2fa.failed', category: 'auth', description: `Failed 2FA verification attempt for ${user.email}` })
+      return res.status(401).json({ error: 'Invalid verification code. Please check Google Authenticator and try again.' })
+    }
+
+    const tokens = await generateTokens(user, req)
+    await logActivity({
+      req,
+      user: { sub: user.id, role: user.role, name: user.full_name },
+      action: 'login.2fa.success',
+      category: 'auth',
+      description: `${user.full_name} signed in with Google Authenticator${usedBackupCode ? ' (backup code)' : ''}`,
+    })
+
+    res.cookie('pds_refresh_token', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 86400000,
+    })
+
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id, twoFactorEnabled: true },
     })
   } catch (error) { next(error) }
 })
@@ -286,6 +399,117 @@ router.post('/register', async (req, res, next) => {
       return { token: accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id } }
     })
     res.status(201).json(result)
+  } catch (error) { next(error) }
+})
+
+// GET /api/auth/2fa/status — check if current user has 2FA enabled
+router.get('/2fa/status', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT two_factor_enabled FROM users WHERE id = $1', [req.user.sub])
+    const enabled = Boolean(rows[0]?.two_factor_enabled)
+    res.json({ enabled })
+  } catch (error) { next(error) }
+})
+
+// POST /api/auth/2fa/setup — generate new TOTP secret & QR Code for user enrollment
+router.post('/2fa/setup', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, email, two_factor_enabled FROM users WHERE id = $1', [req.user.sub])
+    const user = rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+
+    const secret = generateSecret(20)
+    await query('UPDATE users SET two_factor_temp_secret = $1 WHERE id = $2', [secret, user.id])
+
+    const otpAuthURI = getOtpAuthURI(user.email, secret, 'PerDevSys')
+    const qrCode = await generateQRCodeDataUrl(otpAuthURI)
+
+    res.json({
+      secret,
+      otpAuthURI,
+      qrCode,
+      issuer: 'PerDevSys',
+      account: user.email,
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/auth/2fa/enable — verify code against temp secret and activate 2FA
+router.post('/2fa/enable', authenticate, async (req, res, next) => {
+  try {
+    const { code } = enable2FASchema.parse(req.body)
+    const { rows } = await query('SELECT id, email, two_factor_temp_secret FROM users WHERE id = $1', [req.user.sub])
+    const user = rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+    if (!user.two_factor_temp_secret) {
+      return res.status(400).json({ error: 'Two-factor setup has not been initiated. Please scan the QR code first.' })
+    }
+
+    const isValid = verifyTOTP(code, user.two_factor_temp_secret)
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid 6-digit code. Please verify the code in your Google Authenticator app and try again.' })
+    }
+
+    const backupCodes = generateBackupCodes(8)
+    await query(`
+      UPDATE users
+      SET two_factor_enabled = true,
+          two_factor_secret = two_factor_temp_secret,
+          two_factor_temp_secret = NULL,
+          two_factor_backup_codes = $1
+      WHERE id = $2
+    `, [JSON.stringify(backupCodes), user.id])
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: '2fa.enabled',
+      category: 'auth',
+      description: `${req.user.name || 'User'} enabled Google Authenticator (2FA)`,
+    })
+
+    res.json({
+      enabled: true,
+      backupCodes,
+      message: 'Google Authenticator Two-Factor Authentication has been successfully enabled for your account.',
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/auth/2fa/disable — turn off 2FA after password confirmation
+router.post('/2fa/disable', authenticate, async (req, res, next) => {
+  try {
+    const { password } = disable2FASchema.parse(req.body)
+    const { rows } = await query('SELECT id, password_hash FROM users WHERE id = $1', [req.user.sub])
+    const user = rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+
+    const isMatch = await bcrypt.compare(password, user.password_hash)
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Incorrect password. Password confirmation is required to disable Two-Factor Authentication.' })
+    }
+
+    await query(`
+      UPDATE users
+      SET two_factor_enabled = false,
+          two_factor_secret = NULL,
+          two_factor_temp_secret = NULL,
+          two_factor_backup_codes = '[]'::jsonb
+      WHERE id = $1
+    `, [user.id])
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: '2fa.disabled',
+      category: 'auth',
+      description: `${req.user.name || 'User'} disabled Two-Factor Authentication`,
+    })
+
+    res.json({
+      enabled: false,
+      message: 'Two-Factor Authentication has been disabled.',
+    })
   } catch (error) { next(error) }
 })
 
