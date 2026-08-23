@@ -6,6 +6,7 @@ import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 import { getScopeFilter, verifyEmployeeAccess, verifyWorkflowAccess } from '../services/departmentScope.js'
+import { applyWorkflowScoreWriteBack } from '../services/workflowCompletion.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
@@ -241,130 +242,30 @@ router.post('/:id/advance', async (req, res, next) => {
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
       const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
-        await client.query("UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
-        await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, input.data])
-        // Score write-back: when a workflow completes, recalculate and update employee scores
-        if (workflow.subject_employee_id) {
-          const formData = input.data?.formData || {}
-
-          if (workflow.module === 'performance') {
-            // Collect submitted score from form data fields (various form field names used across forms)
-            const submittedScore =
-              formData.performanceScore ??
-              formData.overallScore ??
-              formData.finalScore ??
-              formData.rating ??
-              null
-
-            if (submittedScore !== null && submittedScore !== undefined && !isNaN(Number(submittedScore))) {
-              // Write the submitted performance score directly to the employee
-              await client.query(
-                'UPDATE employees SET performance_score = $1, updated_at = NOW() WHERE id = $2',
-                [Math.min(100, Math.max(0, Number(submittedScore))), workflow.subject_employee_id]
-              )
-            } else {
-              // Fallback: no explicit score submitted — leave performance_score as-is
-              console.info('[workflows] Performance workflow completed but no score found in formData.')
-            }
-          } else if (workflow.module === 'competency') {
-            // Collect submitted competency score from form data
-            const submittedScore =
-              formData.competencyScore ??
-              formData.overallCompetency ??
-              formData.score ??
-              null
-
-            if (submittedScore !== null && submittedScore !== undefined && !isNaN(Number(submittedScore))) {
-              await client.query(
-                'UPDATE employees SET competency_score = $1, updated_at = NOW() WHERE id = $2',
-                [Math.min(100, Math.max(0, Number(submittedScore))), workflow.subject_employee_id]
-              )
-            } else {
-              // Recompute from the competency_assessments table (average all scores)
-              const compResult = await client.query(
-                `SELECT COALESCE(AVG(score)::numeric(5,2), 0) AS avg_score
-                 FROM competency_assessments
-                 WHERE employee_id = $1`,
-                [workflow.subject_employee_id]
-              )
-              const computedScore = parseFloat(compResult.rows[0]?.avg_score || 0)
-              if (computedScore > 0) {
-                await client.query(
-                  'UPDATE employees SET competency_score = $1, updated_at = NOW() WHERE id = $2',
-                  [computedScore, workflow.subject_employee_id]
-                )
-              }
-            }
-          } else if (workflow.module === 'learning') {
-            if (workflow.metadata?.assignedFromCompetencyGap || formData?.assignedFromCompetencyGap) {
-              // Gap-assigned learning completion: bump competency by a fixed +10 per closed gap
-              await client.query(
-                'UPDATE employees SET competency_score = LEAST(100, competency_score + 10), updated_at = NOW() WHERE id = $1',
-                [workflow.subject_employee_id]
-              )
-              const gapCompetency = workflow.metadata?.competencyName || formData?.competencyName
-              if (gapCompetency) {
-                await client.query(
-                  `INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
-                   VALUES ($1, $2,
-                     LEAST(100, COALESCE((SELECT score FROM competency_assessments WHERE employee_id=$1 AND competency=$2), 60) + 10),
-                     COALESCE((SELECT required_score FROM competency_assessments WHERE employee_id=$1 AND competency=$2), 80),
-                     'learning_completion')
-                   ON CONFLICT (employee_id, competency)
-                   DO UPDATE SET score = LEAST(100, competency_assessments.score + 10),
-                                  source = 'learning_completion',
-                                  assessed_at = NOW(),
-                                  updated_at = NOW()`,
-                  [workflow.subject_employee_id, gapCompetency]
-                )
-              }
-            }
-
-            // Always recompute learning_progress from the real learning_assignments table
-            const lpResult = await client.query(
-              `SELECT
-                 COALESCE(
-                   ROUND(
-                     100.0 * COUNT(*) FILTER (WHERE status = 'completed' OR progress >= 100)
-                     / NULLIF(COUNT(*), 0)
-                   ), 0
-                 ) AS pct
-               FROM learning_assignments
-               WHERE employee_id = $1`,
-              [workflow.subject_employee_id]
-            )
-            const learningPct = parseFloat(lpResult.rows[0]?.pct || 0)
-            await client.query(
-              'UPDATE employees SET learning_progress = $1, updated_at = NOW() WHERE id = $2',
-              [learningPct, workflow.subject_employee_id]
-            )
-          } else if (input.scores) {
-            // Explicit scores sent from the client for other module types
-            const scoreUpdates = []
-            const scoreParams = []
-            let idx = 1
-            if (input.scores.performanceScore !== undefined) { scoreUpdates.push(`performance_score = $${idx++}`); scoreParams.push(input.scores.performanceScore) }
-            if (input.scores.competencyScore !== undefined) { scoreUpdates.push(`competency_score = $${idx++}`); scoreParams.push(input.scores.competencyScore) }
-            if (input.scores.learningProgress !== undefined) { scoreUpdates.push(`learning_progress = $${idx++}`); scoreParams.push(input.scores.learningProgress) }
-            if (scoreUpdates.length > 0) {
-              scoreParams.push(workflow.subject_employee_id)
-              await client.query(`UPDATE employees SET ${scoreUpdates.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, scoreParams)
-            }
-          }
+        const eventResult = await client.query('SELECT * FROM workflow_events WHERE workflow_id=$1 ORDER BY created_at ASC', [workflow.id])
+        const writeBack = await applyWorkflowScoreWriteBack(client, workflow, eventResult.rows, input.data, input.scores, req.user.sub)
+        const completionDetails = {
+          ...input.data,
+          ...(writeBack.scoreWriteBack ? { scoreWriteBack: writeBack.scoreWriteBack } : {}),
         }
+        const completedWorkflow = await client.query(
+          "UPDATE workflows SET status='completed', completed_at=NOW(), updated_at=NOW(), metadata=metadata || $2::jsonb WHERE id=$1 RETURNING *",
+          [workflow.id, writeBack.scoreWriteBack ? { finalResult: writeBack.scoreWriteBack } : {}],
+        )
+        await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, completionDetails])
 
         // AI-assisted analytics: calculate and save the module metrics so the
         // UI can show a "Ready to Generate AI Report" state. The AI report is
         // NOT generated automatically — HR generates it on demand via
-        // POST /:id/generate-report. This is best-effort and never blocks
-        // workflow completion even if metric calculation fails.
+        // POST /:id/generate-report. Metrics use the same transaction client
+        // so the saved preview includes the score that was just written back.
         try {
-          const { metrics, details } = await calculateMetrics(workflow.module)
-          await saveMetricsForWorkflow(client, workflow, req.user.sub, metrics)
-          return { completed: true, stage: workflow.current_stage, metricsReady: true }
+          const { metrics } = await calculateMetrics(workflow.module, {}, client)
+          await saveMetricsForWorkflow(client, completedWorkflow.rows[0], req.user.sub, metrics)
+          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, metricsReady: true }
         } catch (aiError) {
           console.warn('[workflows] Could not save metrics for workflow completion:', aiError.message)
-          return { completed: true, stage: workflow.current_stage, metricsReady: false }
+          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, metricsReady: false }
         }
       }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])

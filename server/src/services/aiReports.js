@@ -530,10 +530,11 @@ function buildSummary(module, metrics, details = {}) {
 
 import { getScopeFilter } from '../services/departmentScope.js'
 
-export async function calculateMetrics(module, { employeeId = null, department = null } = {}) {
+export async function calculateMetrics(module, { employeeId = null, department = null } = {}, db = { query }) {
+  const run = (text, params) => db.query(text, params)
   // Employee-scoped metrics — used for a single employee's PERSONAL AI insight.
   if (employeeId) {
-    const generation = await query(EMPLOYEE_METRIC_QUERIES[module], [employeeId])
+    const generation = await run(EMPLOYEE_METRIC_QUERIES[module], [employeeId])
     return { metrics: generation.rows[0], details: {} }
   }
 
@@ -543,19 +544,19 @@ export async function calculateMetrics(module, { employeeId = null, department =
     const scopedQuery = baseQuery.includes('WHERE')
       ? baseQuery.replace('WHERE', `WHERE department = $1 AND`)
       : `${baseQuery} WHERE department = $1`
-    const generation = await query(scopedQuery, [department])
+    const generation = await run(scopedQuery, [department])
     return { metrics: generation.rows[0], details: {} }
   }
 
   // Executive (org-wide) metrics.
   if (module === 'executive') {
     const [workforce, departments, workflows, succession, recognition, training] = await Promise.all([
-      query(EXECUTIVE_METRIC_QUERIES.workforce),
-      query(EXECUTIVE_METRIC_QUERIES.departments),
-      query(EXECUTIVE_METRIC_QUERIES.workflows),
-      query(EXECUTIVE_METRIC_QUERIES.succession),
-      query(EXECUTIVE_METRIC_QUERIES.recognition),
-      query(EXECUTIVE_METRIC_QUERIES.training),
+      run(EXECUTIVE_METRIC_QUERIES.workforce),
+      run(EXECUTIVE_METRIC_QUERIES.departments),
+      run(EXECUTIVE_METRIC_QUERIES.workflows),
+      run(EXECUTIVE_METRIC_QUERIES.succession),
+      run(EXECUTIVE_METRIC_QUERIES.recognition),
+      run(EXECUTIVE_METRIC_QUERIES.training),
     ])
     const activeWorkflows = workflows.rows.sort((a, b) => Number(b.count) - Number(a.count))
     return {
@@ -569,7 +570,7 @@ export async function calculateMetrics(module, { employeeId = null, department =
   }
 
   // Module-level metrics (org-wide when no department parameter).
-  const generation = await query(MODULE_METRIC_QUERIES[module])
+  const generation = await run(MODULE_METRIC_QUERIES[module])
   const detailsQuery = module === 'performance'
     ? `SELECT (SELECT full_name FROM employees WHERE is_active=true ORDER BY performance_score DESC NULLS LAST, full_name LIMIT 1) AS top_name,
         (SELECT performance_score FROM employees WHERE is_active=true ORDER BY performance_score DESC NULLS LAST, full_name LIMIT 1) AS top_score,
@@ -578,7 +579,7 @@ export async function calculateMetrics(module, { employeeId = null, department =
     : module === 'recognition'
       ? `SELECT e.full_name AS top_name, count(*)::int AS top_count FROM workflows w JOIN employees e ON e.id=w.subject_employee_id WHERE w.module='recognition' GROUP BY e.full_name ORDER BY count(*) DESC NULLS LAST, e.full_name LIMIT 1`
       : `SELECT NULL::text AS top_name`
-  const details = await query(detailsQuery)
+  const details = await run(detailsQuery)
   return { metrics: generation.rows[0], details: details.rows[0] }
 }
 
@@ -593,7 +594,7 @@ export async function generateAI(module, metrics, details = {}) {
   let content = built.summary
   try {
     const insights = await generateInsights({ moduleWorkflow: { module, stage: 'completed', scope: 'organization-wide' }, moduleMetrics: metrics, moduleDetails: details, executiveMetrics: metrics, dataContext: built.dataContext })
-    if (insights[0]?.summary) content = insights[0].summary
+    if (insights[0]?.summary && built.sections.every(section => insights[0].summary.includes(`## ${section.heading}`))) content = insights[0].summary
   } catch (error) {
     console.warn('[aiReports] LLM enrichment failed, using structured summary:', error.message)
   }
@@ -696,7 +697,7 @@ export async function generateEmployeeAI(module, metrics, details = {}) {
       employeeMetrics: metrics,
       dataContext: { datasets: [{ label: 'Personal records', count: 1 }], confidence: 100, completeness: 'high' },
     })
-    if (insights[0]?.summary) content = insights[0].summary
+    if (insights[0]?.summary && built.sections.every(section => insights[0].summary.includes(`## ${section.heading}`))) content = insights[0].summary
   } catch (error) {
     console.warn('[aiReports] LLM enrichment failed for employee AI insight, using structured summary:', error.message)
   }

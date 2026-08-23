@@ -307,11 +307,23 @@ function extractConfiguredKpis(events) {
   return null
 }
 
+function calculateWeightedKpiAverage(kpis = []) {
+  const rows = (kpis || [])
+    .map(kpi => ({ score: Number(kpi?.score), weight: Number(kpi?.weight) }))
+    .filter(kpi => Number.isFinite(kpi.score))
+  if (!rows.length) return 0
+  const totalWeight = rows.reduce((sum, kpi) => sum + (Number.isFinite(kpi.weight) && kpi.weight > 0 ? kpi.weight : 0), 0)
+  if (totalWeight > 0) {
+    return Math.round(rows.reduce((sum, kpi) => sum + kpi.score * (kpi.weight > 0 ? kpi.weight : 0), 0) / totalWeight)
+  }
+  return Math.round(rows.reduce((sum, kpi) => sum + kpi.score, 0) / rows.length)
+}
+
 function extractKpiData(events, stageKey) {
   const event = (events || []).find(ev => ev.stage === stageKey && ev.details)
   const form = event?.details?.formData || event?.details || {}
   if (Array.isArray(form.kpiRatings) && form.kpiRatings.length > 0) {
-    const overall = Number(form.overall || Math.round(form.kpiRatings.reduce((s, k) => s + Number(k.score || 0), 0) / Math.max(1, form.kpiRatings.length)))
+    const overall = calculateWeightedKpiAverage(form.kpiRatings)
     return { kpis: form.kpiRatings, overall }
   }
   if (Array.isArray(form.questions) && form.questions.length > 0) {
@@ -320,7 +332,7 @@ function extractKpiData(events, stageKey) {
       score: Math.round((Number(q.rating || 0) / 5) * 100),
       comment: q.comment || ''
     }))
-    const overall = Number(form.overall || Math.round(kpis.reduce((s, k) => s + k.score, 0) / Math.max(1, kpis.length)))
+    const overall = calculateWeightedKpiAverage(kpis)
     return { kpis, overall }
   }
   return { kpis: [], overall: 0 }
@@ -354,7 +366,7 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
         score: role === 'employee' ? 85 : 80,
         comment: '',
       }))
-      const overall = Math.round(initialRatings.reduce((sum, item) => sum + Number(item.score || 0), 0) / Math.max(1, initialRatings.length))
+      const overall = calculateWeightedKpiAverage(initialRatings)
       onChange({ ...value, kpiRatings: initialRatings, overall })
     }
   }, [initialKpis])
@@ -362,7 +374,7 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
   const updateKpiScore = (index, patch) => {
     const currentList = value.kpiRatings || initialKpis.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: 80, comment: '' }))
     const updated = currentList.map((k, i) => i === index ? { ...k, ...patch } : k)
-    const overall = Math.round(updated.reduce((sum, item) => sum + Number(item.score || 0), 0) / Math.max(1, updated.length))
+    const overall = calculateWeightedKpiAverage(updated)
     onChange({ ...value, kpiRatings: updated, overall })
   }
 
@@ -436,7 +448,7 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
       </div>
 
       <div className="builder-score-summary">
-        <span>Overall {role === 'employee' ? 'Self-Assessment' : 'Department Head'} Average:</span>
+        <span>Overall {role === 'employee' ? 'Self-Assessment' : 'Department Head'} Weighted Average:</span>
         <b className="overall-score-big">{value.overall || 0}%</b>
       </div>
     </div>
@@ -472,6 +484,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
     const absDiff = Math.abs(diff)
     return {
       name: empKpi.name,
+      weight: Number(empKpi.weight ?? deptMatch.weight ?? 0),
       empScore: empVal,
       deptScore: deptVal,
       diff,
@@ -482,8 +495,8 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
     }
   })
 
-  const overallEmpAvg = Math.round(kpiComparisons.reduce((s, k) => s + k.empScore, 0) / Math.max(1, kpiComparisons.length))
-  const overallDeptAvg = Math.round(kpiComparisons.reduce((s, k) => s + k.deptScore, 0) / Math.max(1, kpiComparisons.length))
+  const overallEmpAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.empScore, weight: kpi.weight })))
+  const overallDeptAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.deptScore, weight: kpi.weight })))
   const overallDiff = Math.round((overallEmpAvg - overallDeptAvg) * 10) / 10
   const absOverallDiff = Math.abs(overallDiff)
 

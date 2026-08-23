@@ -514,13 +514,23 @@ const complete = async () => {
       setNote('')
       setConfirmOpen(false)
       if (result.completed) {
+        if (result.employee) {
+          setPeople(prev => prev.map(person => person.id === result.employee.id ? { ...person, ...result.employee } : person))
+          setEvaluatingSubject(prev => prev?.id === result.employee.id ? { ...prev, ...result.employee } : prev)
+          setAnalyticsData(prev => prev ? {
+            ...prev,
+            employees: (prev.employees || []).map(employee => employee.id === result.employee.id ? { ...employee, ...result.employee } : employee),
+          } : prev)
+        }
         // Keep the just-completed workflow id for the AI panel (so HR can
         // generate a report immediately), then clear the active workspace so
         // the completed workflow moves to history only.
-        setLastCompleted(workflow)
+        setLastCompleted(result.workflow || workflow)
+        setAiTargetWorkflowId(result.workflow?.id || workflow.id)
         setWorkflow(null)
         setEvents([])
-        showNotice('✓ Workflow completed. Metrics calculated — you can generate the AI report now.')
+        const updatedField = result.scoreWriteBack?.field ? ` ${result.scoreWriteBack.field.replaceAll('_', ' ')} updated to ${result.scoreWriteBack.newValue}%.` : ''
+        showNotice(`Workflow completed.${updatedField} ${result.metricsReady ? 'Metrics are ready for AI report generation.' : 'Employee data was updated; metrics preview will refresh shortly.'}`)
       } else {
         showNotice(`${display} completed. ${result.nextAction} is now awaiting its assigned role.`)
       }
@@ -1176,4 +1186,3 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
     )}
   </main>
 }
-
