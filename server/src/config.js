@@ -1,4 +1,5 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
+dotenv.config({ override: true })
 
 const required = ['DATABASE_URL', 'JWT_SECRET']
 for (const key of required) {
