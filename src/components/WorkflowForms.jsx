@@ -232,6 +232,27 @@ function KpiBuilder({ value = [], onChange }) {
 
 // --------------------- Builder: KPI library (selection-first) --------------
 
+function parseNumericTarget(target, defaultVal = 100) {
+  if (typeof target === 'number' && Number.isFinite(target) && target > 0) return target
+  if (typeof target === 'string') {
+    const matched = target.match(/(\d+(\.\d+)?)/)
+    if (matched) {
+      const num = parseFloat(matched[1])
+      if (num > 0) return num
+    }
+  }
+  return defaultVal
+}
+
+function calculateKpiContribution(score, target, weight) {
+  const s = Number(score) || 0
+  const t = parseNumericTarget(target, 100)
+  const w = Number(weight) || 0
+  const achievement = t > 0 ? s / t : s / 100
+  const contribution = achievement * w
+  return Math.round(contribution * 100) / 100
+}
+
 function KpiLibraryBuilder({ value = [], onChange }) {
   const add = kpi => {
     if (!kpi || value.some(r => r.name === kpi.name)) return
@@ -240,6 +261,8 @@ function KpiLibraryBuilder({ value = [], onChange }) {
   const set = (index, patch) => onChange(value.map((row, i) => i === index ? { ...row, ...patch } : row))
   const remove = index => onChange(value.filter((_, i) => i !== index))
   const totalWeight = value.reduce((s, r) => s + Number(r.weight || 0), 0)
+  const isWeightValid = Math.abs(totalWeight - 100) <= 0.01
+
   return (
     <div className="builder competency-template-builder">
       <div className="kpi-picker-field">
@@ -262,22 +285,30 @@ function KpiLibraryBuilder({ value = [], onChange }) {
         <div className="competency-loaded">
           <div className="competency-loaded-head">
             <div>
-              <b>Selected KPIs ({value.length})</b>
-              <small>Adjust weight & target only if needed</small>
+              <b>Configured KPIs ({value.length})</b>
+              <small>Total weight must equal exactly 100% to proceed</small>
             </div>
-            <span className={`weight-total ${totalWeight === 100 ? 'ok' : ''}`}>Total {totalWeight}%</span>
+            <span className={`weight-total ${isWeightValid ? 'ok' : 'error'}`}>
+              {isWeightValid ? '✓ Total 100%' : `Total ${totalWeight}% (Must be 100%)`}
+            </span>
           </div>
           <div className="competency-table">
             {value.map((row, index) => (
               <div className="competency-table-row" key={index}>
                 <div className="competency-table-name">
-                  <input value={row.name} onChange={e => set(index, { name: e.target.value })} />
+                  <label><small>KPI Name</small>
+                    <input value={row.name} onChange={e => set(index, { name: e.target.value })} placeholder="KPI name" />
+                  </label>
                 </div>
                 <div className="kpi-table-target">
-                  <input value={row.target} onChange={e => set(index, { target: e.target.value })} placeholder="Target" />
+                  <label><small>Target Score</small>
+                    <input value={row.target} onChange={e => set(index, { target: e.target.value })} placeholder="e.g. 90" />
+                  </label>
                 </div>
                 <div className="competency-table-weight">
-                  <input type="number" value={row.weight} onChange={e => set(index, { weight: e.target.value })} min={0} max={100} />
+                  <label><small>Weight (%)</small>
+                    <input type="number" value={row.weight} onChange={e => set(index, { weight: e.target.value === '' ? '' : Number(e.target.value) })} min={0} max={100} />
+                  </label>
                   <i className="weight-bar"><em style={{ width: `${Math.min(100, Number(row.weight) || 0)}%` }} /></i>
                 </div>
                 <button type="button" className="builder-remove" onClick={() => remove(index)} aria-label="Remove KPI">×</button>
@@ -293,28 +324,44 @@ function KpiLibraryBuilder({ value = [], onChange }) {
 // ------------------------- Builder: Assessment -----------------------------
 
 const DEFAULT_KPIS = [
-  { name: 'Customer Service', target: '90%', weight: 25, description: 'Guest satisfaction and service quality standards' },
-  { name: 'Attendance & Punctuality', target: '95%', weight: 20, description: 'Punctuality and attendance reliability' },
-  { name: 'Teamwork & Collaboration', target: '90%', weight: 25, description: 'Collaboration and team support' },
-  { name: 'Problem Solving', target: '85%', weight: 30, description: 'Initiative and problem resolution skills' },
+  { name: 'Customer Service', target: '90', weight: 25, description: 'Guest satisfaction and service quality standards' },
+  { name: 'Attendance & Punctuality', target: '95', weight: 20, description: 'Punctuality and attendance reliability' },
+  { name: 'Teamwork & Collaboration', target: '90', weight: 25, description: 'Collaboration and team support' },
+  { name: 'Problem Solving', target: '85', weight: 30, description: 'Initiative and problem resolution skills' },
 ]
 
 function extractConfiguredKpis(events) {
   const event = (events || []).find(ev => ev.stage === 'configure_kpi' && ev.details)
-  const form = event?.details?.formData || event?.details || {}
+  if (!event) return null
+  const details = event.details || {}
+  const form = details.formData !== undefined ? details.formData : details
   if (Array.isArray(form) && form.length > 0) return form
   if (Array.isArray(form.kpis) && form.kpis.length > 0) return form.kpis
+  const numericValues = Object.keys(form)
+    .filter(k => /^\d+$/.test(k))
+    .map(k => form[k])
+    .filter(k => k && (k.name || k.title))
+  if (numericValues.length > 0) return numericValues
   return null
 }
 
 function calculateWeightedKpiAverage(kpis = []) {
   const rows = (kpis || [])
-    .map(kpi => ({ score: Number(kpi?.score), weight: Number(kpi?.weight) }))
+    .map(kpi => ({
+      score: Number(kpi?.score),
+      weight: Number(kpi?.weight) || 0,
+      target: kpi?.target
+    }))
     .filter(kpi => Number.isFinite(kpi.score))
   if (!rows.length) return 0
-  const totalWeight = rows.reduce((sum, kpi) => sum + (Number.isFinite(kpi.weight) && kpi.weight > 0 ? kpi.weight : 0), 0)
+  const totalWeight = rows.reduce((sum, kpi) => sum + (kpi.weight > 0 ? kpi.weight : 0), 0)
   if (totalWeight > 0) {
-    return Math.round(rows.reduce((sum, kpi) => sum + kpi.score * (kpi.weight > 0 ? kpi.weight : 0), 0) / totalWeight)
+    const totalWeightedScore = rows.reduce((sum, kpi) => {
+      const contribution = calculateKpiContribution(kpi.score, kpi.target, kpi.weight)
+      return sum + contribution
+    }, 0)
+    const normalized = (totalWeightedScore / totalWeight) * 100
+    return Math.min(100, Math.max(0, Math.round(normalized * 100) / 100))
   }
   return Math.round(rows.reduce((sum, kpi) => sum + kpi.score, 0) / rows.length)
 }
@@ -346,8 +393,8 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
     if (configuredKpis && configuredKpis.length > 0) {
       return configuredKpis.map(k => ({
         name: k.name || k.title,
-        target: k.target || '90%',
-        weight: k.weight || 25,
+        target: k.target || '90',
+        weight: Number(k.weight) || 25,
         description: k.description || '',
       }))
     }
@@ -359,74 +406,100 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
   // Ensure state initialization
   useEffect(() => {
     if (!value.kpiRatings || value.kpiRatings.length === 0) {
-      const initialRatings = initialKpis.map(k => ({
-        name: k.name,
-        target: k.target,
-        weight: k.weight,
-        score: role === 'employee' ? 85 : 80,
-        comment: '',
-      }))
+      const initialRatings = initialKpis.map(k => {
+        const empMatch = empSelfData.kpis.find(e => e.name === k.name)
+        const defaultScore = role === 'employee' ? 85 : (empMatch ? empMatch.score : 80)
+        const contribution = calculateKpiContribution(defaultScore, k.target, k.weight)
+        return {
+          name: k.name,
+          target: k.target,
+          weight: k.weight,
+          score: defaultScore,
+          contribution,
+          comment: '',
+        }
+      })
       const overall = calculateWeightedKpiAverage(initialRatings)
       onChange({ ...value, kpiRatings: initialRatings, overall })
     }
   }, [initialKpis])
 
   const updateKpiScore = (index, patch) => {
-    const currentList = value.kpiRatings || initialKpis.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: 80, comment: '' }))
-    const updated = currentList.map((k, i) => i === index ? { ...k, ...patch } : k)
+    const currentList = value.kpiRatings || initialKpis.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: 80, contribution: 0, comment: '' }))
+    const updated = currentList.map((k, i) => {
+      if (i !== index) return k
+      const merged = { ...k, ...patch }
+      merged.contribution = calculateKpiContribution(merged.score, merged.target, merged.weight)
+      return merged
+    })
     const overall = calculateWeightedKpiAverage(updated)
     onChange({ ...value, kpiRatings: updated, overall })
   }
 
-  const isDeptHeadEval = role !== 'employee' && empSelfData.kpis.length > 0
+  const isSupervisorEval = role !== 'employee' && empSelfData.kpis.length > 0
 
   return (
     <div className="builder assessment-builder">
       <div className="builder-note">
         {role === 'employee' 
-          ? 'Enter your self-assessment percentage score (0–100%) and comments for each KPI below.'
-          : 'Department Head Independent Evaluation: Enter your own evaluation score and comments for each KPI.'}
+          ? 'Enter your self-assessment score (0–100%) and comments for each configured KPI. Your weighted contribution is calculated automatically.'
+          : 'Department Head / Supervisor Evaluation: Enter your independent evaluation score and comments for each configured KPI.'}
       </div>
 
       <div className="kpi-assessment-list">
         {(kpis.length > 0 ? kpis : initialKpis).map((kpi, index) => {
           const empMatch = empSelfData.kpis.find(e => e.name === kpi.name) || empSelfData.kpis[index]
+          const currentScore = kpi.score ?? 80
+          const currentContrib = calculateKpiContribution(currentScore, kpi.target, kpi.weight)
+          const empScore = empMatch ? empMatch.score : null
+          const empContrib = empScore !== null ? calculateKpiContribution(empScore, kpi.target, kpi.weight) : null
+
           return (
             <div className="kpi-assessment-card" key={index}>
               <div className="kpi-assessment-header">
                 <div>
                   <h4 className="kpi-title">{kpi.name}</h4>
-                  {kpi.target && <span className="kpi-target-tag">Target: {kpi.target}</span>}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                    {kpi.target && <span className="kpi-target-tag">Target: {kpi.target}</span>}
+                    <span className="kpi-target-tag" style={{ background: 'var(--bg-subtle, #f3f4f6)' }}>Weight: {kpi.weight}%</span>
+                    <span className="kpi-target-tag" style={{ background: '#e0e7ff', color: '#3730a3', fontWeight: 600 }}>
+                      Contribution: {currentContrib}%
+                    </span>
+                  </div>
                 </div>
                 <div className="kpi-score-badge">
-                  <b>{kpi.score ?? 80}%</b>
+                  <b>{currentScore}%</b>
                 </div>
               </div>
 
-              {isDeptHeadEval && empMatch && (
-                <div className="emp-self-reference">
-                  <span className="reference-label">Employee Self-Rating Reference:</span>
-                  <span className="reference-score"><b>{empMatch.score}%</b></span>
-                  {empMatch.comment && <p className="reference-comment">"{empMatch.comment}"</p>}
+              {isSupervisorEval && empMatch && (
+                <div className="emp-self-reference" style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, marginTop: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="reference-label" style={{ fontWeight: 600, fontSize: 12 }}>Employee Self-Assessment:</span>
+                    <span className="reference-score">
+                      <b>{empScore}%</b> <small style={{ color: '#64748b' }}>({empContrib}% contribution)</small>
+                    </span>
+                  </div>
+                  {empMatch.comment && <p className="reference-comment" style={{ margin: '4px 0 0 0', fontSize: 12, fontStyle: 'italic', color: '#475569' }}>"{empMatch.comment}"</p>}
                 </div>
               )}
 
-              <div className="kpi-score-input-group">
+              <div className="kpi-score-input-group" style={{ marginTop: 12 }}>
                 <label className="score-label">
-                  <span>{role === 'employee' ? 'Self Score (%)' : 'Department Head Score (%)'}</span>
+                  <span>{role === 'employee' ? 'Self Score (%)' : 'Supervisor Score (%)'}</span>
                   <div className="slider-with-number">
                     <input 
                       type="range" 
                       min="0" 
                       max="100" 
-                      value={kpi.score ?? 80} 
+                      value={currentScore} 
                       onChange={e => updateKpiScore(index, { score: Number(e.target.value) })}
                     />
                     <input 
                       type="number" 
                       min="0" 
                       max="100" 
-                      value={kpi.score ?? 80} 
+                      value={currentScore} 
                       onChange={e => updateKpiScore(index, { score: Math.min(100, Math.max(0, Number(e.target.value))) })}
                     />
                     <span>%</span>
@@ -447,9 +520,9 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
         })}
       </div>
 
-      <div className="builder-score-summary">
-        <span>Overall {role === 'employee' ? 'Self-Assessment' : 'Department Head'} Weighted Average:</span>
-        <b className="overall-score-big">{value.overall || 0}%</b>
+      <div className="builder-score-summary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-card, #f8fafc)', borderRadius: 10, marginTop: 16, border: '1px solid var(--border-color, #e2e8f0)' }}>
+        <span>Total Weighted {role === 'employee' ? 'Self-Assessment' : 'Supervisor Evaluation'} Score:</span>
+        <b className="overall-score-big" style={{ fontSize: 22, color: 'var(--primary-color, #4f46e5)' }}>{value.overall || 0}%</b>
       </div>
     </div>
   )
@@ -458,46 +531,47 @@ function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
 // ------------------------- Builder: Calibration ----------------------------
 
 function CalibrationBuilder({ value = {}, onChange, events = [] }) {
+  const configuredKpis = extractConfiguredKpis(events) || []
   const empData = extractKpiData(events, 'self_assessment')
   const deptData = extractKpiData(events, 'performance_evaluation')
 
-  // Fallback data if events don't exist yet (e.g. testing calibration directly)
-  const empKpis = empData.kpis.length > 0 ? empData.kpis : [
-    { name: 'Customer Service', score: 90, comment: 'Exceeded customer satisfaction goal with positive guest reviews.' },
-    { name: 'Attendance & Punctuality', score: 95, comment: 'Zero unexcused absences and consistent on-time shifts.' },
-    { name: 'Teamwork & Collaboration', score: 85, comment: 'Supported cross-department initiatives during peak hours.' },
-    { name: 'Problem Solving', score: 88, comment: 'Proactively handled guest inquiries and system glitches.' }
-  ]
+  // Fallback data if events don't exist yet
+  const baseKpis = configuredKpis.length > 0 ? configuredKpis : (empData.kpis.length > 0 ? empData.kpis : DEFAULT_KPIS)
 
-  const deptKpis = deptData.kpis.length > 0 ? deptData.kpis : [
-    { name: 'Customer Service', score: 82, comment: 'Good service, but occasional delays reported during lunch rushes.' },
-    { name: 'Attendance & Punctuality', score: 88, comment: 'Good attendance record overall, two minor late clock-ins.' },
-    { name: 'Teamwork & Collaboration', score: 90, comment: 'Outstanding team spirit, always helps peers when busy.' },
-    { name: 'Problem Solving', score: 80, comment: 'Solves standard issues well, needs guidance on complex escalations.' }
-  ]
-
-  const kpiComparisons = empKpis.map((empKpi, i) => {
-    const deptMatch = deptKpis.find(d => d.name === empKpi.name) || deptKpis[i] || { score: 85, comment: '' }
-    const empVal = Number(empKpi.score || 0)
+  const kpiComparisons = baseKpis.map((kpi, i) => {
+    const empMatch = empData.kpis.find(d => d.name === (kpi.name || kpi.title)) || empData.kpis[i] || { score: 85, comment: '' }
+    const deptMatch = deptData.kpis.find(d => d.name === (kpi.name || kpi.title)) || deptData.kpis[i] || { score: 80, comment: '' }
+    
+    const target = kpi.target || '90'
+    const weight = Number(kpi.weight) || 25
+    const empVal = Number(empMatch.score || 0)
     const deptVal = Number(deptMatch.score || 0)
+    const empContrib = calculateKpiContribution(empVal, target, weight)
+    const deptContrib = calculateKpiContribution(deptVal, target, weight)
     const diff = empVal - deptVal
+    const contribDiff = Math.round((empContrib - deptContrib) * 100) / 100
     const absDiff = Math.abs(diff)
+
     return {
-      name: empKpi.name,
-      weight: Number(empKpi.weight ?? deptMatch.weight ?? 0),
+      name: kpi.name || kpi.title,
+      target,
+      weight,
       empScore: empVal,
       deptScore: deptVal,
+      empContrib,
+      deptContrib,
       diff,
+      contribDiff,
       absDiff,
       isDisagreement: absDiff >= 5,
-      empComment: empKpi.comment || '',
+      empComment: empMatch.comment || '',
       deptComment: deptMatch.comment || ''
     }
   })
 
-  const overallEmpAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.empScore, weight: kpi.weight })))
-  const overallDeptAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.deptScore, weight: kpi.weight })))
-  const overallDiff = Math.round((overallEmpAvg - overallDeptAvg) * 10) / 10
+  const overallEmpAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.empScore, weight: kpi.weight, target: kpi.target })))
+  const overallDeptAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.deptScore, weight: kpi.weight, target: kpi.target })))
+  const overallDiff = Math.round((overallEmpAvg - overallDeptAvg) * 100) / 100
   const absOverallDiff = Math.abs(overallDiff)
 
   const decision = value.decision || ''
@@ -509,9 +583,9 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
 
   const handleDecisionSelect = opt => {
     let calculatedFinal = ''
-    if (opt.includes('Department Head') || opt.includes('Dept Head')) calculatedFinal = overallDeptAvg
+    if (opt.includes('Department Head') || opt.includes('Dept Head') || opt.includes('Supervisor')) calculatedFinal = overallDeptAvg
     else if (opt.includes('Self-Assessment') || opt.includes('Employee')) calculatedFinal = overallEmpAvg
-    else if (opt.includes('Average')) calculatedFinal = Math.round((overallEmpAvg + overallDeptAvg) / 2)
+    else if (opt.includes('Average')) calculatedFinal = Math.round(((overallEmpAvg + overallDeptAvg) / 2) * 100) / 100
     else if (opt.includes('Override') || opt.includes('Adjust')) calculatedFinal = value.finalScore ?? overallDeptAvg
     else calculatedFinal = ''
 
@@ -521,7 +595,8 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
       finalScore: calculatedFinal,
       employeeAvg: overallEmpAvg,
       deptAvg: overallDeptAvg,
-      overallDiff
+      overallDiff,
+      kpiComparisons
     })
   }
 
@@ -537,7 +612,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
         <div className="calibration-card emp-card">
           <span className="card-tag">Employee Self-Assessment</span>
           <b className="card-score">{overallEmpAvg}%</b>
-          <small className="card-sub">Overall Average</small>
+          <small className="card-sub">Weighted Total Score</small>
         </div>
 
         <div className="calibration-card diff-card">
@@ -551,28 +626,28 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
         </div>
 
         <div className="calibration-card dept-card">
-          <span className="card-tag">Department Head Evaluation</span>
+          <span className="card-tag">Supervisor Evaluation</span>
           <b className="card-score">{overallDeptAvg}%</b>
-          <small className="card-sub">Overall Average</small>
+          <small className="card-sub">Weighted Total Score</small>
         </div>
       </div>
 
       {/* KPI Comparison Table */}
       <div className="calibration-section">
         <div className="section-head">
-          <h4>KPI Score Comparison & Disagreement Breakdown</h4>
-          <span className="section-hint">High discrepancy items (≥5% gap) are flagged for HR calibration review</span>
+          <h4>KPI Score & Contribution Comparison</h4>
+          <span className="section-hint">Review both scores and weighted contributions before final calibration</span>
         </div>
 
         <div className="calibration-table-wrap">
           <table className="calibration-table">
             <thead>
               <tr>
-                <th>KPI / Metric</th>
+                <th>KPI / Target / Weight</th>
                 <th className="text-center">Employee Self</th>
-                <th className="text-center">Dept Head</th>
+                <th className="text-center">Supervisor</th>
                 <th className="text-center">Difference</th>
-                <th>Status & Comments</th>
+                <th>Status & Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -580,17 +655,25 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
                 <tr key={index} className={item.isDisagreement ? 'row-disagreement' : ''}>
                   <td className="kpi-cell">
                     <strong>{item.name}</strong>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                      Target: {item.target} · Weight: {item.weight}%
+                    </div>
                   </td>
                   <td className="text-center score-emp">
-                    <span>{item.empScore}%</span>
+                    <div><b>{item.empScore}%</b></div>
+                    <small style={{ color: '#64748b', fontSize: 10 }}>({item.empContrib}% contrib)</small>
                   </td>
                   <td className="text-center score-dept">
-                    <span>{item.deptScore}%</span>
+                    <div><b>{item.deptScore}%</b></div>
+                    <small style={{ color: '#64748b', fontSize: 10 }}>({item.deptContrib}% contrib)</small>
                   </td>
                   <td className="text-center">
                     <span className={`diff-pill ${item.diff > 0 ? 'pill-plus' : item.diff < 0 ? 'pill-minus' : 'pill-zero'}`}>
                       {item.diff > 0 ? `+${item.diff}` : item.diff} pts
                     </span>
+                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                      {item.contribDiff > 0 ? `+${item.contribDiff}` : item.contribDiff}% contrib
+                    </div>
                   </td>
                   <td>
                     <div className="status-notes-cell">
@@ -606,7 +689,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
                           className="toggle-comments-btn"
                           onClick={() => toggleComments(index)}
                         >
-                          {expandedComments[index] ? 'Hide Comments' : 'View Notes'}
+                          {expandedComments[index] ? 'Hide Notes' : 'View Notes'}
                         </button>
                       )}
                     </div>
@@ -615,13 +698,13 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
                       <div className="comments-expand-box">
                         {item.empComment && (
                           <div className="comment-block emp-comment">
-                            <small>Employee Comment:</small>
+                            <small>Employee Self Note:</small>
                             <p>"{item.empComment}"</p>
                           </div>
                         )}
                         {item.deptComment && (
                           <div className="comment-block dept-comment">
-                            <small>Department Head Comment:</small>
+                            <small>Supervisor Note:</small>
                             <p>"{item.deptComment}"</p>
                           </div>
                         )}
@@ -642,11 +725,11 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
 
         <div className="decision-options-grid">
           {[
-            { id: 'Accept Department Head Score', label: 'Accept Dept Head Score', sub: `${overallDeptAvg}% final score` },
-            { id: 'Accept Employee Self-Assessment', label: 'Accept Employee Self-Assessment', sub: `${overallEmpAvg}% final score` },
-            { id: 'Use Average of Scores', label: 'Use Average Score', sub: `${Math.round((overallEmpAvg + overallDeptAvg)/2)}% final score` },
+            { id: 'Accept Department Head Score', label: 'Accept Supervisor Evaluation', sub: `${overallDeptAvg}% weighted final score` },
+            { id: 'Accept Employee Self-Assessment', label: 'Accept Employee Self-Assessment', sub: `${overallEmpAvg}% weighted final score` },
+            { id: 'Use Average of Scores', label: 'Use Average Score', sub: `${Math.round(((overallEmpAvg + overallDeptAvg)/2) * 100) / 100}% final score` },
             { id: 'Override Final Score', label: 'Adjust / Override Final Score', sub: 'Custom calibrated score' },
-            { id: 'Return for Revision', label: 'Return Evaluation for Revision', sub: 'Send back to Dept Head' }
+            { id: 'Return for Revision', label: 'Return Evaluation for Revision', sub: 'Send back to Supervisor' }
           ].map(opt => (
             <button
               key={opt.id}
@@ -667,18 +750,19 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
         {decision && !isReturn && (
           <div className="final-score-box">
             <label className="form-field">
-              <span>Final Calibrated Score (%) *</span>
+              <span>Final Calibrated Performance Score (%) *</span>
               <input
                 type="number"
                 min="0"
                 max="100"
+                step="0.01"
                 value={value.finalScore ?? ''}
                 disabled={!isOverride}
                 onChange={e => set({ finalScore: e.target.value === '' ? '' : Number(e.target.value) })}
                 className="final-score-input"
               />
               <small className="field-hint">
-                {isOverride ? 'Enter custom calibrated percentage score.' : 'Automatically computed based on your calibration decision.'}
+                {isOverride ? 'Enter custom calibrated percentage score.' : 'Authoritative score that will update the employee record in real time upon workflow completion.'}
               </small>
             </label>
           </div>

@@ -353,16 +353,30 @@ const setFormValue = useCallback((patchOrValue, meta) => {
     setFormData(prev => ({ ...prev, [key]: patchOrValue }))
   }, [workflow?.current_stage, people])
 
-// Check if form is valid for the current step
+  // Check if form is valid for the current step
   const isFormValid = useMemo(() => {
     if (!currentFormConfig) return true // no form config = allow
     if (currentFormConfig.aiOnly) return true // no fields needed for AI steps
+    if (currentFormConfig.builder === 'kpiLibrary' || currentFormConfig.builder === 'kpi') {
+      const v = currentFormValue
+      const kpis = Array.isArray(v) ? v : (v?.kpis || [])
+      if (!kpis.length) return false
+      const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
+      if (Math.abs(totalWeight - 100) > 0.01) return false
+      return kpis.every(k => k.name && String(k.name).trim() && Number(k.weight) > 0 && k.target !== undefined && k.target !== '')
+    }
+    if (currentFormConfig.builder === 'assessment') {
+      const v = currentFormValue
+      const ratings = v?.kpiRatings || []
+      if (!ratings.length) return false
+      return ratings.every(r => r.score !== undefined && r.score !== '' && Number(r.score) >= 0 && Number(r.score) <= 100)
+    }
     if (currentFormConfig.builder === 'calibration') {
       const v = currentFormValue
       const decision = v?.decision || ''
       if (!decision) return false
-      if (decision === 'Override Final Score' && (v?.finalScore === '' || v?.finalScore === undefined || v?.finalScore === null)) return false
-      if ((decision === 'Override Final Score' || decision === 'Return for Reassessment') && !String(v?.reason || '').trim()) return false
+      if (decision.includes('Override') && (v?.finalScore === '' || v?.finalScore === undefined || v?.finalScore === null)) return false
+      if ((decision.includes('Override') || decision.includes('Return')) && !String(v?.reason || '').trim()) return false
       return true
     }
     const fields = currentFormConfig.fields || []
@@ -546,6 +560,42 @@ const complete = async () => {
   // modal for non-destructive actions. The button itself performs the action.
   const handleCompleteWithValidation = () => {
     if (currentFormConfig && !isFormValid) {
+      if (currentFormConfig.builder === 'kpiLibrary' || currentFormConfig.builder === 'kpi') {
+        const kpis = Array.isArray(currentFormValue) ? currentFormValue : (currentFormValue?.kpis || [])
+        if (!kpis.length) {
+          setError('Please configure at least one KPI before proceeding.')
+          return
+        }
+        const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
+        if (Math.abs(totalWeight - 100) > 0.01) {
+          setError(`Total KPI weight must equal exactly 100% (currently ${totalWeight}%). Please adjust the weights.`)
+          return
+        }
+        const invalidKpi = kpis.find(k => !k.name || !String(k.name).trim() || !(Number(k.weight) > 0))
+        if (invalidKpi) {
+          setError('Each KPI must have a name, weight greater than 0%, and target value.')
+          return
+        }
+      }
+      if (currentFormConfig.builder === 'assessment') {
+        setError('Please enter a valid evaluation score (0–100%) for all KPIs before completing this step.')
+        return
+      }
+      if (currentFormConfig.builder === 'calibration') {
+        const v = currentFormValue
+        if (!v?.decision) {
+          setError('Please select an HR Calibration Decision before completing this step.')
+          return
+        }
+        if (v.decision.includes('Override') && (v.finalScore === '' || v.finalScore === undefined || v.finalScore === null)) {
+          setError('Please enter a Final Calibrated Score (%) for the override decision.')
+          return
+        }
+        if ((v.decision.includes('Override') || v.decision.includes('Return')) && !String(v.reason || '').trim()) {
+          setError('Please provide calibration notes / justification for this decision.')
+          return
+        }
+      }
       const missingFields = (currentFormConfig.fields || [])
         .filter(f => f.required)
         .filter(f => {

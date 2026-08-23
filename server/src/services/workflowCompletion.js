@@ -10,6 +10,27 @@ const clampScore = value => {
   return Math.min(100, Math.max(0, Math.round(number * 100) / 100))
 }
 
+const parseNumericTarget = (target, defaultVal = 100) => {
+  if (typeof target === 'number' && Number.isFinite(target) && target > 0) return target
+  if (typeof target === 'string') {
+    const matched = target.match(/(\d+(\.\d+)?)/)
+    if (matched) {
+      const num = parseFloat(matched[1])
+      if (num > 0) return num
+    }
+  }
+  return defaultVal
+}
+
+const calculateKpiContribution = (score, target, weight) => {
+  const s = Number(score) || 0
+  const t = parseNumericTarget(target, 100)
+  const w = Number(weight) || 0
+  const achievement = t > 0 ? s / t : s / 100
+  const contribution = achievement * w
+  return Math.round(contribution * 100) / 100
+}
+
 const formFromDetails = details => {
   if (!details || typeof details !== 'object') return {}
   return details.formData && typeof details.formData === 'object' ? details.formData : details
@@ -32,12 +53,21 @@ const average = values => {
 
 const weightedKpiAverage = kpis => {
   const rows = (kpis || [])
-    .map(kpi => ({ score: clampScore(kpi?.score), weight: Number(kpi?.weight) }))
+    .map(kpi => ({
+      score: clampScore(kpi?.score),
+      weight: Number(kpi?.weight) || 0,
+      target: kpi?.target
+    }))
     .filter(kpi => kpi.score !== null)
   if (!rows.length) return null
-  const totalWeight = rows.reduce((sum, kpi) => sum + (Number.isFinite(kpi.weight) && kpi.weight > 0 ? kpi.weight : 0), 0)
+  const totalWeight = rows.reduce((sum, kpi) => sum + (kpi.weight > 0 ? kpi.weight : 0), 0)
   if (totalWeight > 0) {
-    return Math.round((rows.reduce((sum, kpi) => sum + kpi.score * (kpi.weight > 0 ? kpi.weight : 0), 0) / totalWeight) * 100) / 100
+    const totalWeightedScore = rows.reduce((sum, kpi) => {
+      const contribution = calculateKpiContribution(kpi.score, kpi.target, kpi.weight)
+      return sum + contribution
+    }, 0)
+    const normalized = (totalWeightedScore / totalWeight) * 100
+    return Math.min(100, Math.max(0, Math.round(normalized * 100) / 100))
   }
   return average(rows.map(kpi => kpi.score))
 }

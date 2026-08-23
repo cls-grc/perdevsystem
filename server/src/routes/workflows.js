@@ -240,6 +240,25 @@ router.post('/:id/advance', async (req, res, next) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
+      if (workflow.module === 'performance' && workflow.current_stage === 'configure_kpi') {
+        const formData = input.data?.formData || input.data || {}
+        const kpis = Array.isArray(formData) ? formData : (formData.kpis || formData.kpiRatings || [])
+        if (!kpis.length) {
+          throw Object.assign(new Error('At least one KPI must be configured before proceeding.'), { status: 400 })
+        }
+        const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
+        if (Math.abs(totalWeight - 100) > 0.5) {
+          throw Object.assign(new Error(`Total KPI weights must equal 100% (currently ${totalWeight}%). Please adjust weights before proceeding.`), { status: 400 })
+        }
+        for (const k of kpis) {
+          if (!k.name || !String(k.name).trim()) {
+            throw Object.assign(new Error('Every KPI must have a name.'), { status: 400 })
+          }
+          if (!(Number(k.weight) > 0)) {
+            throw Object.assign(new Error(`KPI "${k.name}" must have a weight greater than 0%.`), { status: 400 })
+          }
+        }
+      }
       const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
         const eventResult = await client.query('SELECT * FROM workflow_events WHERE workflow_id=$1 ORDER BY created_at ASC', [workflow.id])
