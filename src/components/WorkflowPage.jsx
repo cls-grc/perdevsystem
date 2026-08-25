@@ -6,6 +6,7 @@ import WorkflowTimeline from './WorkflowTimeline'
 import ModuleDashboard from './ModuleDashboard'
 import ModuleBusinessView from './ModuleBusinessView'
 import useDialogFocus from '../hooks/useDialogFocus'
+import { usePolling } from '../hooks/usePolling'
 import { api } from '../lib/api'
 import { configFor, computeModuleStats, STAGE_GUIDES, COMMENT_SUGGESTIONS, QUICK_DECISIONS, isApprovalStage } from '../workflowConfig'
 import { getInitialValue } from './WorkflowForms'
@@ -205,6 +206,25 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
   useEffect(() => {
     void load()
   }, [load])
+
+  // Silent background refresh every 45 s — keeps workflow status in sync without
+  // showing a loading spinner. Uses the same load() that the initial mount uses.
+  const silentLoad = useCallback(async () => {
+    try {
+      const [list, completedList] = await Promise.all([
+        api.workflows(moduleKey),
+        api.workflows(moduleKey, { status: 'completed' }),
+      ])
+      const active = (list.workflows || []).find(w => w.status === 'active') || null
+      setWorkflows(list.workflows || [])
+      setCompletedWorkflows(completedList.workflows || [])
+      setWorkflow(active)
+    } catch {
+      // Silent — never surface polling errors
+    }
+  }, [moduleKey])
+
+  usePolling(silentLoad, 45000)
 
   const normalizedStages = useMemo(() => {
     if (definitions.length) return definitions
@@ -459,6 +479,7 @@ const start = async (options = {}) => {
       setComposerQuery('')
       resetWorkflowState()
       showNotice(`${roleAction || 'Workflow'} created. Starting at Step 1.`)
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await load()
     } catch (requestError) {
       setNotice('')
@@ -548,6 +569,7 @@ const complete = async () => {
       } else {
         showNotice(`${display} completed. ${result.nextAction} is now awaiting its assigned role.`)
       }
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -696,6 +718,7 @@ const quickAction = action => {
       setReturnTarget('')
       setReturnNote('')
       showNotice(`Workflow returned to "${result.returnedTo}" for the assigned role to redo.`)
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -714,6 +737,7 @@ const quickAction = action => {
       setCancelOpen(false)
       setCancelReason('')
       showNotice('Workflow cancelled and recorded in the audit history.', 'info')
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await load()
     } catch (requestError) {
       setError(requestError.message)

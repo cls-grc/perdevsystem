@@ -35,6 +35,7 @@ button { touch-action: manipulation; }
 @media (max-width: 680px) {
   /* Hide desktop sidebar entirely; show via mobile drawer */
   .sidebar { display: none !important; }
+  .fixed-main { margin-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
 
   /* Slim fixed top bar */
   .topbar {

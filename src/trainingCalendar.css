@@ -311,10 +311,16 @@
   border-radius: 99px;
 }
 
-.session-status-badge.confirmed { background: #dcfce7; color: #15803d; }
-.session-status-badge.open { background: #dbeafe; color: #1e40af; }
-.session-status-badge.waitlist { background: #fef3c7; color: #b45309; }
+.session-status-badge.confirmed, .session-status-badge.completed { background: #dcfce7; color: #15803d; }
+.session-status-badge.open, .session-status-badge.ongoing { background: #dbeafe; color: #1e40af; }
+.session-status-badge.waitlist, .session-status-badge.scheduled { background: #ede9fe; color: #6d28d9; }
 .session-status-badge.draft { background: #f3f4f6; color: #4b5563; }
+.session-status-badge.cancelled { background: #fee2e2; color: #b91c1c; }
+
+.dark .session-status-badge.completed { background: rgba(16, 185, 129, 0.2) !important; color: #6ee7b7 !important; }
+.dark .session-status-badge.cancelled { background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; }
+.dark .session-status-badge.scheduled { background: rgba(139, 92, 246, 0.2) !important; color: #c4b5fd !important; }
+.dark .session-status-badge.ongoing { background: rgba(59, 130, 246, 0.2) !important; color: #93c5fd !important; }
 
 .session-title {
   font-size: 16px;
@@ -711,3 +717,470 @@
 }
 .overview-ai-insight-block h4 { font-size: 14px; font-weight: 700; color: #111827; margin: 0 0 6px 0; }
 .overview-ai-insight-block p { font-size: 13px; color: #374151; line-height: 1.6; margin: 0; }
+
+/* ---------------------------------------------------------------------------
+   DARK MODE COMPATIBILITY OVERRIDES FOR TRAINING CALENDAR
+--------------------------------------------------------------------------- */
+.dark .training-header-bar,
+.dark .calendar-view-card,
+.dark .session-card,
+.dark .overview-panel,
+.dark .analytics-overview-card {
+  background: #111625 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+.dark .calendar-header-nav {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .calendar-month-title {
+  color: #f8fafc !important;
+}
+.dark .calendar-grid-header {
+  color: #94a3b8 !important;
+}
+
+.dark .calendar-day-cell {
+  background: #151b2c !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f8fafc !important;
+}
+.dark .calendar-day-cell:hover {
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+.dark .calendar-day-cell.other-month {
+  background: #0d1220 !important;
+  opacity: 0.35;
+}
+.dark .calendar-day-cell.today {
+  background: #1a2238 !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .day-number {
+  color: #f8fafc !important;
+}
+.dark .calendar-day-cell.today .day-number {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+}
+
+.dark .month-nav-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+.dark .month-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.dark .calendar-event-chip {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #c4b5fd !important;
+  border-left-color: #8b5cf6 !important;
+}
+.dark .calendar-event-chip.food-safety { border-left-color: #10b981 !important; background: rgba(16, 185, 129, 0.2) !important; color: #6ee7b7 !important; }
+.dark .calendar-event-chip.service { border-left-color: #06b6d4 !important; background: rgba(6, 182, 212, 0.2) !important; color: #67e8f9 !important; }
+.dark .calendar-event-chip.leadership { border-left-color: #8b5cf6 !important; background: rgba(139, 92, 246, 0.2) !important; color: #c4b5fd !important; }
+.dark .calendar-event-chip.compliance { border-left-color: #f59e0b !important; background: rgba(245, 158, 11, 0.2) !important; color: #fcd34d !important; }
+
+.dark .session-title {
+  color: #f8fafc !important;
+}
+.dark .session-meta-list {
+  color: #94a3b8 !important;
+}
+.dark .session-category-tag {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #c4b5fd !important;
+}
+.dark .session-bar-track {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .session-card-actions {
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .session-action-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+.dark .session-action-btn:hover {
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  color: #c4b5fd !important;
+}
+.dark .session-action-btn.primary {
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%) !important;
+  color: #ffffff !important;
+}
+
+.dark .overview-panel-head h3 {
+  color: #f8fafc !important;
+}
+.dark .overview-session-row {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .overview-session-info b {
+  color: #f8fafc !important;
+}
+.dark .overview-cat-name {
+  color: #f8fafc !important;
+}
+.dark .overview-cat-bar-wrap {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .overview-ai-metric-chip {
+  background: #161e33 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .overview-ai-metric-chip b {
+  color: #c4b5fd !important;
+}
+.dark .overview-ai-insight-block h4 {
+  color: #f8fafc !important;
+}
+.dark .overview-ai-insight-block p {
+  color: #cbd5e1 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   MODAL DARK MODE & COMPONENT REFINEMENTS
+--------------------------------------------------------------------------- */
+
+/* Modal Backdrop and Content */
+.dark .training-modal-overlay {
+  background: rgba(5, 7, 13, 0.75) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+.dark .training-modal-content {
+  background: #111625 !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Modal Scrollbar Styling — sleek and dark, no white tracks */
+.training-modal-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.25) transparent;
+}
+.training-modal-content::-webkit-scrollbar,
+.attendance-table-wrap::-webkit-scrollbar,
+.training-invite-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.training-modal-content::-webkit-scrollbar-track,
+.attendance-table-wrap::-webkit-scrollbar-track,
+.training-invite-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.training-modal-content::-webkit-scrollbar-thumb,
+.attendance-table-wrap::-webkit-scrollbar-thumb,
+.training-invite-list::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.25);
+  border-radius: 6px;
+}
+.training-modal-content::-webkit-scrollbar-thumb:hover,
+.attendance-table-wrap::-webkit-scrollbar-thumb:hover,
+.training-invite-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.45);
+}
+
+.dark .training-modal-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Session Details: Overview Stats Box */
+.training-detail-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+.training-detail-stats-grid b {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  display: inline-block;
+  margin-bottom: 2px;
+}
+
+.text-muted-sub {
+  color: #64748b;
+}
+
+.dark .training-detail-stats-grid {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .training-detail-stats-grid b {
+  color: #f8fafc !important;
+}
+
+.dark .stat-label {
+  color: #94a3b8 !important;
+}
+
+.dark .text-muted-sub {
+  color: #94a3b8 !important;
+}
+
+/* Cancel Session Button */
+.session-btn-cancel {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+.session-btn-cancel:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+}
+
+/* Attendance Table */
+.attendance-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-top: 10px;
+  max-height: 280px;
+}
+
+.dark .attendance-table-wrap {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.attendance-sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.attendance-sheet-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.attendance-sheet-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+}
+
+.dark .attendance-sheet-table th {
+  background: #161b2a !important;
+  color: #94a3b8 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .attendance-sheet-table td {
+  border-bottom-color: rgba(255, 255, 255, 0.04) !important;
+  color: #f8fafc !important;
+}
+
+.dark .attendance-sheet-table tr:hover {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Attendance status toggle pills */
+.att-status-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dark .att-status-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #94a3b8 !important;
+}
+.dark .att-status-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+.dark .att-status-btn.present.active {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+.dark .att-status-btn.absent.active {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+.dark .att-status-btn.late.active {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+.dark .att-status-btn.excused.active {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #c4b5fd !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+/* Training Evaluation Card */
+.training-eval-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-top: 18px;
+}
+
+.dark .training-eval-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+/* Invite Modal List */
+.training-invite-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.dark .training-invite-list {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.invite-emp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.invite-emp-row:hover {
+  background: #f8fafc;
+}
+
+.invite-emp-row.checked {
+  background: #f0edff;
+}
+
+.dark .invite-emp-row:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.dark .invite-emp-row.checked {
+  background: rgba(139, 92, 246, 0.15) !important;
+  color: #c4b5fd !important;
+}
+
+/* Analytics Metric Boxes */
+.training-metric-box {
+  padding: 12px;
+  border-radius: 10px;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.training-metric-box.neutral { background: #f3f4f6; color: #111827; }
+.training-metric-box.green { background: #dcfce7; color: #15803d; }
+.training-metric-box.blue { background: #dbeafe; color: #1e40af; }
+.training-metric-box.amber { background: #fef3c7; color: #b45309; }
+
+.dark .training-metric-box.neutral {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+.dark .training-metric-box.neutral small { color: #94a3b8 !important; }
+
+.dark .training-metric-box.green {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+  color: #6ee7b7 !important;
+}
+.dark .training-metric-box.green small,
+.dark .training-metric-box.green b { color: #6ee7b7 !important; }
+
+.dark .training-metric-box.blue {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  color: #93c5fd !important;
+}
+.dark .training-metric-box.blue small,
+.dark .training-metric-box.blue b { color: #93c5fd !important; }
+
+.dark .training-metric-box.amber {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.25) !important;
+  color: #fcd34d !important;
+}
+.dark .training-metric-box.amber small,
+.dark .training-metric-box.amber b { color: #fcd34d !important; }
+
+/* AI Brief Banner */
+.training-ai-brief-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0edff;
+  border: 1px solid #d5cefc;
+  padding: 12px 16px;
+  border-radius: 10px;
+}
+
+.training-ai-brief-banner b {
+  color: #4b36ab;
+}
+
+.dark .training-ai-brief-banner {
+  background: rgba(139, 92, 246, 0.12) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+  color: #f8fafc !important;
+}
+.dark .training-ai-brief-banner b {
+  color: #c4b5fd !important;
+}
+
+.training-ai-report-wrap {
+  margin-top: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.dark .training-ai-report-wrap {
+  background: #161b2a !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}

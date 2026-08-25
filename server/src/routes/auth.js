@@ -52,22 +52,27 @@ const disable2FASchema = z.object({
   password: z.string().min(1),
 })
 
-// Security Rate Limiting: max 5 login attempts per IP per 2 minutes
+// Security Rate Limiting
 const loginLimiter = rateLimit({
   windowMs: 2 * 60 * 1000,
-  max: 5,
+  max: 30, // Relaxed IP rate-limiter so account-level 3-attempt lockout executes cleanly
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Security Rate Limit: Too many failed login attempts (5 limit reached). Please wait 2 minutes before trying again.' },
+  message: { error: 'Security Rate Limit: Too many requests from this IP. Please wait 2 minutes.' },
 })
 
 const twoFactorLimiter = rateLimit({
   windowMs: 2 * 60 * 1000,
-  max: 6,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Security Rate Limit: Too many verification attempts. Please wait 2 minutes before trying again.' },
 })
+
+// Account Lockout on 3 Failed Attempts for 1 Minute (60 seconds)
+const failedAttemptsMap = new Map()
+const LOCKOUT_DURATION_MS = 60 * 1000 // 1 minute for capstone demonstration
+const MAX_FAILED_ATTEMPTS = 3
 
 // Helper: generate access token (15min) + refresh token (7d)
 async function generateTokens(user, req) {
@@ -89,10 +94,22 @@ async function generateTokens(user, req) {
   return { accessToken, refreshToken }
 }
 
-// POST /api/auth/login — rate-limited (5 attempts / 2 mins), returns tokens or 2FA prompt
+// POST /api/auth/login — with 3-attempt / 1-minute lockout protection
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentials.parse(req.body)
+    const normalizedEmail = email.toLowerCase().trim()
+
+    // Step 1: Check if account is currently locked due to 3 failed attempts
+    const lockRecord = failedAttemptsMap.get(normalizedEmail)
+    if (lockRecord && lockRecord.lockedUntil && lockRecord.lockedUntil > Date.now()) {
+      const remainingSeconds = Math.ceil((lockRecord.lockedUntil - Date.now()) / 1000)
+      return res.status(429).json({
+        error: `Account is temporarily locked due to 3 failed login attempts. Please try again in ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}.`,
+        lockedRemainingSeconds: remainingSeconds,
+      })
+    }
+
     const { rows } = await query(`
       SELECT u.id, u.email, u.password_hash, u.role, u.full_name, u.employee_id,
              u.two_factor_enabled, u.two_factor_secret,
@@ -100,15 +117,53 @@ router.post('/login', loginLimiter, async (req, res, next) => {
       FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.email = $1 AND u.is_active = true
-    `, [email.toLowerCase()])
+    `, [normalizedEmail])
     const user = rows[0]
+
+    // Step 2: Validate password
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      // Record failed login attempt for the audit trail
-      await logActivity({ req, user: { sub: null, role: null, name: null }, action: 'login.failed', category: 'auth', description: `Failed login attempt for ${email.toLowerCase()}` })
-      return res.status(401).json({ error: 'Invalid email or password.' })
+      // Record failed login attempt
+      const current = failedAttemptsMap.get(normalizedEmail) || { count: 0, lockedUntil: null }
+      current.count += 1
+
+      if (current.count >= MAX_FAILED_ATTEMPTS) {
+        current.lockedUntil = Date.now() + LOCKOUT_DURATION_MS
+        current.count = 0
+        failedAttemptsMap.set(normalizedEmail, current)
+
+        await logActivity({
+          req,
+          user: { sub: user?.id || null, role: user?.role || null, name: user?.full_name || null },
+          action: 'login.locked',
+          category: 'auth',
+          description: `Account ${normalizedEmail} locked for 1 minute due to 3 consecutive failed login attempts`,
+        })
+
+        return res.status(429).json({
+          error: 'Account is temporarily locked due to 3 failed login attempts. Please try again in 60 seconds.',
+          lockedRemainingSeconds: 60,
+        })
+      } else {
+        failedAttemptsMap.set(normalizedEmail, current)
+        const attemptsLeft = MAX_FAILED_ATTEMPTS - current.count
+        await logActivity({
+          req,
+          user: { sub: null, role: null, name: null },
+          action: 'login.failed',
+          category: 'auth',
+          description: `Failed login attempt for ${normalizedEmail} (${attemptsLeft} attempt(s) remaining)`,
+        })
+        return res.status(401).json({
+          error: `Invalid email or password. You have ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} remaining before a 1-minute account lockout.`,
+          attemptsLeft,
+        })
+      }
     }
 
-    // Step 2: Check if Two-Factor Authentication is enabled
+    // Login successful — reset failed attempts tracker
+    failedAttemptsMap.delete(normalizedEmail)
+
+    // Step 3: Check if Two-Factor Authentication is enabled
     if (user.two_factor_enabled && user.two_factor_secret) {
       const tempToken = jwt.sign(
         { sub: user.id, is2FAPending: true, email: user.email },
@@ -124,10 +179,8 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     }
 
     const tokens = await generateTokens(user, req)
-    // Record successful login for the audit trail.
     await logActivity({ req, user: { sub: user.id, role: user.role, name: user.full_name }, action: 'login.success', category: 'auth', description: `${user.full_name} signed in` })
     
-    // Set secure HttpOnly cookie for production browsers while retaining body token for API clients
     res.cookie('pds_refresh_token', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

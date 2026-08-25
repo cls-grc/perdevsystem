@@ -26,16 +26,120 @@ router.get('/dashboard', authorize('hr', 'operations_manager', 'supervisor'), as
     const employeeWhere = departmentScope ? ' AND department=$1' : ''
     const workflowJoin = departmentScope ? ' JOIN employees e ON e.id=w.subject_employee_id WHERE e.department=$1' : ''
     const params = departmentScope ? [departmentScope] : []
-    const [{ rows: totals }, { rows: employees }, { rows: modules }] = await Promise.all([
-      query(`SELECT count(*)::int AS total_employees, coalesce(round(avg(performance_score))::int,0) AS average_performance,
-        coalesce(round(avg(learning_progress))::int,0) AS learning_completion FROM employees WHERE is_active=true${employeeWhere}`, params),
-      query(`SELECT e.id, e.full_name, e.department, e.performance_score, e.competency_score, e.learning_progress,
-        coalesce(s.readiness_band, 'development_needed') AS readiness FROM employees e
-        LEFT JOIN succession_profiles s ON s.employee_id=e.id WHERE e.is_active=true${employeeWhere} ORDER BY e.full_name`, params),
-      query(`SELECT w.module, w.status, count(*)::int AS count FROM workflows w${workflowJoin}${departmentScope ? ' GROUP BY w.module, w.status ORDER BY w.module, w.status' : ' GROUP BY w.module, w.status ORDER BY w.module, w.status'}`, params),
+
+    const [
+      { rows: totals },
+      { rows: employees },
+      { rows: modules },
+      { rows: training },
+      { rows: recognition },
+      { rows: departments },
+      { rows: recentActivity },
+    ] = await Promise.all([
+      // Core workforce KPIs — includes average_competency now
+      query(
+        `SELECT count(*)::int AS total_employees,
+          coalesce(round(avg(performance_score))::int,0) AS average_performance,
+          coalesce(round(avg(competency_score))::int,0) AS average_competency,
+          coalesce(round(avg(learning_progress))::int,0) AS learning_completion
+         FROM employees WHERE is_active=true${employeeWhere}`,
+        params,
+      ),
+      // Employee records for the table
+      query(
+        `SELECT e.id, e.full_name, e.department, e.performance_score, e.competency_score, e.learning_progress,
+          coalesce(s.readiness_band, 'development_needed') AS readiness FROM employees e
+          LEFT JOIN succession_profiles s ON s.employee_id=e.id WHERE e.is_active=true${employeeWhere} ORDER BY e.full_name`,
+        params,
+      ),
+      // Workflow module breakdown (active + completed counts)
+      query(
+        `SELECT w.module, w.status, count(*)::int AS count FROM workflows w${workflowJoin}${
+          departmentScope
+            ? ' GROUP BY w.module, w.status ORDER BY w.module, w.status'
+            : ' GROUP BY w.module, w.status ORDER BY w.module, w.status'
+        }`,
+        params,
+      ),
+      // Training sessions stats
+      query(
+        `SELECT
+          count(*) FILTER (WHERE status='completed')::int AS completed,
+          count(*) FILTER (WHERE status='scheduled' OR status='ongoing')::int AS active,
+          (SELECT count(*)::int FROM training_participants) AS participant_count,
+          (SELECT coalesce(round(
+            avg(CASE WHEN LOWER(attendance)='present' OR LOWER(attendance)='late' THEN 100 ELSE 0 END)
+          )::int, 0)
+          FROM training_participants WHERE attendance != 'pending') AS attendance_rate
+         FROM training_sessions`,
+      ),
+      // Recognition workflow stats
+      query(
+        `SELECT
+          count(*) FILTER (WHERE status='completed')::int AS completed,
+          count(*) FILTER (WHERE status='active')::int AS active
+         FROM workflows WHERE module='recognition'`,
+      ),
+      // Per-department breakdown for chart labels + data
+      query(
+        `SELECT department,
+          count(*)::int AS employees,
+          coalesce(round(avg(performance_score))::int,0) AS performance,
+          coalesce(round(avg(competency_score))::int,0) AS competency,
+          coalesce(round(avg(learning_progress))::int,0) AS learning
+         FROM employees WHERE is_active=true${employeeWhere}
+         GROUP BY department ORDER BY department`,
+        params,
+      ),
+      // Last 5 activity_log entries for the Recent Activity feed
+      query(
+        `SELECT action, category, description, actor_name, created_at
+         FROM activity_logs
+         ORDER BY created_at DESC
+         LIMIT 5`,
+      ),
     ])
-    const ready = employees.filter((e) => calculateReadiness({ performance: e.performance_score, competency: e.competency_score, learning: e.learning_progress }).band === 'ready_now').length
-    res.json({ totals: { ...totals[0], succession_ready: ready, departmentScope }, employees, workflowBreakdown: modules })
+
+    const employeesWithReadiness = employees.map(e => {
+      const calculated = calculateReadiness({
+        performance: e.performance_score,
+        competency: e.competency_score,
+        learning: e.learning_progress,
+      })
+      return {
+        ...e,
+        readiness: (e.readiness && e.readiness !== 'development_needed') ? e.readiness : calculated.band,
+        readiness_score: calculated.score,
+      }
+    })
+
+    const ready = employeesWithReadiness.filter(e => e.readiness === 'ready_now').length
+
+    const trainingStats = training[0] || {}
+    const trainingTotal = Number(trainingStats.completed || 0) + Number(trainingStats.active || 0)
+    const trainingAttendanceRate = trainingTotal > 0 ? Math.round((Number(trainingStats.completed || 0) / trainingTotal) * 100) : 0
+
+    const recogStats = recognition[0] || {}
+    const recogTotal = Number(recogStats.completed || 0) + Number(recogStats.active || 0)
+    const recognitionRate = recogTotal > 0 ? Math.round((Number(recogStats.completed || 0) / recogTotal) * 100) : 0
+
+    res.json({
+      totals: {
+        ...totals[0],
+        succession_ready: ready,
+        training_completed: Number(trainingStats.completed || 0),
+        training_active: Number(trainingStats.active || 0),
+        training_attendance_rate: trainingAttendanceRate,
+        recognition_completed: Number(recogStats.completed || 0),
+        recognition_active: Number(recogStats.active || 0),
+        recognition_rate: recognitionRate,
+        departmentScope,
+      },
+      employees: employeesWithReadiness,
+      workflowBreakdown: modules,
+      departments,
+      recentActivity,
+    })
   } catch (error) { next(error) }
 })
 

@@ -79,16 +79,11 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
           if (!cancelled) setError(requestError.message)
         }
       } else if (module) {
-        try {
-          setLoading(true)
-          const result = await api.generateModuleInsights(module, stage || 'Overview')
-          if (cancelled) return
-          setMetricsPreview(result.metrics || null)
-        } catch {
-          // Ignore background preview fetch errors
-        } finally {
-          if (!cancelled) setLoading(false)
-        }
+        // Do not auto-generate AI insights on load.
+        // AI insights will only be generated when the user explicitly clicks the "Generate AI Insights" button.
+        setSavedReports([])
+        setMetricsPreview(null)
+        setViewingReport(null)
       }
     }
     void loadReports()
@@ -275,20 +270,23 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
               onClick={generate}
               disabled={generating}
               style={{
-                background: '#29282D',
+                background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
                 color: '#ffffff',
                 border: 'none',
-                borderRadius: '6px',
-                padding: '8px 16px',
+                borderRadius: '8px',
+                padding: '9px 18px',
                 fontSize: '12px',
-                fontWeight: '600',
+                fontWeight: '700',
                 cursor: 'pointer',
-                display: 'inline-block',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
                 width: 'auto',
-                boxShadow: 'none',
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
+                transition: 'all 0.2s ease',
               }}
             >
-              {generating ? 'Generating...' : 'Create workforce brief'}
+              {generating ? 'Generating Insights...' : '✦ Generate AI Insights'}
             </button>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { computeModuleStats, configFor } from '../workflowConfig'
+import AnimatedNumber from './AnimatedNumber'
 
 // ---------------------------------------------------------------------------
 // Module-specific dashboard strip. Each module's config defines its own
@@ -16,7 +17,7 @@ function Widget({ widget, value }) {
   return (
     <article className="module-widget" title={`${widget.label}: ${display}`}>
       <small>{widget.label}</small>
-      <b>{display}</b>
+      <b><AnimatedNumber value={display} /></b>
       <em>Live data</em>
     </article>
   )

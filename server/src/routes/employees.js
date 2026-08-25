@@ -1,6 +1,7 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { query } from '../db.js'
+import { query, transaction } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { getScopeFilter, verifyEmployeeAccess } from '../services/departmentScope.js'
@@ -17,6 +18,10 @@ const createEmployeeSchema = z.object({
   performanceScore: z.number().min(0).max(100).optional().default(0),
   competencyScore: z.number().min(0).max(100).optional().default(0),
   learningProgress: z.number().min(0).max(100).optional().default(0),
+  // Optional Account Creation fields
+  email: z.string().email().nullable().optional(),
+  password: z.string().min(6).max(128).nullable().optional(),
+  role: z.enum(['employee', 'supervisor', 'management', 'hr', 'operations_manager']).optional().default('employee'),
 })
 
 const updateEmployeeSchema = z.object({
@@ -136,18 +141,57 @@ router.get('/:id', authorize('hr', 'operations_manager', 'supervisor', 'employee
 })
 
 
-// POST /api/employees — create employee (HR only)
+// POST /api/employees — create employee (HR only) + optional immediate user account
 router.post('/', authorize('hr'), async (req, res, next) => {
   try {
     const input = createEmployeeSchema.parse(req.body)
-    const { rows } = await query(`
-      INSERT INTO employees (employee_number, full_name, department_id, department, job_title, manager_id, performance_score, competency_score, learning_progress)
-      VALUES ($1, $2, $3, (SELECT name FROM departments WHERE id = $3), $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [input.employeeNumber, input.fullName, input.departmentId, input.jobTitle, input.managerId || null, input.performanceScore, input.competencyScore, input.learningProgress])
-await query('INSERT INTO score_history (employee_id, performance_score, competency_score, learning_progress) VALUES ($1, $2, $3, $4)', [rows[0].id, rows[0].performance_score, rows[0].competency_score, rows[0].learning_progress])
-    await logActivity({ req, user: req.user, action: 'employee.create', category: 'employee', targetId: rows[0].id, description: `${req.user.name} created employee ${input.fullName}`, details: { employeeNumber: input.employeeNumber, departmentId: input.departmentId } })
-    res.status(201).json({ employee: rows[0] })
+    const result = await transaction(async (client) => {
+      // 1. If email is provided, check if email is already taken
+      if (input.email) {
+        const existing = await client.query('SELECT id FROM users WHERE email = $1', [input.email.toLowerCase().trim()])
+        if (existing.rowCount > 0) {
+          throw Object.assign(new Error(`A user account with email "${input.email}" already exists.`), { status: 409 })
+        }
+      }
+
+      // 2. Insert employee record
+      const { rows } = await client.query(`
+        INSERT INTO employees (employee_number, full_name, department_id, department, job_title, manager_id, performance_score, competency_score, learning_progress)
+        VALUES ($1, $2, $3, (SELECT name FROM departments WHERE id = $3), $4, $5, $6, $7, $8)
+        RETURNING *
+      `, [input.employeeNumber, input.fullName, input.departmentId, input.jobTitle, input.managerId || null, input.performanceScore, input.competencyScore, input.learningProgress])
+      
+      const employee = rows[0]
+
+      // 3. Insert score history record
+      await client.query('INSERT INTO score_history (employee_id, performance_score, competency_score, learning_progress) VALUES ($1, $2, $3, $4)', [employee.id, employee.performance_score, employee.competency_score, employee.learning_progress])
+
+      // 4. Create user login account if email & password are provided
+      let userAccount = null
+      if (input.email && input.password) {
+        const passwordHash = await bcrypt.hash(input.password, 12)
+        const userRes = await client.query(`
+          INSERT INTO users (email, password_hash, full_name, role, employee_id, is_active)
+          VALUES ($1, $2, $3, $4, $5, true)
+          RETURNING id, email, role, full_name, employee_id
+        `, [input.email.toLowerCase().trim(), passwordHash, input.fullName, input.role || 'employee', employee.id])
+        userAccount = userRes.rows[0]
+      }
+
+      return { employee, userAccount }
+    })
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'employee.create',
+      category: 'employee',
+      targetId: result.employee.id,
+      description: `${req.user.name} created employee ${input.fullName}${result.userAccount ? ` with login role (${result.userAccount.role})` : ''}`,
+      details: { employeeNumber: input.employeeNumber, departmentId: input.departmentId, role: input.role || 'employee', userCreated: Boolean(result.userAccount) }
+    })
+
+    res.status(201).json({ employee: result.employee, user: result.userAccount })
   } catch (error) { next(error) }
 })
 

@@ -233,6 +233,7 @@ export default function TrainingManagement() {
         department: 'All Departments',
         description: '',
       })
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await loadSessions()
     } catch (err) {
       setError(err.message || 'Failed to save training session.')
@@ -275,6 +276,7 @@ export default function TrainingManagement() {
     try {
       const res = await api.recordTrainingAttendance(selectedSession.id, records)
       setNotice(res.message || 'Attendance records saved.')
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await loadSessionDetail(selectedSession.id)
       await loadSessions()
       await loadOverviewStats()
@@ -320,6 +322,7 @@ export default function TrainingManagement() {
     try {
       const res = await api.completeTrainingSession(selectedSession.id)
       setNotice(res.message || 'Session completed.')
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await loadSessionDetail(selectedSession.id)
       await loadSessions()
       await loadOverviewStats()
@@ -366,11 +369,27 @@ export default function TrainingManagement() {
     })
   }, [employees, selectedSessionDetail, empDeptFilter, empSearch])
 
+  // Active / Upcoming sessions (scheduled or ongoing)
+  const activeSessions = useMemo(() => {
+    return sessions.filter(s => {
+      const st = String(s.status || '').toLowerCase()
+      return st !== 'completed' && st !== 'cancelled'
+    })
+  }, [sessions])
+
+  // Archived sessions (completed or cancelled)
+  const archivedSessions = useMemo(() => {
+    return sessions.filter(s => {
+      const st = String(s.status || '').toLowerCase()
+      return st === 'completed' || st === 'cancelled'
+    })
+  }, [sessions])
+
   // Derived live Overview panels from stats OR live sessions array fallback
   const overviewUpcoming = useMemo(() => {
     if (overviewStats?.upcoming?.length) return overviewStats.upcoming
-    return sessions.filter(s => String(s.status).toLowerCase() === 'scheduled' || String(s.status).toLowerCase() === 'ongoing')
-  }, [overviewStats, sessions])
+    return activeSessions
+  }, [overviewStats, activeSessions])
 
   const overviewRecentCompleted = useMemo(() => {
     if (overviewStats?.recentCompleted?.length) return overviewStats.recentCompleted
@@ -445,21 +464,25 @@ export default function TrainingManagement() {
         </div>
       )}
 
-
-
       {/* Navigation Tabs */}
       <nav className="learning-tabs training-nav-tabs" aria-label="Training views" style={{ marginBottom: 20 }}>
         <button
           className={activeTab === 'calendar' ? 'active' : ''}
           onClick={() => setActiveTab('calendar')}
         >
-          Real-Time Training Calendar ({sessions.length})
+          Real-Time Training Calendar ({activeSessions.length})
         </button>
         <button
           className={activeTab === 'sessions' ? 'active' : ''}
           onClick={() => setActiveTab('sessions')}
         >
-          Training Sessions Catalog
+          Active Sessions ({activeSessions.length})
+        </button>
+        <button
+          className={activeTab === 'archived' ? 'active' : ''}
+          onClick={() => setActiveTab('archived')}
+        >
+          Archived Sessions ({archivedSessions.length})
         </button>
         <button
           className={activeTab === 'workflows' ? 'active' : ''}
@@ -469,7 +492,7 @@ export default function TrainingManagement() {
         </button>
       </nav>
 
-      {/* TAB 1: CALENDAR VIEW */}
+      {/* TAB 1: CALENDAR VIEW (Active / Scheduled Only) */}
       {activeTab === 'calendar' && (
         <div className="calendar-view-card">
           <div className="calendar-header-nav">
@@ -487,7 +510,7 @@ export default function TrainingManagement() {
 
           <div className="calendar-grid-body">
             {calendarDays.map((day, idx) => {
-              const daySessions = sessions.filter(s => String(s.start_date).slice(0, 10) === day.dateStr)
+              const daySessions = activeSessions.filter(s => String(s.start_date).slice(0, 10) === day.dateStr)
               return (
                 <div
                   key={idx}
@@ -511,12 +534,13 @@ export default function TrainingManagement() {
             })}
           </div>
 
-          {sessions.length === 0 && !loading && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6b7280' }}>
-              <p style={{ fontSize: 16, fontWeight: 600 }}>No training sessions scheduled in the database yet.</p>
+          {activeSessions.length === 0 && !loading && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+              <p style={{ fontSize: 16, fontWeight: 600 }}>No upcoming active training sessions scheduled.</p>
+              <p style={{ fontSize: 13 }}>Completed sessions are stored in the <b>Archived Sessions</b> tab.</p>
               {canManageSessions && (
                 <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
-                  + Create First Training Session
+                  + Create Training Session
                 </button>
               )}
             </div>
@@ -524,10 +548,10 @@ export default function TrainingManagement() {
         </div>
       )}
 
-      {/* TAB 2: SESSIONS CATALOG VIEW */}
+      {/* TAB 2: ACTIVE SESSIONS VIEW */}
       {activeTab === 'sessions' && (
         <div className="training-sessions-grid">
-          {sessions.map(session => {
+          {activeSessions.map(session => {
             const regCount = Number(session.registered_count || 0)
             const pct = Math.round((regCount / session.capacity) * 100)
             return (
@@ -566,16 +590,16 @@ export default function TrainingManagement() {
 
                   {/* Attendance Breakdown Pills */}
                   <div className="session-attendance-breakdown" style={{ display: 'flex', gap: 6, margin: '10px 0 14px 0', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }} />
+                    <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
                       Present: {session.present_count || 0}
                     </span>
-                    <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }} />
+                    <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
                       Absent: {session.absent_count || 0}
                     </span>
-                    <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706' }} />
+                    <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
                       Late: {session.late_count || 0}
                     </span>
                   </div>
@@ -592,10 +616,105 @@ export default function TrainingManagement() {
               </div>
             )
           })}
+          {activeSessions.length === 0 && !loading && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+              <p style={{ fontSize: 16, fontWeight: 600 }}>No active training sessions.</p>
+              <p style={{ fontSize: 13 }}>All completed sessions are safely stored in the <b>Archived Sessions</b> tab.</p>
+              {canManageSessions && (
+                <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
+                  + Schedule Training Session
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* TAB 3: TRAINING OVERVIEW DASHBOARD */}
+      {/* TAB 3: ARCHIVED SESSIONS VIEW (Completed & Cancelled) */}
+      {activeTab === 'archived' && (
+        <div className="training-sessions-grid">
+          {archivedSessions.map(session => {
+            const regCount = Number(session.registered_count || 0)
+            const pct = session.capacity > 0 ? Math.round((regCount / session.capacity) * 100) : 0
+            const isCompleted = session.status === 'completed'
+            return (
+              <div key={session.id} className="session-card archived-session-card">
+                <div>
+                  <div className="session-card-head">
+                    <span className="session-category-tag">{session.category}</span>
+                    <span className={`session-status-badge ${session.status}`}>
+                      {session.status === 'completed' ? '✓ COMPLETED' : session.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <h3 className="session-title">{session.title}</h3>
+                  <div className="session-meta-list">
+                    <div className="session-meta-item">
+                      <span>Venue:</span> <b>{session.venue}</b>
+                    </div>
+                    <div className="session-meta-item">
+                      <span>Held on:</span> <b>{String(session.start_date).slice(0, 10)} ({session.start_time})</b>
+                    </div>
+                    <div className="session-meta-item">
+                      <span>Trainer:</span> <span>{session.trainer || 'HR Specialist'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="session-progress-bar">
+                    <div className="session-progress-text">
+                      <span>Final Attendance Rate</span>
+                      <b>{regCount > 0 ? `${Math.round(((session.present_count || 0) / regCount) * 100)}%` : '0%'} ({session.present_count || 0}/{regCount} attended)</b>
+                    </div>
+                    <div className="session-bar-track">
+                      <div
+                        className="session-bar-fill"
+                        style={{
+                          width: `${regCount > 0 ? Math.min(100, Math.round(((session.present_count || 0) / regCount) * 100)) : 0}%`,
+                          background: isCompleted ? 'linear-gradient(90deg, #10b981, #059669)' : '#94a3b8'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Attendance Breakdown Pills */}
+                  <div className="session-attendance-breakdown" style={{ display: 'flex', gap: 6, margin: '10px 0 14px 0', flexWrap: 'wrap' }}>
+                    <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+                      Present: {session.present_count || 0}
+                    </span>
+                    <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
+                      Absent: {session.absent_count || 0}
+                    </span>
+                    <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+                      Late: {session.late_count || 0}
+                    </span>
+                  </div>
+
+                  <div className="session-card-actions">
+                    <button className="session-action-btn" onClick={() => openSessionDetailModal(session)}>
+                      View Records
+                    </button>
+                    <button className="session-action-btn primary" onClick={() => handleViewAnalytics(session)}>
+                      Analytics & AI
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {archivedSessions.length === 0 && !loading && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+              <p style={{ fontSize: 16, fontWeight: 600 }}>No archived sessions yet.</p>
+              <p style={{ fontSize: 13 }}>When training sessions are completed or cancelled, they will automatically be archived here.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: TRAINING OVERVIEW DASHBOARD */}
       {activeTab === 'workflows' && (
         <div className="training-overview-dashboard">
 
@@ -910,11 +1029,11 @@ export default function TrainingManagement() {
 
             <div className="training-modal-body">
               {/* Session Overview Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, background: '#f9fafb', padding: 12, borderRadius: 8 }}>
-                <div><small style={{ color: '#6b7280' }}>Category</small><br/><b>{selectedSessionDetail.category}</b></div>
-                <div><small style={{ color: '#6b7280' }}>Capacity</small><br/><b>{selectedSessionDetail.capacity} participants</b></div>
-                <div><small style={{ color: '#6b7280' }}>Trainer</small><br/><b>{selectedSessionDetail.trainer || 'HR'}</b></div>
-                <div><small style={{ color: '#6b7280' }}>Status</small><br/><b style={{ textTransform: 'capitalize' }}>{selectedSessionDetail.status}</b></div>
+              <div className="training-detail-stats-grid">
+                <div><small className="stat-label">Category</small><br/><b>{selectedSessionDetail.category}</b></div>
+                <div><small className="stat-label">Capacity</small><br/><b>{selectedSessionDetail.capacity} participants</b></div>
+                <div><small className="stat-label">Trainer</small><br/><b>{selectedSessionDetail.trainer || 'HR'}</b></div>
+                <div><small className="stat-label">Status</small><br/><b style={{ textTransform: 'capitalize' }}>{selectedSessionDetail.status}</b></div>
               </div>
 
               {/* Action Buttons */}
@@ -930,7 +1049,7 @@ export default function TrainingManagement() {
                   </button>
                 )}
                 {isHr && selectedSessionDetail.status !== 'cancelled' && (
-                  <button className="session-action-btn" style={{ color: '#b91c1c' }} onClick={async () => {
+                  <button className="session-action-btn session-btn-cancel" onClick={async () => {
                     if (confirm('Are you sure you want to cancel this training session?')) {
                       try {
                         await api.cancelTrainingSession(selectedSession.id)
@@ -961,65 +1080,67 @@ export default function TrainingManagement() {
                   )}
                 </div>
 
-                <table className="attendance-sheet-table">
-                  <thead>
-                    <tr>
-                      <th>Employee</th>
-                      <th>Department</th>
-                      <th>Attendance Status</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(selectedSessionDetail.participants || []).map(p => (
-                      <tr key={p.employee_id}>
-                        <td><b>{p.full_name}</b><br/><small style={{ color: '#6b7280' }}>{p.job_title}</small></td>
-                        <td>{p.department}</td>
-                        <td>
-                          {canRecordAttendance ? (
-                            <div className="attendance-status-btn-group">
-                              {['present', 'absent', 'late', 'excused'].map(st => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  className={`att-status-btn ${st} ${(attendanceRecords[p.employee_id] || p.attendance) === st ? 'active' : ''}`}
-                                  onClick={() => setAttendanceRecords({ ...attendanceRecords, [p.employee_id]: st })}
-                                >
-                                  {st.toUpperCase()}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className={`session-status-badge ${p.attendance}`}>{p.attendance.toUpperCase()}</span>
-                          )}
-                        </td>
-                        <td>
-                          {canInvite && (
-                            <button style={{ background: 'transparent', border: 'none', color: '#b91c1c', cursor: 'pointer' }} onClick={async () => {
-                              try {
-                                await api.removeTrainingParticipant(selectedSession.id, p.employee_id)
-                                await loadSessionDetail(selectedSession.id)
-                              } catch (err) { setError(err.message) }
-                            }}>✕ Remove</button>
-                          )}
-                        </td>
+                <div className="attendance-table-wrap">
+                  <table className="attendance-sheet-table">
+                    <thead>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Attendance Status</th>
+                        <th>Action</th>
                       </tr>
-                    ))}
-                    {(selectedSessionDetail.participants || []).length === 0 && (
-                      <tr><td colSpan={4} style={{ textAlign: 'center', color: '#6b7280', padding: 20 }}>No participants invited yet. Click "+ Invite Participants" to add employees.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(selectedSessionDetail.participants || []).map(p => (
+                        <tr key={p.employee_id}>
+                          <td><b>{p.full_name}</b><br/><small className="text-muted-sub">{p.job_title}</small></td>
+                          <td>{p.department}</td>
+                          <td>
+                            {canRecordAttendance ? (
+                              <div className="attendance-status-btn-group">
+                                {['present', 'absent', 'late', 'excused'].map(st => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    className={`att-status-btn ${st} ${(attendanceRecords[p.employee_id] || p.attendance) === st ? 'active' : ''}`}
+                                    onClick={() => setAttendanceRecords({ ...attendanceRecords, [p.employee_id]: st })}
+                                  >
+                                    {st.toUpperCase()}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className={`session-status-badge ${p.attendance}`}>{p.attendance.toUpperCase()}</span>
+                            )}
+                          </td>
+                          <td>
+                            {canInvite && (
+                              <button style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 600 }} onClick={async () => {
+                                try {
+                                  await api.removeTrainingParticipant(selectedSession.id, p.employee_id)
+                                  await loadSessionDetail(selectedSession.id)
+                                } catch (err) { setError(err.message) }
+                              }}>✕ Remove</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {(selectedSessionDetail.participants || []).length === 0 && (
+                        <tr><td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>No participants invited yet. Click "+ Invite Participants" to add employees.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Evaluation Form section for logged in employee */}
               {(selectedSessionDetail.participants || []).some(p => p.employee_id === currentUser.employeeId) && (
-                <div className="training-eval-card" style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginTop: 20 }}>
+                <div className="training-eval-card">
                   <div style={{ marginBottom: 16 }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: 15, fontWeight: 700, color: '#111827' }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 15, fontWeight: 700 }}>
                       Submit Training Effectiveness Evaluation
                     </h4>
-                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+                    <p style={{ margin: 0, fontSize: 13 }} className="text-muted-sub">
                       Rate the relevance, trainer quality, and content of this training session.
                     </p>
                   </div>
@@ -1128,12 +1249,11 @@ export default function TrainingManagement() {
                     placeholder="Search by employee name or title..."
                     value={empSearch}
                     onChange={e => setEmpSearch(e.target.value)}
-                    style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db' }}
+                    style={{ flex: 1 }}
                   />
                   <select
                     value={empDeptFilter}
                     onChange={e => setEmpDeptFilter(e.target.value)}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db' }}
                   >
                     <option value="">All Departments</option>
                     <option value="Front Office">Front Office</option>
@@ -1143,24 +1263,24 @@ export default function TrainingManagement() {
                   </select>
                 </div>
 
-                <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                <div className="training-invite-list">
                   {filteredEmployeesForInvite.map(emp => {
                     const checked = selectedEmpIds.includes(emp.id)
                     return (
-                      <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, cursor: 'pointer', background: checked ? '#f0edff' : 'transparent' }}>
+                      <label key={emp.id} className={`invite-emp-row${checked ? ' checked' : ''}`}>
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => setSelectedEmpIds(checked ? selectedEmpIds.filter(id => id !== emp.id) : [...selectedEmpIds, emp.id])}
                         />
                         <div>
-                          <b>{emp.full_name}</b> — <small style={{ color: '#6b7280' }}>{emp.job_title} ({emp.department})</small>
+                          <b>{emp.full_name}</b> — <small className="text-muted-sub">{emp.job_title} ({emp.department})</small>
                         </div>
                       </label>
                     )
                   })}
                   {filteredEmployeesForInvite.length === 0 && (
-                    <p style={{ textAlign: 'center', color: '#6b7280', margin: 10 }}>No matching employees available for invitation.</p>
+                    <p style={{ textAlign: 'center', color: '#94a3b8', margin: 10 }}>No matching employees available for invitation.</p>
                   )}
                 </div>
               </div>
@@ -1190,29 +1310,29 @@ export default function TrainingManagement() {
                 <div>
                   <h4 style={{ margin: '0 0 10px 0' }}>Real Session Metrics (Database)</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
-                    <div style={{ background: '#f3f4f6', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                      <small style={{ color: '#6b7280' }}>Total Participants</small><br/>
+                    <div className="training-metric-box neutral">
+                      <small>Total Participants</small><br/>
                       <b style={{ fontSize: 18 }}>{analyticsData.totalParticipants}</b>
                     </div>
-                    <div style={{ background: '#dcfce7', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                      <small style={{ color: '#15803d' }}>Attendance Rate</small><br/>
-                      <b style={{ fontSize: 18, color: '#15803d' }}>{analyticsData.attendanceRate}%</b>
+                    <div className="training-metric-box green">
+                      <small>Attendance Rate</small><br/>
+                      <b style={{ fontSize: 18 }}>{analyticsData.attendanceRate}%</b>
                     </div>
-                    <div style={{ background: '#dbeafe', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                      <small style={{ color: '#1e40af' }}>Avg Effectiveness</small><br/>
-                      <b style={{ fontSize: 18, color: '#1e40af' }}>{analyticsData.avgOverallRating} / 5</b>
+                    <div className="training-metric-box blue">
+                      <small>Avg Effectiveness</small><br/>
+                      <b style={{ fontSize: 18 }}>{analyticsData.avgOverallRating} / 5</b>
                     </div>
-                    <div style={{ background: '#fef3c7', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                      <small style={{ color: '#b45309' }}>Capacity Util.</small><br/>
-                      <b style={{ fontSize: 18, color: '#b45309' }}>{analyticsData.capacityUtilization}%</b>
+                    <div className="training-metric-box amber">
+                      <small>Capacity Util.</small><br/>
+                      <b style={{ fontSize: 18 }}>{analyticsData.capacityUtilization}%</b>
                     </div>
                   </div>
 
                   {/* AI Generator Button */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0edff', padding: 12, borderRadius: 8 }}>
+                  <div className="training-ai-brief-banner">
                     <div>
-                      <b style={{ color: '#4b36ab' }}>AI Training Insights Brief</b>
-                      <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Grounded strictly in completed database metrics.</p>
+                      <b>AI Training Insights Brief</b>
+                      <p style={{ margin: 0, fontSize: 12 }}>Grounded strictly in completed database metrics.</p>
                     </div>
                     <button className="session-action-btn primary" onClick={handleGenerateAi} disabled={generatingAi}>
                       {generatingAi ? 'Generating...' : 'Generate AI Insights'}
@@ -1220,7 +1340,7 @@ export default function TrainingManagement() {
                   </div>
 
                   {aiReportData && (
-                    <div style={{ marginTop: 16, background: '#fff', border: '1px solid #e5e7eb', padding: 16, borderRadius: 8 }}>
+                    <div className="training-ai-report-wrap">
                       <AIReport
                         title={aiReportData.title || 'AI Executive Brief'}
                         content={typeof aiReportData.content === 'string' ? aiReportData.content : JSON.stringify(aiReportData, null, 2)}
@@ -1229,7 +1349,7 @@ export default function TrainingManagement() {
                   )}
                 </div>
               ) : (
-                <p style={{ textAlign: 'center', color: '#6b7280' }}>Calculating database metrics...</p>
+                <p style={{ textAlign: 'center', color: '#94a3b8' }}>Calculating database metrics...</p>
               )}
             </div>
           </div>

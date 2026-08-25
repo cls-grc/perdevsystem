@@ -255,3 +255,196 @@
   color: #ffffff !important;
 }
 
+/* ==========================================================================
+   UNIVERSAL DARK MODE FORM & INPUT STYLES ACROSS ALL MODULES
+   ========================================================================== */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]):not(.topbar-search input):not(.search input):not(.employee-search input):not(.certificate-search-label input):not(.certificate-employee-search input):not(.learning-search input):not(.ai-chat-input input),
+.dark select,
+.dark textarea,
+.dark .workflow-form input:not(.search input),
+.dark .workflow-form select,
+.dark .workflow-form textarea,
+.dark .workflow-form-wrap input:not(.search input),
+.dark .workflow-form-wrap select,
+.dark .workflow-form-wrap textarea,
+.dark .process-form input:not(.search input),
+.dark .process-form select,
+.dark .process-form textarea,
+.dark .module-process input:not(.search input),
+.dark .module-process select,
+.dark .module-process textarea,
+.dark .composer-dialog input,
+.dark .composer-dialog select,
+.dark .composer-dialog textarea,
+.dark .settings-dialog input,
+.dark .settings-dialog select,
+.dark .settings-dialog textarea,
+.dark .step-builder input,
+.dark .step-builder select,
+.dark .step-builder textarea,
+.dark .kpi-builder input,
+.dark .kpi-builder select,
+.dark .kpi-builder textarea,
+.dark .assessment-builder input,
+.dark .assessment-builder select,
+.dark .assessment-builder textarea,
+.dark .calibration-builder input,
+.dark .calibration-builder select,
+.dark .calibration-builder textarea,
+.dark .collapsible-block textarea,
+.dark .workflow-picker,
+.dark .module-search-input,
+.dark .period-button,
+.dark .select-button {
+  background-color: #161b2a !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px;
+  color-scheme: dark;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Seamless Searchbar Pill Styling — No Nested Backgrounds */
+.dark .topbar-search,
+.dark .search,
+.dark .employee-search,
+.dark .certificate-search-label,
+.dark .certificate-employee-search,
+.dark .learning-search {
+  background: #1e1b2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.dark .topbar-search:focus-within,
+.dark .search:focus-within,
+.dark .employee-search:focus-within,
+.dark .certificate-search-label:focus-within,
+.dark .certificate-employee-search:focus-within,
+.dark .learning-search:focus-within {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25) !important;
+}
+
+.dark .topbar-search input,
+.dark .search input,
+.dark .employee-search input,
+.dark .certificate-search-label input,
+.dark .certificate-employee-search input,
+.dark .certificate-search,
+.dark .learning-search input {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: #f8fafc !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark select:focus,
+.dark textarea:focus {
+  background-color: #1a2236 !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25) !important;
+  outline: none !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark select option {
+  background-color: #111625 !important;
+  color: #f8fafc !important;
+}
+
+/* Date / Time calendar picker icons in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) brightness(1.2);
+  cursor: pointer;
+}
+
+/* Labels and Helper Text inside forms */
+.dark .workflow-form label,
+.dark .workflow-form-wrap label,
+.dark .process-form label,
+.dark .module-process label,
+.dark .form-field label {
+  color: #cbd5e1 !important;
+}
+
+.dark .workflow-form label span,
+.dark .workflow-form-wrap label span,
+.dark .process-form label span,
+.dark .form-field label span {
+  color: #e2e8f0 !important;
+}
+
+.dark .workflow-form label small,
+.dark .workflow-form-wrap label small,
+.dark .process-form label small {
+  color: #94a3b8 !important;
+}
+
+/* Radio and Checkbox groups */
+.dark .radiogroup-option,
+.dark .checkboxgroup-option {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+.dark .radiogroup-option.selected,
+.dark .checkboxgroup-option.selected {
+  background: rgba(139, 92, 246, 0.18) !important;
+  border-color: #8b5cf6 !important;
+  color: #c4b5fd !important;
+}
+
+/* Rating row stars */
+.dark .rating-row button {
+  color: #475569;
+}
+.dark .rating-row button.on {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+/* Comment suggestions and chips */
+.dark .comment-chip {
+  background: rgba(139, 92, 246, 0.12) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+  color: #c4b5fd !important;
+}
+.dark .comment-chip:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.25) !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .comment-chip.used {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #64748b !important;
+}
+
+/* Builder cards & rows (KPI, Assessment, Calibration, Succession, etc.) */
+.dark .kpi-row,
+.dark .assessment-row,
+.dark .calibration-row,
+.dark .nomination-row,
+.dark .assign-row,
+.dark .kpi-template-item {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+.dark .collapsible-toggle {
+  color: #c4b5fd !important;
+}
+
+/* Login lockout banner dark mode */
+.dark .login-lockout-banner {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #fca5a5 !important;
+}

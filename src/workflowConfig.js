@@ -651,6 +651,15 @@ export function computeModuleStats(moduleKey, data = {}, workflows = []) {
   const totalModule = completedCount + activeCount
   const moduleCompletion = totalModule ? Math.round((completedCount / totalModule) * 100) : completionRate
 
+  const getReadiness = (e) => {
+    if (e.readiness && e.readiness !== 'development_needed') return e.readiness
+    const perf = Number(e.performance_score || 0)
+    const comp = Number(e.competency_score || 0)
+    const learn = Number(e.learning_progress || 0)
+    const score = Math.round(perf * 0.5 + comp * 0.3 + learn * 0.2)
+    return score >= 85 ? 'ready_now' : score >= 70 ? 'ready_in_1_2_years' : 'development_needed'
+  }
+
   const pool = {
     workflowsActive: active,
     workflowsPending: active, // pending elsewhere
@@ -667,8 +676,8 @@ export function computeModuleStats(moduleKey, data = {}, workflows = []) {
     overdue: 0,
     upcoming: active,
     attendanceRate: moduleCompletion,
-    readyNow: employees.filter(e => (e.readiness || '') === 'ready_now').length,
-    readySoon: employees.filter(e => (e.readiness || '') === 'ready_in_1_2_years').length,
+    readyNow: totals.succession_ready ?? employees.filter(e => getReadiness(e) === 'ready_now').length,
+    readySoon: employees.filter(e => getReadiness(e) === 'ready_in_1_2_years').length,
     highPotential: employees.filter(e => Number(e.performance_score || 0) >= 80 && Number(e.competency_score || 0) >= 80).length,
     criticalPositions: 0,
     completed: completedCount,

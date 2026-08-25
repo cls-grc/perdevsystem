@@ -1,4 +1,4 @@
-# TODO: Unified Audit & Trail (Activity Logs) Across All RBAC Roles
+TODO: Unified Audit & Trail (Activity Logs) Across All RBAC Roles
 
 ## Backend
 - [x] 1. Create migration `021_activity_logs.sql` (general-purpose activity_logs table)

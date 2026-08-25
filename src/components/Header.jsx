@@ -79,40 +79,100 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
 
   return <>
     <header className="topbar">
-      <div className="crumb">Hospitality HR <span>/</span> Performance &amp; Development</div>
-<div className="top-actions">
+      <div className="crumb">
+        <span className="crumb-brand">Hospitality HR</span>
+        <span className="crumb-sep">/</span>
+        <span className="crumb-current">Performance &amp; Development</span>
+      </div>
+
+      <div className="top-actions">
         <button className="mobile-menu-btn" type="button" onClick={onOpenMobileNav} aria-label="Open menu">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
         </button>
-        <label className="search"><Icon name="search" size={18}/><input placeholder="Search"/></label>
+
+        <label className="search topbar-search">
+          <Icon name="search" size={16} />
+          <input placeholder="Search employees, workflows, reports..." aria-label="Quick search" />
+          <kbd className="search-shortcut-badge">Ctrl K</kbd>
+        </label>
+
         <button
-          className="header-text-button ai-chat-btn"
+          className="header-pill-btn ai-header-pill"
           type="button"
           onClick={() => onOpenAiChat && onOpenAiChat()}
+          title="Open AI Workforce Assistant"
         >
-          ✦ AI Assistant
+          <span className="ai-pill-spark">✦</span>
+          <span>AI Assistant</span>
         </button>
+
         {canSeeOutbox && (
           <button
-            className="header-text-button"
+            className="header-pill-btn outbox-pill"
             type="button"
             onClick={() => setOutboxOpen(true)}
             title="Live Email Outbox Inspector"
-            style={{ display: 'flex', alignItems: 'center', gap: 5 }}
           >
-            📧 Outbox
+            <span>📧 Outbox</span>
           </button>
         )}
-        <button className="header-text-button"><Icon name="book" size={15}/>Learn</button>
-        {user?.role !== 'operations_manager' && <button className="header-text-button" onClick={() => setTwoFactorOpen(true)}><Icon name="settings" size={15}/>Settings</button>}
-        <button className="icon-button notif-bell" onClick={showNotifications} aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}>
-          <Icon name="bell" size={18}/>
+
+        {user?.role !== 'operations_manager' && (
+          <button
+            className="header-icon-btn"
+            type="button"
+            onClick={() => setTwoFactorOpen(true)}
+            title="Account & Security Settings"
+          >
+            <Icon name="settings" size={17} />
+          </button>
+        )}
+
+        {/* Notifications Bell */}
+        <button
+          className="header-icon-btn notif-bell"
+          type="button"
+          onClick={showNotifications}
+          aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
+          title="Notifications"
+        >
+          <Icon name="bell" size={18} />
           {unread > 0 && (
             <span className="notif-badge">{unread > 99 ? '99+' : unread}</span>
           )}
         </button>
-        <button className="theme-switch" onClick={onToggle} aria-pressed={dark}><span className="theme-thumb">{dark ? 'M' : 'S'}</span></button>
-        <span className="avatar avatar-lia">{user?.name ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase() : 'HR'}</span>
+
+        {/* Animated Sun / Moon Theme Toggle */}
+        <button
+          className="theme-switch-btn"
+          type="button"
+          onClick={onToggle}
+          aria-pressed={dark}
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span className="theme-icon-indicator">
+            {dark ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5" />
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+            )}
+          </span>
+        </button>
+
+        {/* User Avatar with Status Indicator */}
+        <div className="topbar-avatar-wrapper" title={`${user?.name || 'User'} (${user?.role || ''})`}>
+          <span className="avatar avatar-lia">
+            {user?.name ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase() : 'HR'}
+          </span>
+          <span className="topbar-online-dot" />
+        </div>
       </div>
     </header>
 

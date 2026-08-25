@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { downloadCsv } from '../lib/exportUtils'
 
@@ -20,10 +20,48 @@ export default function EmployeeManagement() {
   const [form, setForm] = useState({
     employeeNumber: '', fullName: '', departmentId: '', jobTitle: '',
     managerId: '', performanceScore: 0, competencyScore: 0, learningProgress: 0,
+    email: '', password: '', role: 'employee',
   })
   const [filter, setFilter] = useState('active')
   const [query, setQuery] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // 5-second password peek state for employee creation
+  const [showEmpPass, setShowEmpPass] = useState(false)
+  const [empPassSeconds, setEmpPassSeconds] = useState(0)
+  const empTimerRef = useRef(null)
+
+  const handleToggleEmpPassword = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (empTimerRef.current) clearInterval(empTimerRef.current)
+
+    setShowEmpPass(true)
+    setEmpPassSeconds(5)
+
+    empTimerRef.current = setInterval(() => {
+      setEmpPassSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(empTimerRef.current)
+          setShowEmpPass(false)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const generateRandomPassword = (e) => {
+    e.preventDefault()
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*'
+    let generated = 'Hotel'
+    for (let i = 0; i < 6; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    generated += '1!'
+    setForm((prev) => ({ ...prev, password: generated }))
+  }
 
   const load = async () => {
     try {
@@ -39,8 +77,22 @@ export default function EmployeeManagement() {
   useEffect(() => { load() }, [filter])
 
   const resetForm = () => {
-    setForm({ employeeNumber: '', fullName: '', departmentId: departments[0]?.id || '', jobTitle: '', managerId: '', performanceScore: 0, competencyScore: 0, learningProgress: 0 })
+    setForm({
+      employeeNumber: '',
+      fullName: '',
+      departmentId: departments[0]?.id || '',
+      jobTitle: '',
+      managerId: '',
+      performanceScore: 0,
+      competencyScore: 0,
+      learningProgress: 0,
+      email: '',
+      password: '',
+      role: 'employee',
+    })
     setEditId(null)
+    setShowEmpPass(false)
+    if (empTimerRef.current) clearInterval(empTimerRef.current)
   }
 
   const openEdit = (emp) => {
@@ -53,6 +105,9 @@ export default function EmployeeManagement() {
       performanceScore: emp.performance_score,
       competencyScore: emp.competency_score,
       learningProgress: emp.learning_progress,
+      email: '',
+      password: '',
+      role: 'employee',
     })
     setEditId(emp.id)
     setShowForm(true)
@@ -70,7 +125,9 @@ export default function EmployeeManagement() {
         await api.createEmployee(data)
         setNotice('Employee created successfully.')
       }
-      setShowForm(false); resetForm(); await load()
+      setShowForm(false); resetForm();
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
+      await load()
     } catch (e) { setError(e.message) } finally { setSaving(false) }
   }
 
@@ -84,6 +141,7 @@ export default function EmployeeManagement() {
         await api.reactivateEmployee(emp.id)
         setNotice(`${emp.full_name} has been reactivated.`)
       }
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await load()
     } catch (e) { setError(e.message) }
   }
@@ -247,10 +305,101 @@ export default function EmployeeManagement() {
                 <label>Performance %<input type="number" min={0} max={100} value={form.performanceScore} onChange={e => setForm({ ...form, performanceScore: Number(e.target.value) })} /></label>
                 <label>Competency %<input type="number" min={0} max={100} value={form.competencyScore} onChange={e => setForm({ ...form, competencyScore: Number(e.target.value) })} /></label>
                 <label className="er-full">Learning %<input type="number" min={0} max={100} value={form.learningProgress} onChange={e => setForm({ ...form, learningProgress: Number(e.target.value) })} /></label>
+
+                {!editId && (
+                  <>
+                    <div className="er-full" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, marginTop: 8 }}>
+                      <b style={{ fontSize: 13, color: '#a855f7', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🔐</span>
+                        <span>User Login Account &amp; RBAC Access</span>
+                      </b>
+                      <small style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
+                        Provide credentials below to immediately provision this employee's sign-in account and role permissions.
+                      </small>
+                    </div>
+
+                    <label>
+                      System Role (RBAC)
+                      <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+                        <option value="employee">Employee (Hospitality Staff)</option>
+                        <option value="supervisor">Supervisor / Department Head</option>
+                        <option value="operations_manager">Operations Manager</option>
+                        <option value="management">Senior Management</option>
+                        <option value="hr">HR Administrator</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      Work Email
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={e => setForm({ ...form, email: e.target.value })}
+                        placeholder="e.g. employee@hotel.com"
+                      />
+                    </label>
+
+                    <label className="er-full">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span>Account Password</span>
+                        <button
+                          type="button"
+                          onClick={generateRandomPassword}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#a855f7',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          ⚡ Generate Password
+                        </button>
+                      </div>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showEmpPass ? 'text' : 'password'}
+                          value={form.password}
+                          onChange={e => setForm({ ...form, password: e.target.value })}
+                          placeholder="Enter initial password (min 6 characters)"
+                          style={{ width: '100%', paddingRight: 80 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleToggleEmpPassword}
+                          title={showEmpPass ? `Visible for ${empPassSeconds}s` : 'Show password for 5 seconds'}
+                          style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: showEmpPass ? '#f3e8ff' : '#f1f5f9',
+                            color: showEmpPass ? '#7c3aed' : '#475569',
+                            border: showEmpPass ? '1px solid #c084fc' : '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '3px 8px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            zIndex: 2,
+                          }}
+                        >
+                          <span>{showEmpPass ? '👁' : '👁‍🗨'}</span>
+                          <span>{showEmpPass ? `${empPassSeconds}s` : 'Show'}</span>
+                        </button>
+                      </div>
+                    </label>
+                  </>
+                )}
               </div>
               <div className="module-actions">
                 <button type="button" className="cancel-button" onClick={() => setShowForm(false)}>Cancel</button>
-                <button className="module-primary" disabled={saving}>{saving ? 'Saving...' : (editId ? 'Update employee' : 'Create employee')}</button>
+                <button className="module-primary" disabled={saving}>{saving ? 'Saving...' : (editId ? 'Update employee' : 'Create employee & account')}</button>
               </div>
             </form>
           </section>

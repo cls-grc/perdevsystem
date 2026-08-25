@@ -2,23 +2,23 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 
 const sectionsByRole = {
-hr: [
+  hr: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI-Assisted Performance & Learning Analytics', icon: 'grid' }]
+      links: [{ to: '/', label: 'AI Analytics Dashboard', icon: 'grid', badge: 'Live' }]
     },
-{
+    {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
         { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
-{
+    {
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
-        { to: '/competency', label: 'Skill Development', icon: 'award' },
+        { to: '/competency', label: 'Skill Development', icon: 'zap' },
         { to: '/recognition', label: 'Social Recognition', icon: 'heart' }
       ]
     },
@@ -27,15 +27,15 @@ hr: [
       links: [
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
-        { to: '/succession', label: 'Succession Planning', icon: 'users' },
+        { to: '/succession', label: 'Succession Planning', icon: 'crown' },
         { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
   ],
-supervisor: [
+  supervisor: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'Team Dashboard', icon: 'grid' }]
+      links: [{ to: '/', label: 'Team Dashboard', icon: 'grid', badge: 'Live' }]
     },
     {
       title: 'Administration',
@@ -43,11 +43,11 @@ supervisor: [
         { to: '/employees', label: 'Employee Records', icon: 'users' }
       ]
     },
-{
+    {
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Team Performance', icon: 'trend' },
-        { to: '/competency', label: 'Team Development', icon: 'award' },
+        { to: '/competency', label: 'Team Development', icon: 'zap' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
       ]
     },
@@ -57,19 +57,19 @@ supervisor: [
         { to: '/learning', label: 'Team Learning', icon: 'book' },
         { to: '/training', label: 'Training Attendance', icon: 'calendar' },
         { to: '/certificates', label: 'Team Certificates', icon: 'award' },
-        { to: '/succession', label: 'Succession Nominations', icon: 'users' }
+        { to: '/succession', label: 'Succession Nominations', icon: 'crown' }
       ]
     }
   ],
   management: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid' }]
+      links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid', badge: 'Live' }]
     },
-{
+    {
       title: 'Operations',
       links: [
-        { to: '/succession', label: 'Succession Approvals', icon: 'users' },
+        { to: '/succession', label: 'Succession Approvals', icon: 'crown' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
       ]
     },
@@ -80,10 +80,10 @@ supervisor: [
       ]
     }
   ],
-operations_manager: [
+  operations_manager: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI-Assisted Performance & Learning Analytics', icon: 'grid' }]
+      links: [{ to: '/', label: 'AI Analytics Dashboard', icon: 'grid', badge: 'Live' }]
     },
     {
       title: 'Administration',
@@ -92,34 +92,34 @@ operations_manager: [
         { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
-{
+    {
       title: 'Operations',
       links: [
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
-        { to: '/competency', label: 'Skill Development', icon: 'award' },
+        { to: '/competency', label: 'Skill Development', icon: 'zap' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
       ]
     },
     {
-title: 'Monitoring',
+      title: 'Monitoring',
       links: [
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
-        { to: '/succession', label: 'Succession Planning', icon: 'users' },
+        { to: '/succession', label: 'Succession Planning', icon: 'crown' },
         { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
   ],
-employee: [
+  employee: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'My Dashboard', icon: 'grid' }]
+      links: [{ to: '/', label: 'My Dashboard', icon: 'grid', badge: 'Live' }]
     },
-{
+    {
       title: 'Operations',
       links: [
         { to: '/performance', label: 'My Performance', icon: 'trend' },
-        { to: '/competency', label: 'My Development Plan', icon: 'award' },
+        { to: '/competency', label: 'My Development Plan', icon: 'zap' },
         { to: '/recognition', label: 'Recognition', icon: 'heart' }
       ]
     },
@@ -134,41 +134,140 @@ employee: [
   ]
 }
 
-export function Icon({name,size=20}){
+export function Icon({ name, size = 20 }) {
   const p = {
-    grid: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
-    trend: <><path d="M3 17 9 11l4 4 8-9"/><path d="M15 6h6v6"/></>,
-    award: <><circle cx="12" cy="8" r="5"/><path d="m8.5 12.2-1 8 4.5-2.5 4.5 2.5-1-8"/></>,
-    book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H20v17H7.5A3.5 3.5 0 0 0 4 22z"/><path d="M4 5.5V22M8 6h8M8 10h7"/></>,
-    settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.2 1.6Z"/></>,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
-    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></>,
-    heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z"/>,
-    bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>,
-    chevron: <path d="m9 18 6-6-6-6"/>
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="2" />
+        <rect x="14" y="3" width="7" height="7" rx="2" />
+        <rect x="3" y="14" width="7" height="7" rx="2" />
+        <rect x="14" y="14" width="7" height="7" rx="2" />
+      </>
+    ),
+    trend: (
+      <>
+        <path d="M3 17l6-6 4 4 8-8" />
+        <path d="M14 7h7v7" />
+      </>
+    ),
+    zap: (
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    ),
+    award: (
+      <>
+        <circle cx="12" cy="8" r="5" />
+        <path d="m8.5 12.2-1 8 4.5-2.5 4.5 2.5-1-8" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+        <path d="M6 6h10M6 10h10M6 14h6" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="4" width="18" height="18" rx="3" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    ),
+    crown: (
+      <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z" />
+    ),
+    heart: (
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.2 1.6Z" />
+      </>
+    ),
+    bell: (
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </>
+    ),
+    sparkles: (
+      <>
+        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+      </>
+    ),
+    chevron: (
+      <path d="m9 18 6-6-6-6" />
+    )
   }
 
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {p[name]}
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="inline-icon"
+    >
+      {p[name] || p.grid}
     </svg>
   )
 }
 
-export default function Sidebar({user,onLogout}) {
-  const roleLabel = {hr:'HR Administrator',supervisor:'Department Head',management:'Senior Management',operations_manager:'Operations Manager',employee:'Employee'}[user.role] || user.role
-  const initials = user.name?.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()
+export default function Sidebar({ user, onLogout, onOpenAiChat }) {
+  const roleLabel =
+    {
+      hr: 'HR Administrator',
+      supervisor: 'Department Head',
+      management: 'Senior Management',
+      operations_manager: 'Operations Manager',
+      employee: 'Employee'
+    }[user.role] || user.role
+
+  const initials = user.name
+    ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase()
+    : 'HR'
+
   const navSections = sectionsByRole[user.role] || sectionsByRole.employee
 
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <span className="brand-mark"><span /></span>
-        <span>PerDevSys</span>
+      {/* Brand Header */}
+      <div className="sidebar-brand-wrapper">
+        <div className="brand">
+          <div className="brand-logo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#brandGrad)" />
+              <path d="M7 8h10M7 12h10M7 16h6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+              <defs>
+                <linearGradient id="brandGrad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#9333ea" />
+                  <stop offset="1" stopColor="#6366f1" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div className="brand-text-block">
+            <span className="brand-name">PerDevSys</span>
+            <span className="brand-badge">HOSPITALITY HR</span>
+          </div>
+        </div>
       </div>
 
-      <p className="workspace-label">HOSPITALITY HR</p>
-
+      {/* Main Navigation List */}
       <div className="nav-list">
         {navSections.map((section) => (
           <div key={section.title} className="sidebar-section">
@@ -177,7 +276,7 @@ export default function Sidebar({user,onLogout}) {
               {section.links.map((item) =>
                 item.disabled ? (
                   <div key={item.label} className="nav-item disabled">
-                    <Icon name={item.icon} size={18} />
+                    <span className="nav-icon-wrap"><Icon name={item.icon} size={16} /></span>
                     <span className="label">{item.label}</span>
                   </div>
                 ) : (
@@ -187,8 +286,9 @@ export default function Sidebar({user,onLogout}) {
                     end={item.to === '/'}
                     className={({ isActive }) => `nav-item ${isActive ? 'nav-active' : ''}`}
                   >
-                    <Icon name={item.icon} size={18} />
+                    <span className="nav-icon-wrap"><Icon name={item.icon} size={16} /></span>
                     <span className="label">{item.label}</span>
+                    {item.badge && <span className="nav-badge-pill">{item.badge}</span>}
                   </NavLink>
                 )
               )}
@@ -197,16 +297,19 @@ export default function Sidebar({user,onLogout}) {
         ))}
       </div>
 
+      {/* User Profile Pill at Bottom */}
       <div className="sidebar-footer">
         <div className="profile-mini profile-rbac">
           <span className="avatar avatar-lia">{initials}</span>
           <div className="profile-info">
-            <b>{user.name}</b>
+            <b title={user.name}>{user.name}</b>
             <small>{roleLabel}</small>
           </div>
-          <span className="role-dot" title={roleLabel} />
+          <span className="role-dot" title={`Role: ${roleLabel}`} />
         </div>
-        <button className="sidebar-signout" onClick={onLogout}>Sign out</button>
+        <button className="sidebar-signout" type="button" onClick={onLogout}>
+          <span>Sign out</span>
+        </button>
       </div>
     </aside>
   )

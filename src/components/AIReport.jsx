@@ -42,14 +42,14 @@ function renderContent(content, keyPrefix) {
     if (listItems.length) {
       if (isNumbered) {
         elements.push(
-          <ol key={key} style={{ paddingLeft: 18, margin: '5px 0', fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
-            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
+          <ol key={key} className="ai-report-ol">
+            {listItems.map((item, index) => <li key={index}>{renderInline(item)}</li>)}
           </ol>,
         )
       } else {
         elements.push(
-          <ul key={key} style={{ paddingLeft: 18, margin: '5px 0', fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
-            {listItems.map((item, index) => <li key={index} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
+          <ul key={key} className="ai-report-ul">
+            {listItems.map((item, index) => <li key={index}>{renderInline(item)}</li>)}
           </ul>,
         )
       }
@@ -74,7 +74,7 @@ function renderContent(content, keyPrefix) {
       listItems.push(numMatch[2])
     } else {
       flushList(`${keyPrefix}-list-${index}`)
-      elements.push(<p key={`${keyPrefix}-p-${index}`} style={{ margin: '4px 0', lineHeight: 1.6, color: '#374151', fontSize: 12 }}>{renderInline(sanitized)}</p>)
+      elements.push(<p key={`${keyPrefix}-p-${index}`} className="ai-report-paragraph">{renderInline(sanitized)}</p>)
     }
   })
   flushList(`${keyPrefix}-list-end`)
@@ -88,10 +88,10 @@ export default function AIReport({ insights = [], content = '', title = '' }) {
   const rawBlocks = cleanMarkdown(source).split(/\n\s*\n/).filter(Boolean)
 
   return (
-    <article className="ai-report" aria-label="AI analytics report" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <article className="ai-report" aria-label="AI analytics report">
       {reportTitle && (
-        <header className="ai-report-header" style={{ borderBottom: '1px solid #eeedf2', paddingBottom: 8, marginBottom: 4 }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827' }}>{reportTitle}</h2>
+        <header className="ai-report-header">
+          <h2>{reportTitle}</h2>
         </header>
       )}
 
@@ -117,8 +117,8 @@ export default function AIReport({ insights = [], content = '', title = '' }) {
             }
 
             return (
-              <section key={key} className="ai-report-section" style={{ marginTop: 6 }}>
-                <h3 style={{ fontSize: 11, fontWeight: 700, color: '#5f48c5', margin: '0 0 4px 0', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              <section key={key} className="ai-report-section">
+                <h3 className="ai-report-section-title">
                   {renderInline(cleanTitle)}
                 </h3>
                 {bodyText ? renderContent(bodyText, `${key}-body`) : null}
@@ -126,7 +126,11 @@ export default function AIReport({ insights = [], content = '', title = '' }) {
             )
           }
 
-          return renderContent(trimmed, key)
+          return (
+            <section key={key} className="ai-report-section">
+              {renderContent(trimmed, key)}
+            </section>
+          )
         })
       ) : (
         <div className="insight-empty">
