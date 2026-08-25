@@ -17,11 +17,12 @@ import './roleControls.css'
 import './certificate.css'
 import './certificateUpload.css'
 import './employeeRecords.css'
+import Login from './pages/Login'
 import './learningLibrary.css'
 import './responsive.css'
 import './animations.css'
 
-// Lazy-load all page components so each is only downloaded when first visited
+// Lazy-load other page components so each is only downloaded when first visited
 const AIAnalytics = lazy(() => import('./pages/AIAnalytics'))
 const PerformanceManagement = lazy(() => import('./pages/PerformanceManagement'))
 const CompetencyManagement = lazy(() => import('./pages/CompetencyManagement'))
@@ -34,7 +35,6 @@ const CertificateVerification = lazy(() => import('./pages/CertificateVerificati
 const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const Register = lazy(() => import('./pages/Register'))
-const Login = lazy(() => import('./pages/Login'))
 const RoleHome = lazy(() => import('./pages/RoleHome'))
 const AIChatDrawer = lazy(() => import('./components/AIChatDrawer'))
 
@@ -90,6 +90,26 @@ function ModuleRoutes({ user }) {
     const mainEl = document.querySelector('.fixed-main')
     if (mainEl) mainEl.scrollTop = 0
   }, [location.pathname])
+
+  // Eagerly preload all lazy page chunks right after the app shell renders
+  // so every sidebar navigation is instant (chunks already in browser cache)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import('./pages/AIAnalytics')
+      import('./pages/RoleHome')
+      import('./pages/PerformanceManagement')
+      import('./pages/CompetencyManagement')
+      import('./pages/LearningManagement')
+      import('./pages/TrainingManagement')
+      import('./pages/SuccessionPlanning')
+      import('./pages/SocialRecognition')
+      import('./pages/CertificateManagement')
+      import('./pages/EmployeeManagement')
+      import('./pages/AuditLogs')
+      import('./components/AIChatDrawer')
+    }, 1500) // 1.5s after mount — let the current page render first
+    return () => clearTimeout(t)
+  }, []) // only once
 
   return (
     <div key={location.pathname} className="page-transition-wrapper">
@@ -184,10 +204,10 @@ function App() {
     } catch (e) {}
   }, [dark])
 
-  const handleLogout = async (reason = '') => {
+  const handleLogout = (reason = '') => {
     const refreshToken = localStorage.getItem('pds-refresh-token')
     if (refreshToken) {
-      try { await api.logout(refreshToken) } catch { /* best-effort */ }
+      void api.logout(refreshToken).catch(() => {})
     }
     try {
       const currentUser = JSON.parse(localStorage.getItem('pds-user') || '{}') || {}
@@ -197,16 +217,11 @@ function App() {
     localStorage.removeItem('pds-refresh-token')
     localStorage.removeItem('pds-user')
     localStorage.removeItem('pds-last-activity')
-    
-    // Cleanly reset URL to '/' so unauthenticated state doesn't get stuck on a protected subpath
-    if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/verify/')) {
-      window.history.replaceState(null, '', '/')
-    }
 
-    setUser(null)
     if (reason) {
       setSessionNotice(reason)
     }
+    setUser(null)
   }
 
   // 3-minute session inactivity auto-logout
@@ -273,15 +288,13 @@ function App() {
           path="/*"
           element={
             !user ? (
-              <Suspense fallback={<div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Loading…</div>}>
-                <Login
-                  onLogin={(u) => {
-                    setSessionNotice('')
-                    setUser(u)
-                  }}
-                  notice={sessionNotice}
-                />
-              </Suspense>
+              <Login
+                onLogin={(u) => {
+                  setSessionNotice('')
+                  setUser(u)
+                }}
+                notice={sessionNotice}
+              />
             ) : (
               <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
                 <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} onOpenAiChat={() => setAiChatOpen(true)} />

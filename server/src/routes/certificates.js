@@ -153,7 +153,34 @@ router.get('/', authorize('hr', 'supervisor', 'employee'), async (req, res, next
     const params = []; let where = 'WHERE 1=1'
     if (scope.isEmployee) { params.push(scope.employeeId); where += ` AND c.employee_id=$${params.length}` }
     else if (scope.isScoped && scope.department) { params.push(scope.department); where += ` AND e.department=$${params.length}` }
-    const { page = '1', limit = '50' } = req.query; const pageNum = Math.max(1, parseInt(page, 10) || 1); const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50)); const offset = (pageNum - 1) * limitNum; const countResult = await query(`SELECT count(*)::int AS total FROM certificates c JOIN employees e ON e.id=c.employee_id ${where}`, params); const total = countResult.rows[0]?.total || 0; params.push(limitNum, offset); const { rows } = await query(`SELECT c.*, e.full_name AS employee_name, e.department, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.body_text, t.logo_url, t.signature_url, t.signatory_name, t.signatory_position FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id ${where} ORDER BY c.issued_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params); res.json({ certificates: rows, total, page: pageNum, limit: limitNum }) } catch (error) { next(error) } })
+    const { page = '1', limit = '50' } = req.query
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50))
+    const offset = (pageNum - 1) * limitNum
+    params.push(limitNum, offset)
+    // Single query: COUNT(*) OVER() avoids a separate count round-trip
+    // Exclude repetitive base64 logo_url / signature_url from the list payload to ensure fast loading
+    const { rows } = await query(
+      `SELECT c.id, c.template_id, c.employee_id, c.certificate_number, c.verification_code,
+              c.achievement_text, c.awarded_at, c.expires_at, c.status, c.revoked_at, c.revoked_reason,
+              c.issued_by, c.issued_at, c.metadata,
+              e.full_name AS employee_name, e.department,
+              t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name,
+              t.body_text, t.signatory_name, t.signatory_position,
+              COUNT(*) OVER() AS _total
+       FROM certificates c
+       JOIN employees e ON e.id=c.employee_id
+       JOIN certificate_templates t ON t.id=c.template_id
+       ${where}
+       ORDER BY c.issued_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    )
+    const total = rows[0]?._total ? parseInt(rows[0]._total, 10) : 0
+    // Strip _total from each row before sending
+    const certificates = rows.map(({ _total, ...r }) => r)
+    res.json({ certificates, total, page: pageNum, limit: limitNum })
+  } catch (error) { next(error) } })
 router.post('/issue', authorize('hr'), async (req, res, next) => { try { const input = issueSchema.parse(req.body); const result = await transaction(async client => { const templateResult = await client.query('SELECT * FROM certificate_templates WHERE id=$1 AND is_active=true', [input.templateId]); const template = templateResult.rows[0]; if (!template) throw Object.assign(new Error('Certificate template is not available.'), { status: 404 }); const people = await client.query('SELECT id, full_name, department, employee_number FROM employees WHERE id = ANY($1::uuid[]) AND is_active=true', [input.employeeIds]); if (people.rowCount !== input.employeeIds.length) throw Object.assign(new Error('One or more selected employees are unavailable.'), { status: 400 }); const created = []; for (const employee of people.rows) { const certificateNumber = `PDS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`; const expiresAt = template.validity_days ? new Date(Date.parse(input.awardedAt || new Date().toISOString().slice(0, 10)) + template.validity_days * 86400000).toISOString().slice(0, 10) : null; const inserted = await client.query('INSERT INTO certificates(template_id,employee_id,certificate_number,achievement_text,awarded_at,expires_at,issued_by,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [template.id, employee.id, certificateNumber, input.achievementText, input.awardedAt || new Date().toISOString().slice(0, 10), expiresAt, req.user.sub, { employeeName: employee.full_name, employeeNumber: employee.employee_number, department: employee.department }]); created.push(inserted.rows[0]) } return created }); await logActivity({ req, user: req.user, action: 'certificate.issue', category: 'certificate', description: `${req.user.name} issued ${result.length} certificate(s) using template ${input.templateId}`, details: { count: result.length, employeeIds: input.employeeIds } }); res.status(201).json({ certificates: result }) } catch (error) { next(error) } })
 router.post('/:id/revoke', authorize('hr'), async (req, res, next) => { try { const input = revokeSchema.parse(req.body); const { rows } = await query("UPDATE certificates SET status='revoked', revoked_at=NOW(), revoked_reason=$1 WHERE id=$2 AND status='issued' RETURNING *", [input.reason, req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Issued certificate not found.' }); await logActivity({ req, user: req.user, action: 'certificate.revoke', category: 'certificate', targetId: req.params.id, description: `${req.user.name} revoked certificate ${rows[0].certificate_number}`, details: { reason: input.reason } }); res.json({ certificate: rows[0] }) } catch (error) { next(error) } })
 router.post('/:id/regenerate', authorize('hr'), async (req, res, next) => { try { const { rows } = await query("UPDATE certificates SET metadata=metadata || jsonb_build_object('regeneratedAt', NOW()::text) WHERE id=$1 AND status='issued' RETURNING *", [req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Issued certificate not found.' }); await logActivity({ req, user: req.user, action: 'certificate.regenerate', category: 'certificate', targetId: req.params.id, description: `${req.user.name} regenerated certificate ${rows[0].certificate_number}` }); res.json({ certificate: rows[0] }) } catch (error) { next(error) } })

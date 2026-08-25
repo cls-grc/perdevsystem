@@ -1,12 +1,49 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { flushSync } from 'react-dom'
+import QRCode from 'qrcode'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import QRCodeImage from '../components/QRCodeImage'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
 const date = value => value ? new Date(value).toLocaleDateString() : '—'
+
+// Compress user-uploaded logos and signatures on canvas to avoid multi-megabyte payloads
+const compressImage = (file, maxWidth = 500, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width)
+            width = maxWidth
+          } else {
+            width = Math.round((width * maxWidth) / height)
+            height = maxWidth
+          }
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+        resolve(canvas.toDataURL(mimeType, quality))
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Page-level cache so switching away and back is instant
+const certCache = { certificates: null, templates: null, employees: null, ts: 0 }
+const CACHE_TTL_MS = 60_000 // 1 minute
 
 function Preview({ template, certificate, compact = false }) {
   const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
@@ -48,9 +85,9 @@ export default function CertificateManagement({ embedded = false }) {
   const operationsManager = role === 'operations_manager'
   const Container = embedded ? 'section' : 'main'
 
-  const [templates, setTemplates] = useState([])
-  const [certificates, setCertificates] = useState([])
-  const [employees, setEmployees] = useState([])
+  const [templates, setTemplates] = useState(certCache.templates || [])
+  const [certificates, setCertificates] = useState(certCache.certificates || [])
+  const [employees, setEmployees] = useState(certCache.employees || [])
   const [template, setTemplate] = useState(null)
   const [recipientIds, setRecipientIds] = useState([])
   const [achievement, setAchievement] = useState('For exceptional performance and meaningful contribution to the organization.')
@@ -62,26 +99,51 @@ export default function CertificateManagement({ embedded = false }) {
   const [query, setQuery] = useState('')
   const [employeeQuery, setEmployeeQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
-  const [printCert, setPrintCert] = useState(null)
   const [saving, setSaving] = useState(false)
   const [retiring, setRetiring] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Only show full skeleton on very first load (no cache). Subsequent loads show stale data instantly.
+  const [loading, setLoading] = useState(certCache.certificates === null)
+  const [hrLoading, setHrLoading] = useState(hr && certCache.templates === null)
 
-  const load = async () => {
+  const load = async (force = false) => {
+    const cacheValid = !force && Date.now() - certCache.ts < CACHE_TTL_MS
+    if (cacheValid && certCache.certificates !== null) return
+
     try {
-      const calls = [api.certificates()]
-      if (hr) calls.push(api.certificateTemplates(), api.workflowSubjects())
-      const result = await Promise.all(calls)
-      setCertificates(result[0].certificates || [])
+      // Fire certificates fetch immediately — show as soon as it arrives
+      const certPromise = api.certificates()
+
       if (hr) {
-        setTemplates(result[1].templates || [])
-        setEmployees(result[2].employees || [])
-        if (!template && result[1].templates?.[0]) setTemplate(result[1].templates[0])
+        // Fire HR calls in parallel but don't block certificate display
+        const [certResult, templatesResult, employeesResult] = await Promise.all([
+          certPromise,
+          api.certificateTemplates(),
+          api.workflowSubjects(),
+        ])
+        const certs = certResult.certificates || []
+        const tmps = templatesResult.templates || []
+        const emps = employeesResult.employees || []
+        certCache.certificates = certs
+        certCache.templates = tmps
+        certCache.employees = emps
+        certCache.ts = Date.now()
+        setCertificates(certs)
+        setTemplates(tmps)
+        setEmployees(emps)
+        setTemplate(t => t ?? (tmps[0] || null))
+        setHrLoading(false)
+      } else {
+        const certResult = await certPromise
+        const certs = certResult.certificates || []
+        certCache.certificates = certs
+        certCache.ts = Date.now()
+        setCertificates(certs)
       }
     } catch (requestError) {
       setError(requestError.message)
     } finally {
       setLoading(false)
+      setHrLoading(false)
     }
   }
 
@@ -101,13 +163,16 @@ export default function CertificateManagement({ embedded = false }) {
 
   const modalRef = useDialogFocus(showForm, () => setShowForm(false))
 
-  const upload = (field, file) => {
+  const upload = async (field, file) => {
     if (!file) return
     if (!file.type.startsWith('image/')) return setError('Please select an image file.')
     if (file.size > 8 * 1024 * 1024) return setError('Image must be smaller than 8 MB.')
-    const reader = new FileReader()
-    reader.onload = () => setForm(current => ({ ...current, [field]: reader.result, [`${field}Name`]: file.name }))
-    reader.readAsDataURL(file)
+    try {
+      const compressed = await compressImage(file, 500, 0.85)
+      setForm(current => ({ ...current, [field]: compressed, [`${field}Name`]: file.name }))
+    } catch {
+      setError('Failed to process image file. Please try a different image.')
+    }
   }
 
   const save = async event => {
@@ -186,7 +251,8 @@ export default function CertificateManagement({ embedded = false }) {
     try {
       await api.issueCertificates({ templateId: template.id, employeeIds: recipientIds, achievementText: achievement, awardedAt: new Date().toISOString().slice(0, 10) })
       setNotice('Certificates generated and archived.')
-      await load()
+      certCache.ts = 0 // bust cache
+      await load(true)
     } catch (requestError) { setError(requestError.message) }
   }
 
@@ -194,13 +260,13 @@ export default function CertificateManagement({ embedded = false }) {
     const reason = window.prompt('Reason for revoking this certificate (min 3 characters):')
     if (!reason) return
     if (reason.trim().length < 3) return setError('Revoke reason must be at least 3 characters.')
-    try { await api.revokeCertificate(certificate.id, reason.trim()); await load() } catch (requestError) { setError(requestError.message) }
+    try { await api.revokeCertificate(certificate.id, reason.trim()); certCache.ts = 0; await load(true) } catch (requestError) { setError(requestError.message) }
   }
 
   const checkExpiry = async () => {
     try {
       const result = await api.checkExpiredCertificates()
-      if (result.expired > 0) { await load(); setNotice(`${result.expired} expired certificate(s) updated.`) }
+      if (result.expired > 0) { certCache.ts = 0; await load(true); setNotice(`${result.expired} expired certificate(s) updated.`) }
       else { setNotice('No expired certificates found.') }
     } catch (requestError) { setError(requestError.message) }
   }
@@ -223,22 +289,126 @@ export default function CertificateManagement({ embedded = false }) {
     </div>
   )
 
-  const print = async certificate => {
-    const fresh = await api.certificates()
-    const current = fresh.certificates?.find(c => c.id === certificate.id) || certificate
-    flushSync(() => setPrintCert(current))
-    window.addEventListener('afterprint', () => setPrintCert(null), { once: true })
-    setTimeout(() => window.print(), 30)
+  const printOrDownloadCertificate = async (certificate) => {
+    const tmpl = templates.find(t => t.id === certificate?.template_id) || certificate || {}
+    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+    const verifyCode = certificate?.verification_code
+    const verifyUrl = verifyCode ? `${publicAppUrl}/verify/certificate/${verifyCode}` : `${publicAppUrl}/verify/certificate/SAMPLE-VERIFICATION-CODE`
+
+    let qrDataUrl = ''
+    try {
+      qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+        margin: 1,
+        width: 220,
+        color: { dark: '#282631', light: '#ffffff' }
+      })
+    } catch {
+      qrDataUrl = ''
+    }
+
+    const orgName = tmpl?.organization_name || certificate?.organization_name || 'PerDevSys Hospitality'
+    const title = tmpl?.certificate_title || certificate?.certificate_title || 'Certificate of Excellence'
+    const subtitle = tmpl?.subtitle || certificate?.subtitle || 'Recognition of achievement'
+    const empName = certificate?.employee_name || '{{Employee Name}}'
+    const bodyText = (certificate?.achievement_text || tmpl?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', empName)
+    const awardedDate = date(certificate?.awarded_at || certificate?.issued_at)
+    const signatory = tmpl?.signatory_name || certificate?.signatory_name || 'Authorized Signatory'
+    const signatoryPos = tmpl?.signatory_position || certificate?.signatory_position || ''
+    const certNum = certificate?.certificate_number || 'PDS-YYYY-00000000'
+    const logoHtml = tmpl?.logo_url ? `<img src="${tmpl.logo_url}" class="logo" alt="Logo" />` : ''
+    const sigHtml = tmpl?.signature_url ? `<img src="${tmpl.signature_url}" class="sig" alt="Signature" />` : ''
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.visibility = 'hidden'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    doc.open()
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${title} - ${empName}</title>
+<style>
+  @page { size: landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #fcfbff; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; }
+  .cert-container { width: 100vw; height: 100vh; padding: 44px 56px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: linear-gradient(135deg, #fcfbff 0%, #f4f0ff 100%); border: 3px solid #654bd2; box-sizing: border-box; position: relative; }
+  .logo { position: absolute; left: 44px; top: 40px; max-width: 100px; max-height: 70px; object-fit: contain; }
+  .seal { position: absolute; right: 44px; top: 40px; width: 64px; height: 64px; display: grid; place-items: center; border: 2px solid #654bd2; border-radius: 50%; color: #654bd2; font-size: 15px; font-weight: 800; background: rgba(239,235,255,0.9); }
+  .org { font-size: 13px; color: #7c778a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+  h2 { font-size: 32px; color: #282631; letter-spacing: -0.5px; font-weight: 800; margin-bottom: 4px; }
+  em { font-size: 16px; color: #654bd2; font-style: normal; font-weight: 600; }
+  .pres-text { font-size: 14px; color: #7c778a; margin: 20px 0 6px; }
+  h1 { font-size: 38px; color: #654bd2; font-weight: 800; letter-spacing: -0.5px; }
+  .rule { width: 100px; height: 3px; background: linear-gradient(90deg, #654bd2, #9b89f5); margin: 10px auto 14px; border-radius: 2px; }
+  .body { font-size: 15px; line-height: 1.65; color: #4a4656; max-width: 700px; margin: 0 auto; }
+  .foot { width: 85%; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; font-size: 13px; color: #7c778a; text-align: left; }
+  .foot b { display: block; color: #282631; font-size: 14px; font-weight: 700; margin-top: 3px; }
+  .foot small { display: block; font-size: 11px; color: #888; margin-top: 1px; }
+  .qr { text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .qr img { width: 95px; height: 95px; border-radius: 4px; border: 1px solid #e4e1f7; background: #fff; }
+  .qr small { font-size: 8.5px; color: #654bd2; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px; }
+  .sig { display: block; max-width: 140px; max-height: 48px; object-fit: contain; margin-bottom: 4px; }
+  footer { position: absolute; bottom: 16px; width: 100%; text-align: center; font-size: 11px; color: #9b97a6; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<div class="cert-container">
+  ${logoHtml}
+  <div class="seal">PDS</div>
+  <div class="org">${orgName}</div>
+  <h2>${title}</h2>
+  <em>${subtitle}</em>
+  <p class="pres-text">This certificate is proudly presented to</p>
+  <h1>${empName}</h1>
+  <div class="rule"></div>
+  <p class="body">${bodyText}</p>
+  <div class="foot">
+    <div>Date awarded<br><b>${awardedDate}</b></div>
+    <div class="qr">
+      ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR" />` : ''}
+      <small>VERIFY ONLINE</small>
+    </div>
+    <div>
+      ${sigHtml}
+      Authorized by<br><b>${signatory}</b><small>${signatoryPos}</small>
+    </div>
+  </div>
+  <footer>Certificate No. ${certNum}${verifyCode ? ` · Code: ${verifyCode}` : ''}</footer>
+</div>
+</body>
+</html>`)
+    doc.close()
+
+    iframe.contentWindow.focus()
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.print()
+      } catch (err) {
+        console.error('Print failed:', err)
+      } finally {
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe)
+          }
+        }, 1500)
+      }
+    }, 60)
   }
 
-  const downloadPdf = async certificate => {
-    const fresh = await api.certificates()
-    const current = fresh.certificates?.find(c => c.id === certificate.id) || certificate
-    flushSync(() => setPrintCert(current))
-    setTimeout(() => {
-      window.print()
-      window.addEventListener('afterprint', () => setPrintCert(null), { once: true })
-    }, 30)
+  const print = (certificate) => {
+    printOrDownloadCertificate(certificate)
+  }
+
+  const downloadPdf = (certificate) => {
+    printOrDownloadCertificate(certificate)
   }
 
   const copyVerificationLink = certificate => {
@@ -281,7 +451,7 @@ export default function CertificateManagement({ embedded = false }) {
         ) : paginatedCertificates.length > 0 ? (
           paginatedCertificates.map(c => (
             <article className="certificate-card" key={c.id}>
-              <Preview certificate={c} compact/>
+              <Preview certificate={c} template={templates.find(t => t.id === c.template_id)} compact/>
               <div>
                 <span className={`certificate-status ${c.status}`}>{c.status}</span>
                 <h3>{hr ? c.employee_name : c.certificate_title}</h3>
@@ -292,7 +462,7 @@ export default function CertificateManagement({ embedded = false }) {
                 <button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>
                 {hr && c.status === 'issued' && (
                   <>
-                    <button onClick={() => api.regenerateCertificate(c.id).then(load)}>Regenerate</button>
+                    <button onClick={() => api.regenerateCertificate(c.id).then(() => { certCache.ts = 0; load(true) })}>Regenerate</button>
                     <button className="certificate-revoke" onClick={() => revoke(c)}>Revoke</button>
                   </>
                 )}
@@ -343,14 +513,6 @@ export default function CertificateManagement({ embedded = false }) {
     </div>
   )
 
-  const printPortal = printCert && createPortal(
-    <div className="certificate-print-root" role="dialog" aria-label="Print preview">
-      <div className="certificate-print-sheet"><Preview template={printCert} certificate={printCert} /></div>
-      <button className="certificate-print-close" onClick={() => setPrintCert(null)}>× Close preview</button>
-    </div>,
-    document.body
-  )
-
   const openCreateForm = () => {
     setEditingTemplate(null)
     setForm(defaults)
@@ -371,7 +533,6 @@ export default function CertificateManagement({ embedded = false }) {
         <div className="certificate-archive-inner"><h2>Issued certificates</h2>{archiveControls}</div>
         {gallery}
       </section>
-      {printPortal}
     </Container>
   )
 
@@ -531,8 +692,6 @@ export default function CertificateManagement({ embedded = false }) {
           </form>
         </div>
       )}
-
-      {printPortal}
     </Container>
   )
 }

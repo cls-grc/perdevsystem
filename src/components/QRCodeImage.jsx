@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 
+// In-memory cache for generated QR code data URLs to avoid redundant canvas computations
+const qrCache = new Map()
+
 export default function QRCodeImage({ value, size = 70, className = '' }) {
-  const [dataUrl, setDataUrl] = useState('')
+  const cacheKey = `${value}_${size}`
+  const [dataUrl, setDataUrl] = useState(() => qrCache.get(cacheKey) || '')
 
   useEffect(() => {
     if (!value) return
+    if (qrCache.has(cacheKey)) {
+      setDataUrl(qrCache.get(cacheKey))
+      return
+    }
+
     let active = true
     QRCode.toDataURL(value, {
       margin: 1,
@@ -16,6 +25,7 @@ export default function QRCodeImage({ value, size = 70, className = '' }) {
       }
     })
       .then(url => {
+        qrCache.set(cacheKey, url)
         if (active) setDataUrl(url)
       })
       .catch(() => {})
@@ -23,7 +33,7 @@ export default function QRCodeImage({ value, size = 70, className = '' }) {
     return () => {
       active = false
     }
-  }, [value, size])
+  }, [value, size, cacheKey])
 
   if (!dataUrl) {
     return (

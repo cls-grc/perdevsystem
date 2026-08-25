@@ -57,6 +57,7 @@ export default function LearningManagement() {
   const [assignResource, setAssignResource] = useState(null)
   const [assignIds, setAssignIds] = useState([])
   const [dueDate, setDueDate] = useState('')
+  const [empQuery, setEmpQuery] = useState('')
 
   // Completion flow (HR/supervisor official verification)
   const [completeTarget, setCompleteTarget] = useState(null)
@@ -109,6 +110,10 @@ export default function LearningManagement() {
       return matchQ && matchC && matchP && matchComp
     })
   }, [resources, query, category, provType, compFilter])
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(p => `${p.full_name} ${p.department} ${p.job_title}`.toLowerCase().includes(empQuery.toLowerCase()))
+  }, [employees, empQuery])
 
   const save = async event => {
     event.preventDefault()
@@ -261,13 +266,63 @@ export default function LearningManagement() {
               </div>
             </div>
             <div className="assign-col">
-              <h2>2 · Select employees</h2>
+              <div className="assign-emp-header">
+                <h2>2 · Select employees</h2>
+                {assignIds.length > 0 && <span className="assign-count-badge">{assignIds.length} selected</span>}
+              </div>
+              <div className="assign-emp-search-box">
+                <input
+                  type="text"
+                  value={empQuery}
+                  onChange={e => setEmpQuery(e.target.value)}
+                  placeholder="Search by name, title, dept…"
+                  className="assign-emp-search-input"
+                  aria-label="Search employees"
+                />
+                {empQuery && (
+                  <button type="button" onClick={() => setEmpQuery('')} className="assign-search-clear" aria-label="Clear employee search">×</button>
+                )}
+              </div>
+              <div className="assign-emp-actions">
+                <button
+                  type="button"
+                  className="assign-select-all-btn"
+                  onClick={() => {
+                    const filteredIds = filteredEmployees.map(p => p.id)
+                    const allSelected = filteredIds.length > 0 && filteredIds.every(id => assignIds.includes(id))
+                    if (allSelected) {
+                      setAssignIds(ids => ids.filter(id => !filteredIds.includes(id)))
+                    } else {
+                      setAssignIds(ids => Array.from(new Set([...ids, ...filteredIds])))
+                    }
+                  }}
+                >
+                  {filteredEmployees.length > 0 && filteredEmployees.every(p => assignIds.includes(p.id)) ? 'Deselect visible' : 'Select all visible'}
+                </button>
+              </div>
               <div className="assign-emp-search">
-                {employees.filter(p => `${p.full_name} ${p.department} ${p.job_title}`.toLowerCase().includes(query.toLowerCase())).map(p => <label className="assign-row" key={p.id}>
-                  <input type="checkbox" checked={assignIds.includes(p.id)} onChange={() => setAssignIds(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])} />
-                  <span className="assign-avatar">{initials(p.full_name)}</span>
-                  <div><b>{p.full_name}</b><small>{p.job_title} · {p.department}</small></div>
-                </label>)}
+                {filteredEmployees.map(p => {
+                  const isSelected = assignIds.includes(p.id)
+                  return (
+                    <label className={`assign-row ${isSelected ? 'selected' : ''}`} key={p.id}>
+                      <span className="assign-avatar">{initials(p.full_name)}</span>
+                      <div className="assign-row-info">
+                        <b>{p.full_name}</b>
+                        <small>{p.job_title} · {p.department}</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="assign-checkbox"
+                        checked={isSelected}
+                        onChange={() => setAssignIds(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}
+                        aria-label={`Select ${p.full_name}`}
+                      />
+                    </label>
+                  )
+                })}
+                {!filteredEmployees.length && (
+                  <p className="learning-empty">No matching employees found.</p>
+                )}
               </div>
             </div>
             <div className="assign-col">
@@ -290,12 +345,14 @@ export default function LearningManagement() {
         {!employee && <div className="completion-note"><b>Live status badges</b><p>Each assignment shows the employee's self-reported study status (Not started / Studying / Completed / Need help) and their progress. "Need help" is highlighted so you can follow up quickly.</p></div>}
         <div className="assignment-list">
           {assignments.map(a => <article className="assignment-row" key={a.id}>
-<div className="assignment-info">
+            <div className="assignment-info">
               <b>{a.resource_title}</b>
               <small>{employee ? a.category : `${a.employee_name} · ${a.department}`}{a.due_date ? ` · due ${new Date(a.due_date).toLocaleDateString()}` : ''}</small>
-              <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
-              {a.is_completed && <span className="pill verified">✓ Verified</span>}
-              {a.fromCompetencyGap && <span className="pill gap-sourced" title="Assigned from a detected competency gap">🎯 From competency gap</span>}
+              <div className="assignment-badges">
+                <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
+                {a.is_completed && <span className="pill verified">✓ Verified</span>}
+                {a.fromCompetencyGap && <span className="pill gap-sourced" title="Assigned from a detected competency gap">🎯 From competency gap</span>}
+              </div>
             </div>
             <div className="assignment-progress">
               <div className="bar"><em style={{ width: `${a.progress || 0}%` }} /></div>
@@ -359,14 +416,14 @@ export default function LearningManagement() {
                 <div className="assignment-info">
                   <b>{a.resource_title}</b>
                   <small>{employee ? '' : `${a.employee_name} · ${a.department} · `}{a.category}{a.due_date ? ` · due ${new Date(a.due_date).toLocaleDateString()}` : ''}</small>
-                  {/* Competency tags — shows which gap this closes */}
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                  {/* Competency tags and status badges */}
+                  <div className="assignment-badges">
                     {(a.competencies || []).map(c => (
                       <span key={c} className="pill gap-sourced" title={`Closes gap in ${c}`}>🎯 {c}</span>
                     ))}
+                    <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
+                    {a.is_completed && <span className="pill verified">✓ Verified — competency improved</span>}
                   </div>
-                  <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
-                  {a.is_completed && <span className="pill verified">✓ Verified — competency improved</span>}
                 </div>
                 <div className="assignment-progress">
                   <div className="bar"><em style={{ width: `${a.progress || 0}%` }} /></div>
