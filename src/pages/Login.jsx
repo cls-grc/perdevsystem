@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
+import LoginIllustration from '../components/LoginIllustration'
 
 export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
@@ -7,6 +8,39 @@ export default function Login({ onLogin, notice }) {
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Pick up session notice from sessionStorage (written by handleLogout before the hard reload)
+  const [sessionNotice] = useState(() => {
+    try {
+      const msg = sessionStorage.getItem('pds-session-notice') || ''
+      if (msg) sessionStorage.removeItem('pds-session-notice')
+      return msg
+    } catch { return '' }
+  })
+
+  const displayNotice = sessionNotice || notice || ''
+
+  // Dark / Light Mode state for Login Screen toggle
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      return document.documentElement.classList.contains('dark') || localStorage.getItem('pds-theme') === 'dark'
+    } catch {
+      return true
+    }
+  })
+
+  const toggleTheme = () => {
+    const nextDark = !isDark
+    setIsDark(nextDark)
+    const root = document.documentElement
+    if (nextDark) {
+      root.classList.add('dark')
+      try { localStorage.setItem('pds-theme', 'dark') } catch {}
+    } else {
+      root.classList.remove('dark')
+      try { localStorage.setItem('pds-theme', 'light') } catch {}
+    }
+  }
 
   // Mode: 'login' | 'forgot' | 'reset'
   const [mode, setMode] = useState('login')
@@ -66,6 +100,13 @@ export default function Login({ onLogin, notice }) {
     e.preventDefault()
     e.stopPropagation()
 
+    if (showPassword) {
+      if (timerRef.current) clearInterval(timerRef.current)
+      setShowPassword(false)
+      setSecondsLeft(0)
+      return
+    }
+
     if (timerRef.current) clearInterval(timerRef.current)
 
     setShowPassword(true)
@@ -87,6 +128,13 @@ export default function Login({ onLogin, notice }) {
   const handleToggleShowResetPassword = (e) => {
     e.preventDefault()
     e.stopPropagation()
+
+    if (showResetPass) {
+      if (resetTimerRef.current) clearInterval(resetTimerRef.current)
+      setShowResetPass(false)
+      setResetSecondsLeft(0)
+      return
+    }
 
     if (resetTimerRef.current) clearInterval(resetTimerRef.current)
 
@@ -230,330 +278,463 @@ export default function Login({ onLogin, notice }) {
     }
   }
 
-  // Render 2FA View
-  if (is2FA) {
-    return (
-      <main className="login-page">
-        <form className="login-card" onSubmit={submit2FA}>
-          <div className="login-mark" style={{ background: 'linear-gradient(135deg, #654bd2 0%, #3b2890 100%)' }}>
-            🔒
-          </div>
-          <h1>Two-Factor Verification</h1>
-          <p>
-            Enter the 6-digit verification code from your <strong>Google Authenticator</strong> app for{' '}
-            <span style={{ color: '#654bd2', fontWeight: 600 }}>{email}</span>.
-          </p>
-          {error && <div className="login-error">{error}</div>}
-          <label>
-            Authenticator Code
-            <input
-              type="text"
-              inputMode="numeric"
-              autoFocus
-              value={twoFactorCode}
-              onChange={(e) => setTwoFactorCode(e.target.value.replace(/\s+/g, '').slice(0, 10))}
-              placeholder="000000"
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                textAlign: 'center',
-                letterSpacing: 4,
-                fontFamily: 'monospace',
-              }}
-              required
-            />
-          </label>
-          <button disabled={loading || twoFactorCode.length < 6} style={{ marginTop: 14 }}>
-            {loading ? 'Verifying…' : 'Verify & Sign in'}
-          </button>
-          <button
-            type="button"
-            onClick={cancel2FA}
-            disabled={loading}
-            style={{
-              marginTop: 10,
-              background: 'transparent',
-              border: '1px solid #dcd9e4',
-              color: '#654bd2',
-              fontWeight: 600,
-            }}
-          >
-            ← Back to Login
-          </button>
-        </form>
-      </main>
-    )
-  }
+  const isEyesClosed = showPassword || showResetPass
 
-  // Render Forgot Password View
-  if (mode === 'forgot') {
-    return (
-      <main className="login-page">
-        <form className="login-card" onSubmit={handleForgotPassword}>
-          <div className="login-mark" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)' }}>
-            🔑
-          </div>
-          <h1>Forgot Password</h1>
-          <p>Enter your registered work email to receive password reset instructions.</p>
-          {error && <div className="login-error">{error}</div>}
-          {successMsg && (
-            <div className="login-notice" style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}>
-              <span>✓</span>
-              <span>{successMsg}</span>
-            </div>
-          )}
-          <label>
-            Email Address
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@hotel.com"
-              autoComplete="email"
-              required
-              autoFocus
-            />
-          </label>
-          <button disabled={loading} style={{ marginTop: 14 }}>
-            {loading ? 'Sending Instructions…' : 'Reset Password'}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
-            disabled={loading}
-            style={{
-              marginTop: 10,
-              background: 'transparent',
-              border: '1px solid #dcd9e4',
-              color: '#654bd2',
-              fontWeight: 600,
-            }}
-          >
-            ← Back to Sign In
-          </button>
-        </form>
-      </main>
-    )
-  }
+  return (
+    <div className="login-split-page">
+      {/* Quick Theme Switcher Button (Top Right) */}
+      <button
+        type="button"
+        className="login-theme-toggle"
+        onClick={toggleTheme}
+        aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {isDark ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            </svg>
+            <span>Light</span>
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <span>Dark</span>
+          </>
+        )}
+      </button>
 
-  // Render Reset Password View
-  if (mode === 'reset') {
-    return (
-      <main className="login-page">
-        <form className="login-card" onSubmit={handleResetPassword}>
-          <div className="login-mark" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
-            🛡️
-          </div>
-          <h1>Set New Password</h1>
-          <p>Create a strong password for your account.</p>
-          {error && <div className="login-error">{error}</div>}
-          {successMsg && (
-            <div className="login-notice" style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>
-              <span>ℹ</span>
-              <span>{successMsg}</span>
-            </div>
-          )}
+      {/* LEFT SIDE: Seamless 3D Illustration Hero */}
+      <section className="login-illustration-column" aria-label="PerDevSys Workforce Development Illustration">
+        <LoginIllustration isPasswordVisible={isEyesClosed} isLoading={loading} />
+      </section>
 
-          <label>
-            Reset Verification Token
-            <input
-              type="text"
-              value={resetToken}
-              onChange={(e) => setResetToken(e.target.value)}
-              placeholder="Paste reset token"
-              required
-            />
-          </label>
+      {/* RIGHT SIDE: Authentication Form Card */}
+      <section className="login-form-column" aria-label="Sign In to PerDevSys">
+        <div className="login-card-container">
+          {/* ================================================================ */}
+          {/* 1. TWO-FACTOR AUTHENTICATION VIEW                                */}
+          {/* ================================================================ */}
+          {is2FA ? (
+            <form className="login-card" onSubmit={submit2FA}>
+              <div className="login-brand-header">
+                <div className="login-brand-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
+                <div className="login-brand-text">
+                  <span className="brand-per">Per</span>
+                  <span className="brand-dev">Dev</span>
+                  <span className="brand-sys">Sys</span>
+                </div>
+              </div>
 
-          <label style={{ marginBottom: 0 }}>
-            New Password
-            <div className="login-password-field">
-              <input
-                type={showResetPass ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 8 characters (1 upper, 1 lower, 1 number, 1 special)"
-                required
-              />
+              <h1>Two-Factor Auth</h1>
+              <p>
+                Enter the 6-digit verification code from your <strong>Google Authenticator</strong> app for{' '}
+                <span style={{ color: '#8b5cf6', fontWeight: 600 }}>{email}</span>.
+              </p>
+
+              {error && (
+                <div className="login-error">
+                  <span>⚠</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <label>
+                Authenticator Code
+                <div className="login-input-wrap">
+                  <span className="login-input-icon">🔑</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\s+/g, '').slice(0, 10))}
+                    placeholder="000000"
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      letterSpacing: 6,
+                      fontFamily: 'monospace',
+                    }}
+                    required
+                  />
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                className="login-submit-btn"
+                disabled={loading || twoFactorCode.length < 6}
+              >
+                <span>{loading ? 'Verifying…' : 'Verify & Continue'}</span>
+                <span>→</span>
+              </button>
+
               <button
                 type="button"
-                className={`password-toggle${showResetPass ? ' active' : ''}`}
-                onClick={handleToggleShowResetPassword}
-                title={showResetPass ? `Visible for ${resetSecondsLeft}s` : 'Show password for 5 seconds'}
-                tabIndex={0}
+                className="login-secondary-btn"
+                onClick={cancel2FA}
+                disabled={loading}
               >
-                <span className="password-toggle-icon">{showResetPass ? '👁' : '👁‍🗨'}</span>
-                <span className="password-toggle-label">{showResetPass ? 'Hide' : 'Show'}</span>
+                ← Back to Login
               </button>
-            </div>
-          </label>
-
-          <label>
-            Confirm New Password
-            <input
-              type={showResetPass ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter your new password"
-              required
-            />
-          </label>
-
-          <button disabled={loading} style={{ marginTop: 14 }}>
-            {loading ? 'Updating Password…' : 'Confirm New Password'}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
-            disabled={loading}
-            style={{
-              marginTop: 10,
-              background: 'transparent',
-              border: '1px solid #dcd9e4',
-              color: '#654bd2',
-              fontWeight: 600,
-            }}
-          >
-            ← Cancel &amp; Back to Login
-          </button>
-        </form>
-      </main>
-    )
-  }
-
-  // Standard Login View
-  return (
-    <main className="login-page">
-      <form className="login-card" onSubmit={submit}>
-        <div className="login-mark">▣</div>
-        <h1>Welcome to PerDevSys</h1>
-        <p>Sign in to manage workforce development and generate protected AI insights.</p>
-
-        {notice && !error && !successMsg && (
-          <div
-            className="login-notice"
-            style={{
-              marginBottom: 14,
-              borderRadius: 8,
-              padding: '10px 12px',
-              background: '#eff6ff',
-              color: '#1e40af',
-              border: '1px solid #bfdbfe',
-              fontSize: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>⏰</span>
-            <span>{notice}</span>
-          </div>
-        )}
-
-        {successMsg && (
-          <div
-            className="login-notice"
-            style={{
-              marginBottom: 14,
-              borderRadius: 8,
-              padding: '10px 12px',
-              background: '#ecfdf5',
-              color: '#065f46',
-              border: '1px solid #a7f3d0',
-              fontSize: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>✓</span>
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {lockoutSeconds > 0 && (
-          <div
-            className="login-lockout-banner"
-            style={{
-              marginBottom: 14,
-              borderRadius: 8,
-              padding: '10px 14px',
-              background: '#fef2f2',
-              color: '#991b1b',
-              border: '1px solid #fecaca',
-              fontSize: 12,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span style={{ fontSize: 16 }}>🔒</span>
-            <div>
-              <div>Account temporarily locked (3 failed attempts).</div>
-              <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>
-                Please wait <strong style={{ textDecoration: 'underline' }}>{lockoutSeconds} second{lockoutSeconds === 1 ? '' : 's'}</strong> before trying again.
+            </form>
+          ) : mode === 'forgot' ? (
+            /* ================================================================ */
+            /* 2. FORGOT PASSWORD VIEW                                          */
+            /* ================================================================ */
+            <form className="login-card" onSubmit={handleForgotPassword}>
+              <div className="login-brand-header">
+                <div className="login-brand-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="m10.85 12.15 7.65-7.65a1.5 1.5 0 0 1 2.12 0l1.41 1.41a1.5 1.5 0 0 1 0 2.12L19 11l-2-2-1.5 1.5 2 2-2 2" />
+                  </svg>
+                </div>
+                <div className="login-brand-text">
+                  <span className="brand-per">Per</span>
+                  <span className="brand-dev">Dev</span>
+                  <span className="brand-sys">Sys</span>
+                </div>
               </div>
-            </div>
+
+              <h1>Forgot Password</h1>
+              <p>Enter your registered enterprise email to receive password reset instructions.</p>
+
+              {error && (
+                <div className="login-error">
+                  <span>⚠</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="login-notice">
+                  <span>✓</span>
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              <label>
+                Email
+                <div className="login-input-wrap">
+                  <span className="login-input-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                  </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </label>
+
+              <button type="submit" className="login-submit-btn" disabled={loading}>
+                <span>{loading ? 'Sending Instructions…' : 'Reset password'}</span>
+                <span>→</span>
+              </button>
+
+              <button
+                type="button"
+                className="login-secondary-btn"
+                onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
+                disabled={loading}
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          ) : mode === 'reset' ? (
+            /* ================================================================ */
+            /* 3. RESET PASSWORD VIEW                                           */
+            /* ================================================================ */
+            <form className="login-card" onSubmit={handleResetPassword}>
+              <div className="login-brand-header">
+                <div className="login-brand-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+                <div className="login-brand-text">
+                  <span className="brand-per">Per</span>
+                  <span className="brand-dev">Dev</span>
+                  <span className="brand-sys">Sys</span>
+                </div>
+              </div>
+
+              <h1>Set New Password</h1>
+              <p>Create a secure password for your staff or management profile.</p>
+
+              {error && (
+                <div className="login-error">
+                  <span>⚠</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="login-notice">
+                  <span>ℹ</span>
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              <label>
+                Reset Verification Token
+                <div className="login-input-wrap">
+                  <span className="login-input-icon">🏷️</span>
+                  <input
+                    type="text"
+                    value={resetToken}
+                    onChange={(e) => setResetToken(e.target.value)}
+                    placeholder="Paste reset token here"
+                    required
+                  />
+                </div>
+              </label>
+
+              <label style={{ marginBottom: 0 }}>
+                New Password
+                <div className="login-password-field">
+                  <div className="login-input-wrap">
+                    <span className="login-input-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </span>
+                    <input
+                      type={showResetPass ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className={`password-toggle${showResetPass ? ' active' : ''}`}
+                    onClick={handleToggleShowResetPassword}
+                    title={showResetPass ? `Visible for ${resetSecondsLeft}s` : 'Show password for 5 seconds'}
+                    tabIndex={0}
+                  >
+                    <span className="password-toggle-icon">👁</span>
+                    <span className="password-toggle-label">{showResetPass ? `${resetSecondsLeft}s` : 'Show'}</span>
+                  </button>
+                </div>
+              </label>
+
+              <label>
+                Confirm New Password
+                <div className="login-input-wrap">
+                  <span className="login-input-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
+                  <input
+                    type={showResetPass ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter your new password"
+                    required
+                  />
+                </div>
+              </label>
+
+              <button type="submit" className="login-submit-btn" disabled={loading}>
+                <span>{loading ? 'Updating Password…' : 'Update & Sign In'}</span>
+                <span>→</span>
+              </button>
+
+              <button
+                type="button"
+                className="login-secondary-btn"
+                onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
+                disabled={loading}
+              >
+                ← Back to Login
+              </button>
+            </form>
+          ) : (
+            /* ================================================================ */
+            /* 4. STANDARD LOGIN VIEW                                           */
+            /* ================================================================ */
+            <form className="login-card" onSubmit={submit}>
+              {/* Brand Header */}
+              <div className="login-brand-header">
+                <div className="login-brand-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
+                      stroke="#fff"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="9" cy="7" r="4" stroke="#fff" strokeWidth="2.2" />
+                    <path
+                      d="M22 21v-2a4 4 0 0 0-3-3.87"
+                      stroke="#fff"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M16 3.13a4 4 0 0 1 0 7.75"
+                      stroke="#fff"
+                      strokeWidth="2.2"
+                    />
+                  </svg>
+                </div>
+                <div className="login-brand-text">
+                  <span className="brand-per">Per</span>
+                  <span className="brand-dev">Dev</span>
+                  <span className="brand-sys">Sys</span>
+                </div>
+              </div>
+
+              <h1>Welcome back! 👋</h1>
+              <p>Sign in to continue to your account</p>
+
+              {/* Inactivity Notice Banner */}
+              {displayNotice && !error && !successMsg && (
+                <div className="login-notice">
+                  <span>⏰</span>
+                  <span>{displayNotice}</span>
+                </div>
+              )}
+
+              {/* Success Message Banner */}
+              {successMsg && (
+                <div className="login-notice">
+                  <span>✓</span>
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              {/* Lockout Banner */}
+              {lockoutSeconds > 0 && (
+                <div className="login-lockout-banner">
+                  <span style={{ fontSize: 18 }}>🔒</span>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Account temporarily locked (3 failed attempts).</div>
+                    <div style={{ fontSize: 11.5, marginTop: 3 }}>
+                      Please wait <strong>{lockoutSeconds} second{lockoutSeconds === 1 ? '' : 's'}</strong> before trying again.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Standard Error Banner */}
+              {error && lockoutSeconds === 0 && (
+                <div className="login-error">
+                  <span>⚠</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Email Input Field */}
+              <label>
+                Email
+                <div className="login-input-wrap">
+                  <span className="login-input-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                  </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </label>
+
+              {/* Password Input Field */}
+              <label style={{ marginBottom: 0 }}>
+                Password
+                <div className="login-password-field">
+                  <div className="login-input-wrap">
+                    <span className="login-input-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className={`password-toggle${showPassword ? ' active' : ''}`}
+                    onClick={handleToggleShowPassword}
+                    title={showPassword ? `Visible for ${secondsLeft}s (auto-hides)` : 'Show password for 5 seconds'}
+                    tabIndex={0}
+                  >
+                    <span className="password-toggle-icon">👁</span>
+                    <span className="password-toggle-label">{showPassword ? `${secondsLeft}s` : 'Show'}</span>
+                  </button>
+                </div>
+              </label>
+
+              {/* Forgot Password Link */}
+              <div className="login-forgot-row">
+                <button
+                  type="button"
+                  className="forgot-link"
+                  onClick={() => { setMode('forgot'); setError(''); setSuccessMsg('') }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* Sign In Button */}
+              <button
+                type="submit"
+                className="login-submit-btn"
+                disabled={loading || lockoutSeconds > 0}
+              >
+                <span>{loading ? 'Signing in…' : lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : 'Sign in'}</span>
+                {!loading && lockoutSeconds === 0 && <span>→</span>}
+              </button>
+
+            </form>
+          )}
+
+          {/* Copyright Notice */}
+          <div className="login-copyright-note">
+            © {new Date().getFullYear()} PerDevSys. All rights reserved.
           </div>
-        )}
-
-        {error && lockoutSeconds === 0 && <div className="login-error">{error}</div>}
-
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter your email address"
-            autoComplete="email"
-            required
-            disabled={loading}
-          />
-        </label>
-
-        <label style={{ marginBottom: 0 }}>
-          Password
-          <div className="login-password-field">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              required
-              disabled={loading}
-            />
-            <button
-              type="button"
-              className={`password-toggle${showPassword ? ' active' : ''}`}
-              onClick={handleToggleShowPassword}
-              title={showPassword ? `Visible for ${secondsLeft}s (auto-hides)` : 'Show password for 5 seconds'}
-              tabIndex={0}
-            >
-              <span className="password-toggle-icon">{showPassword ? '👁' : '👁‍🗨'}</span>
-              <span className="password-toggle-label">{showPassword ? 'Hide' : 'Show'}</span>
-            </button>
-          </div>
-        </label>
-
-        {/* Forgot password — plain text link, left-aligned, below password field */}
-        <div className="login-forgot-row">
-          <button
-            type="button"
-            className="forgot-link"
-            onClick={() => { setMode('forgot'); setError(''); setSuccessMsg('') }}
-          >
-            Forgot password?
-          </button>
         </div>
-
-        <button disabled={loading || lockoutSeconds > 0}>
-          {loading ? 'Signing in…' : lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : 'Sign in'}
-        </button>
-      </form>
-    </main>
+      </section>
+    </div>
   )
 }
-

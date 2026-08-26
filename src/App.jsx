@@ -205,6 +205,8 @@ function App() {
   }, [dark])
 
   const handleLogout = (reason = '') => {
+    // Guard: if called directly as an onClick handler, reason will be a MouseEvent — ignore it
+    const noticeMsg = typeof reason === 'string' ? reason : ''
     const refreshToken = localStorage.getItem('pds-refresh-token')
     if (refreshToken) {
       void api.logout(refreshToken).catch(() => {})
@@ -218,10 +220,13 @@ function App() {
     localStorage.removeItem('pds-user')
     localStorage.removeItem('pds-last-activity')
 
-    if (reason) {
-      setSessionNotice(reason)
+    // Store session notice across the reload if one was provided
+    if (noticeMsg) {
+      try { sessionStorage.setItem('pds-session-notice', noticeMsg) } catch {}
     }
-    setUser(null)
+
+    // Hard-navigate to root so Login always mounts fresh with no stale app shell
+    window.location.replace('/')
   }
 
   // 10-minute session inactivity auto-logout (adjusted for defense & presentation)
