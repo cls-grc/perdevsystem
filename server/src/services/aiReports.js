@@ -669,9 +669,6 @@ export async function generateAndSaveForWorkflow(client, workflow, createdBy) {
   }
 }
 
-// Generate an AI report for a workflow using the metrics already saved for it.
-// Used by the HR-only on-demand "Generate AI Report" action. Creates a new
-// immutable report row; previous reports remain in history.
 // Build a deterministic PERSONAL summary for a single employee on a given module.
 function buildEmployeeSummary(module, metrics) {
   const name = metrics?.employee_name || 'This employee'
@@ -704,23 +701,18 @@ export async function generateEmployeeAI(module, metrics, details = {}) {
   return { title: built.title, summary: built.summary, content, sections: built.sections, dataContext: { datasets: [{ label: 'Personal records', count: 1 }], confidence: 100, completeness: 'high' } }
 }
 
-// Generate an AI report for a workflow using the metrics already saved for it.
-// Used by the HR-only on-demand "Generate AI Report" action. Creates a new
-// immutable report row; previous reports remain in history.
-//
+// Generate an AI report for a workflow on demand using live module metrics.
 // When the workflow has a subject employee (employee-specific), the report is
-// built as a PERSONAL AI insight about THAT employee, not the org-wide module
-// report. If no subject employee exists, the org-wide module report is used.
+// built as a PERSONAL AI insight about THAT employee. If no subject employee
+// exists, the org-wide module report is generated.
 export async function generateOnDemand(workflowId, createdBy) {
   const { rows } = await query('SELECT * FROM workflows WHERE id=$1', [workflowId])
   const workflow = rows[0]
   if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
-  if (workflow.status !== 'completed') throw Object.assign(new Error('AI reports can only be generated for completed workflows.'), { status: 409 })
 
   let report
   let metrics
   if (workflow.subject_employee_id) {
-    // Build a PERSONAL insight for the workflow's subject employee.
     metrics = (await calculateMetrics(workflow.module, { employeeId: workflow.subject_employee_id })).metrics
     report = await generateEmployeeAI(workflow.module, metrics)
   } else {

@@ -9,7 +9,6 @@ import { api } from './lib/api'
 import './index.css'
 import './buttonStyles.css'
 import './employeeSearch.css'
-import './darkModeFixes.css'
 import './login.css'
 import './moduleAi.css'
 import './roleHome.css'
@@ -21,6 +20,7 @@ import Login from './pages/Login'
 import './learningLibrary.css'
 import './responsive.css'
 import './animations.css'
+import './darkModeFixes.css'
 
 // Lazy-load other page components so each is only downloaded when first visited
 const AIAnalytics = lazy(() => import('./pages/AIAnalytics'))
@@ -224,11 +224,11 @@ function App() {
     setUser(null)
   }
 
-  // 3-minute session inactivity auto-logout
+  // 10-minute session inactivity auto-logout (adjusted for defense & presentation)
   useEffect(() => {
     if (!user) return
 
-    const TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes
+    const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
     const CHECK_INTERVAL_MS = 3000 // check every 3 seconds
 
     const updateActivity = () => {
@@ -253,7 +253,7 @@ function App() {
     const intervalId = setInterval(() => {
       const lastActivity = Number(localStorage.getItem('pds-last-activity') || Date.now())
       if (Date.now() - lastActivity >= TIMEOUT_MS) {
-        handleLogout('You have been logged out due to 3 minutes of inactivity.')
+        handleLogout('You have been logged out due to 10 minutes of inactivity.')
       }
     }, CHECK_INTERVAL_MS)
 

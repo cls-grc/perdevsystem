@@ -72,6 +72,7 @@ workflows: (module, { page, limit, status } = {}) => {
   workflowDefinitions: () => request('/api/workflows/definitions'),
   workflowSubjects: () => request('/api/workflows/subjects'),
   createWorkflow: (data) => request('/api/workflows', { method: 'POST', body: JSON.stringify(data) }),
+  createBulkWorkflows: (data) => request('/api/workflows/bulk', { method: 'POST', body: JSON.stringify(data) }),
   advanceWorkflow: (id, data = {}) => request(`/api/workflows/${id}/advance`, { method: 'POST', body: JSON.stringify(data) }),
   returnWorkflow: (id, data = {}) => request(`/api/workflows/${id}/return`, { method: 'POST', body: JSON.stringify(data) }),
   cancelWorkflow: (id, reason) => request(`/api/workflows/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),

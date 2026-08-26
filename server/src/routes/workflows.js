@@ -10,6 +10,14 @@ import { applyWorkflowScoreWriteBack } from '../services/workflowCompletion.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
+const bulkCreateSchema = z.object({
+  module: z.enum(['performance', 'competency', 'learning', 'training', 'succession', 'recognition']),
+  employeeIds: z.array(z.string().uuid()).min(1, 'At least one employee must be selected.'),
+  cycleTitle: z.string().min(3).max(140),
+  dueDate: z.string().datetime().nullable().optional(),
+  skipExistingActive: z.boolean().default(true),
+  metadata: z.record(z.unknown()).default({}),
+})
 const advanceSchema = z.object({ note: z.string().max(2000).optional(), data: z.record(z.unknown()).default({}), scores: z.object({ performanceScore: z.number().min(0).max(100).optional(), competencyScore: z.number().min(0).max(100).optional(), learningProgress: z.number().min(0).max(100).optional() }).optional() })
 const noteSchema = z.object({ note: z.string().min(1).max(2000), data: z.record(z.unknown()).default({}) })
 const returnSchema = z.object({ targetStage: z.string().optional(), note: z.string().max(2000).optional(), data: z.record(z.unknown()).default({}) })
@@ -83,6 +91,118 @@ router.post('/', async (req, res, next) => {
     await logActivity({ req, user: req.user, action: 'workflow.create', category: 'workflow', targetId: rows[0].id, description: `${req.user.name} created ${input.module} workflow "${input.title}"`, details: { module: input.module, subjectEmployeeId: subjectEmployeeId || null } })
     res.status(201).json({ workflow: rows[0] })
   } catch (error) { next(error) }
+})
+
+router.post('/bulk', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
+  try {
+    const input = bulkCreateSchema.parse(req.body)
+    const [initialStage] = stagesFor(input.module)
+    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr') {
+      return res.status(403).json({ error: 'Your role cannot initiate this workflow cycle.' })
+    }
+
+    const result = await transaction(async (client) => {
+      const empRes = await client.query(
+        'SELECT id, full_name, department, job_title FROM employees WHERE id = ANY($1::uuid[]) AND is_active = true',
+        [input.employeeIds]
+      )
+      const employees = empRes.rows
+      if (!employees.length) {
+        throw Object.assign(new Error('No active employees found matching the selection.'), { status: 400 })
+      }
+
+      for (const emp of employees) {
+        await verifyEmployeeAccess(req.user, emp.id)
+      }
+
+      let activeSubjectIds = new Set()
+      if (input.skipExistingActive) {
+        const activeRes = await client.query(
+          'SELECT subject_employee_id FROM workflows WHERE module = $1 AND status = $2 AND subject_employee_id = ANY($3::uuid[])',
+          [input.module, 'active', input.employeeIds]
+        )
+        activeSubjectIds = new Set(activeRes.rows.map(r => r.subject_employee_id))
+      }
+
+      const created = []
+      const skipped = []
+      const stageDestination = { key: initialStage[0], label: initialStage[1], roles: initialStage[2] }
+
+      for (const emp of employees) {
+        if (activeSubjectIds.has(emp.id)) {
+          skipped.push({
+            id: emp.id,
+            fullName: emp.full_name,
+            department: emp.department,
+            reason: 'Active workflow already exists in this module',
+          })
+          continue
+        }
+
+        const title = `${input.cycleTitle} - ${emp.full_name}`
+        const meta = {
+          ...input.metadata,
+          cycleTitle: input.cycleTitle,
+          launchedInBulk: true,
+          launchedAt: new Date().toISOString(),
+        }
+
+        const wfRes = await client.query(
+          'INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, due_date, metadata) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+          [input.module, title, emp.id, initialStage[0], req.user.sub, input.dueDate || null, meta]
+        )
+        const wf = wfRes.rows[0]
+
+        await client.query(
+          'INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)',
+          [wf.id, initialStage[0], 'created', req.user.sub, meta]
+        )
+
+        await notifyNextOwners(client, wf, stageDestination)
+
+        created.push({
+          id: wf.id,
+          title: wf.title,
+          subjectEmployeeId: emp.id,
+          subjectName: emp.full_name,
+          department: emp.department,
+          stage: wf.current_stage,
+        })
+      }
+
+      return { created, skipped }
+    })
+
+    if (result.created.length > 0) {
+      await logActivity({
+        req,
+        user: req.user,
+        action: 'workflow.bulk_create',
+        category: 'workflow',
+        description: `${req.user.name} launched review cycle "${input.cycleTitle}" (${result.created.length} created, ${result.skipped.length} skipped)`,
+        details: {
+          module: input.module,
+          cycleTitle: input.cycleTitle,
+          createdCount: result.created.length,
+          skippedCount: result.skipped.length,
+          totalRequested: input.employeeIds.length,
+        },
+      })
+    }
+
+    res.status(201).json({
+      success: true,
+      cycleTitle: input.cycleTitle,
+      module: input.module,
+      createdCount: result.created.length,
+      skippedCount: result.skipped.length,
+      totalCount: input.employeeIds.length,
+      createdWorkflows: result.created,
+      skippedEmployees: result.skipped,
+    })
+  } catch (error) {
+    next(error)
+  }
 })
 
 const assignGapSchema = z.object({

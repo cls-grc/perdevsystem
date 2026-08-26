@@ -160,6 +160,17 @@ const [confirmOpen, setConfirmOpen] = useState(false)
   // that specific employee/module workflow. Selecting it never auto-generates.
   const [aiTargetWorkflowId, setAiTargetWorkflowId] = useState(null)
 
+  // Bulk Review Cycle Launcher state
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkCycleTitle, setBulkCycleTitle] = useState('')
+  const [bulkDept, setBulkDept] = useState('')
+  const [bulkSelectedEmployeeIds, setBulkSelectedEmployeeIds] = useState([])
+  const [bulkDueDate, setBulkDueDate] = useState('')
+  const [bulkSkipActive, setBulkSkipActive] = useState(true)
+  const [bulkSearch, setBulkSearch] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkResult, setBulkResult] = useState(null)
+
   const roleAction = typeof action === 'string' ? action : action?.[role]
   const itemOptions = useMemo(
     () => items.map(item => ({ value: item[0], label: item[0], description: item[1] })),
@@ -494,7 +505,7 @@ const start = async (options = {}) => {
     void start()
   }
 
-// Create a new workflow through the composer (employee pre-selected).
+  // Create a new workflow through the composer (employee pre-selected).
   const createFromComposer = () => {
     // The selection may be stored in composerEmployee (clicked a result card)
     // OR in evaluatingSubject (picked from the datalist dropdown, which clears
@@ -504,6 +515,95 @@ const start = async (options = {}) => {
     setError('')
     setEvaluatingSubject(target)
     void start({ employee: target })
+  }
+
+  const departments = useMemo(
+    () => Array.from(new Set(people.map(p => p.department).filter(Boolean))).sort(),
+    [people]
+  )
+
+  const activeEmployeeIdSet = useMemo(
+    () => new Set((workflows || []).map(w => w.subject_employee_id).filter(Boolean)),
+    [workflows]
+  )
+
+  const filteredBulkEmployees = useMemo(() => {
+    return people.filter(p => {
+      const matchDept = !bulkDept || (p.department || '').toLowerCase() === bulkDept.toLowerCase()
+      const matchQuery = !bulkSearch || `${p.full_name} ${p.job_title} ${p.department}`.toLowerCase().includes(bulkSearch.toLowerCase())
+      return matchDept && matchQuery
+    })
+  }, [people, bulkDept, bulkSearch])
+
+  const openBulkLauncher = () => {
+    const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1
+    const year = new Date().getFullYear()
+    const defaultTitle = `${title} Cycle - Q${currentQuarter} ${year}`
+    setBulkCycleTitle(defaultTitle)
+    setBulkDept('')
+    setBulkSearch('')
+    setBulkSelectedEmployeeIds(people.map(p => p.id))
+    setBulkDueDate('')
+    setBulkSkipActive(true)
+    setBulkResult(null)
+    setBulkOpen(true)
+  }
+
+  const toggleBulkEmployee = (id) => {
+    setBulkSelectedEmployeeIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  const selectAllBulkFiltered = () => {
+    const filteredIds = filteredBulkEmployees.map(p => p.id)
+    setBulkSelectedEmployeeIds(prev => Array.from(new Set([...prev, ...filteredIds])))
+  }
+
+  const clearBulkSelection = () => {
+    if (bulkDept || bulkSearch) {
+      const filteredIdSet = new Set(filteredBulkEmployees.map(p => p.id))
+      setBulkSelectedEmployeeIds(prev => prev.filter(id => !filteredIdSet.has(id)))
+    } else {
+      setBulkSelectedEmployeeIds([])
+    }
+  }
+
+  const applyDueDatePreset = (days) => {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    setBulkDueDate(d.toISOString().slice(0, 10))
+  }
+
+  const submitBulkLaunch = async () => {
+    if (!bulkSelectedEmployeeIds.length) {
+      setError('Please select at least one employee.')
+      return
+    }
+    if (!bulkCycleTitle.trim()) {
+      setError('Please enter a cycle title.')
+      return
+    }
+    setBulkSaving(true)
+    setError('')
+    try {
+      const payload = {
+        module: moduleKey,
+        cycleTitle: bulkCycleTitle.trim(),
+        employeeIds: bulkSelectedEmployeeIds,
+        skipExistingActive: bulkSkipActive,
+        dueDate: bulkDueDate ? new Date(`${bulkDueDate}T23:59:59.000Z`).toISOString() : undefined,
+      }
+      const res = await api.createBulkWorkflows(payload)
+      setBulkResult(res)
+      showNotice(`Successfully launched cycle "${bulkCycleTitle}": ${res.createdCount} workflows created${res.skippedCount > 0 ? `, ${res.skippedCount} skipped (already active)` : ''}.`)
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
+      await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   const openAssignedAction = () => {
@@ -520,7 +620,7 @@ const start = async (options = {}) => {
     showNotice(`${roleAction} is ready in the selected workflow.`)
   }
 
-const handleHeaderAction = () => {
+  const handleHeaderAction = () => {
     if (canStart) {
       // Open the New Workflow composer so the user picks a fresh employee and
       // a brand-new cycle starts from scratch.
@@ -532,7 +632,6 @@ const handleHeaderAction = () => {
 
 const complete = async () => {
     setSaving(true)
-    setError('')
     try {
       if (currentFormConfig?.builder === 'trainingInvite' && currentFormValue?.sessionId && Array.isArray(currentFormValue?.employeeIds)) {
         try {
@@ -811,6 +910,7 @@ const saveSchedule = async () => {
   const returnRef = useDialogFocus(returnOpen, () => { setReturnOpen(false); setReturnTarget(''); setReturnNote('') })
   const cancelRef = useDialogFocus(cancelOpen, () => { setCancelOpen(false); setCancelReason('') })
   const confirmRef = useDialogFocus(confirmOpen, () => setConfirmOpen(false))
+  const bulkRef = useDialogFocus(bulkOpen, () => !bulkSaving && setBulkOpen(false))
 
   if (loading) return <main className="module-workspace"><div className="dashboard-skeleton"><i /><i /><i /><i /></div></main>
 
@@ -833,7 +933,18 @@ const saveSchedule = async () => {
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      {(extraHeaderAction || roleAction) && <div className="module-heading-actions">
+      {(extraHeaderAction || roleAction || (canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager'))) && <div className="module-heading-actions">
+        {canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager') && (
+          <button
+            className="module-secondary bulk-launch-header-btn"
+            type="button"
+            onClick={openBulkLauncher}
+            disabled={saving || bulkSaving}
+            title="Launch a batch review cycle for multiple employees"
+          >
+            ⚡ Launch Review Cycle
+          </button>
+        )}
         {roleAction && <button className="module-primary" type="button" onClick={handleHeaderAction} disabled={saving}>{saving ? 'Creating...' : roleAction}</button>}
         {extraHeaderAction}
       </div>}
@@ -1254,6 +1365,211 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
             <button className="module-primary" disabled={saving || !(composerEmployee || evaluatingSubject)} onClick={createFromComposer}>
               {saving ? 'Creating...' : 'Start Workflow'}
             </button>
+          </div>
+        </section>
+      </div>
+    )}
+
+    {/* Bulk Workflow / Review Cycle Launcher Modal */}
+    {bulkOpen && (
+      <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Launch organizational review cycle" onClick={() => !bulkSaving && setBulkOpen(false)}>
+        <section className="schedule-dialog bulk-launch-dialog" ref={bulkRef} onClick={event => event.stopPropagation()}>
+          <div className="bulk-modal-header">
+            <div>
+              <h2>Launch Organizational Review Cycle</h2>
+              <p>Batch create <strong>{title}</strong> workflows for departments or selected team members.</p>
+            </div>
+            <button type="button" className="notice-dismiss" onClick={() => !bulkSaving && setBulkOpen(false)} aria-label="Close dialog">×</button>
+          </div>
+
+          <div className="bulk-modal-body">
+            {bulkResult ? (
+              <div className="bulk-result-card">
+                <div className="bulk-result-icon">✓</div>
+                <h3>Cycle Successfully Launched!</h3>
+                <p><strong>{bulkResult.cycleTitle}</strong></p>
+                <div className="bulk-result-stats">
+                  <div className="stat-pill success">
+                    <b>{bulkResult.createdCount}</b> Workflows Created
+                  </div>
+                  {bulkResult.skippedCount > 0 && (
+                    <div className="stat-pill info">
+                      <b>{bulkResult.skippedCount}</b> Skipped (Active)
+                    </div>
+                  )}
+                  <div className="stat-pill neutral">
+                    <b>{bulkResult.totalCount}</b> Total Evaluated
+                  </div>
+                </div>
+                {bulkResult.skippedEmployees?.length > 0 && (
+                  <div className="bulk-skipped-list">
+                    <small>Skipped employees with existing active workflows:</small>
+                    <ul>
+                      {bulkResult.skippedEmployees.map(e => (
+                        <li key={e.id}>{e.fullName} ({e.department})</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="bulk-form-grid">
+                  <div className="bulk-field">
+                    <label>Cycle Title / Review Name</label>
+                    <input
+                      className="bulk-input"
+                      value={bulkCycleTitle}
+                      onChange={e => setBulkCycleTitle(e.target.value)}
+                      placeholder="e.g. Q4 2026 Performance Review"
+                    />
+                  </div>
+                  <div className="bulk-field">
+                    <label>Target Due Date (Optional)</label>
+                    <input
+                      type="date"
+                      className="bulk-input"
+                      value={bulkDueDate}
+                      onChange={e => setBulkDueDate(e.target.value)}
+                    />
+                    <div className="bulk-quick-presets">
+                      <button type="button" className="preset-btn" onClick={() => applyDueDatePreset(7)}>+7d</button>
+                      <button type="button" className="preset-btn" onClick={() => applyDueDatePreset(14)}>+14d</button>
+                      <button type="button" className="preset-btn" onClick={() => applyDueDatePreset(30)}>+30d</button>
+                      {bulkDueDate && <button type="button" className="preset-btn" onClick={() => setBulkDueDate('')}>Clear</button>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bulk-toggle-wrap">
+                  <input
+                    type="checkbox"
+                    id="bulk-skip-active-toggle"
+                    checked={bulkSkipActive}
+                    onChange={e => setBulkSkipActive(e.target.checked)}
+                  />
+                  <label htmlFor="bulk-skip-active-toggle" className="bulk-toggle-copy">
+                    <b>Skip employees with active {moduleKey} workflows</b>
+                    <small>Prevents duplicate active cycles for the same employee in this module.</small>
+                  </label>
+                </div>
+
+                <div>
+                  <span className="bulk-section-title">Filter by Department</span>
+                  <div className="bulk-dept-pills">
+                    <button
+                      type="button"
+                      className={`dept-pill ${!bulkDept ? 'active' : ''}`}
+                      onClick={() => setBulkDept('')}
+                    >
+                      All Departments ({people.length})
+                    </button>
+                    {departments.map(dept => {
+                      const count = people.filter(p => p.department === dept).length
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          className={`dept-pill ${bulkDept === dept ? 'active' : ''}`}
+                          onClick={() => setBulkDept(dept)}
+                        >
+                          {dept} ({count})
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="bulk-employee-toolbar">
+                    <input
+                      className="bulk-emp-search"
+                      placeholder="Search employees by name, title..."
+                      value={bulkSearch}
+                      onChange={e => setBulkSearch(e.target.value)}
+                    />
+                    <div className="bulk-selection-actions">
+                      <button type="button" className="bulk-text-btn" onClick={selectAllBulkFiltered}>
+                        Select all {bulkDept ? bulkDept : 'filtered'}
+                      </button>
+                      <span className="bulk-selection-count">
+                        {bulkSelectedEmployeeIds.length} of {people.length} selected
+                      </span>
+                      <button type="button" className="bulk-text-btn" onClick={clearBulkSelection}>
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bulk-employee-list">
+                    {filteredBulkEmployees.map(person => {
+                      const isSelected = bulkSelectedEmployeeIds.includes(person.id)
+                      const hasActive = activeEmployeeIdSet.has(person.id)
+                      return (
+                        <div
+                          key={person.id}
+                          className={`bulk-employee-row ${isSelected ? 'selected' : ''}`}
+                          onClick={() => toggleBulkEmployee(person.id)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            aria-label={`Select ${person.full_name}`}
+                          />
+                          <span className="bulk-emp-avatar">
+                            {(person.full_name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase()}
+                          </span>
+                          <div className="bulk-emp-info">
+                            <b>{person.full_name}</b>
+                            <small>{person.job_title} · {person.department}</small>
+                          </div>
+                          <div className="bulk-emp-badges">
+                            <span className="bulk-dept-tag">{person.department}</span>
+                            {hasActive && (
+                              <span className="bulk-active-tag" title="An active workflow already exists for this employee">
+                                Active workflow
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {filteredBulkEmployees.length === 0 && (
+                      <p className="composer-empty" style={{ padding: '16px', textAlign: 'center' }}>No employees found matching filter.</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="bulk-modal-footer">
+            {bulkResult ? (
+              <>
+                <span className="bulk-summary-preview">Cycle initialized in database</span>
+                <button className="module-primary" type="button" onClick={() => setBulkOpen(false)}>Done</button>
+              </>
+            ) : (
+              <>
+                <span className="bulk-summary-preview">
+                  Will create up to <strong>{bulkSelectedEmployeeIds.length}</strong> {moduleKey} workflows
+                </span>
+                <div className="bulk-modal-actions">
+                  <button className="module-secondary" type="button" disabled={bulkSaving} onClick={() => setBulkOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="module-primary bulk-launch-btn"
+                    type="button"
+                    disabled={bulkSaving || bulkSelectedEmployeeIds.length === 0 || !bulkCycleTitle.trim()}
+                    onClick={submitBulkLaunch}
+                  >
+                    {bulkSaving ? 'Launching Batch...' : `⚡ Launch ${bulkSelectedEmployeeIds.length} Workflows`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </section>
       </div>

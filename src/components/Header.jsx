@@ -3,6 +3,7 @@ import { Icon } from './Sidebar'
 import { api } from '../lib/api'
 import EmailOutboxDrawer from './EmailOutboxDrawer'
 import TwoFactorModal from './TwoFactorModal'
+import GlobalSearchModal from './GlobalSearchModal'
 
 function getNotifMeta(item) {
   const t = (item.title || '').toLowerCase()
@@ -34,8 +35,21 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
   const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notifFilter, setNotifFilter] = useState('all')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const canSeeOutbox = user?.role === 'hr' || user?.role === 'management'
+
+  // Global Ctrl+K shortcut to open search
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -92,11 +106,16 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           </svg>
         </button>
 
-        <label className="search topbar-search">
+        <button
+          type="button"
+          className="search topbar-search topbar-search-trigger"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Open search"
+        >
           <Icon name="search" size={16} />
-          <input placeholder="Search employees, workflows, reports..." aria-label="Quick search" />
+          <span className="topbar-search-placeholder">Search employees, workflows, reports...</span>
           <kbd className="search-shortcut-badge">Ctrl K</kbd>
-        </label>
+        </button>
 
         <button
           className="header-pill-btn ai-header-pill"
@@ -280,5 +299,11 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
 
     <EmailOutboxDrawer isOpen={outboxOpen} onClose={() => setOutboxOpen(false)} />
     {twoFactorOpen && <TwoFactorModal onClose={() => setTwoFactorOpen(false)} />}
+    <GlobalSearchModal
+      isOpen={searchOpen}
+      onClose={() => setSearchOpen(false)}
+      onOpenAiChat={onOpenAiChat}
+      onOpenOutbox={() => setOutboxOpen(true)}
+    />
   </>
 }

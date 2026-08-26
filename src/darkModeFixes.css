@@ -485,3 +485,433 @@
   color: #e2e8f0 !important;
 }
 
+/* ==========================================================================
+   COMPLETE DARK MODE PARITY FOR WORKFLOW FORMS & CALIBRATION
+   ========================================================================== */
+
+/* Calibration & KPI Comparison Table */
+.dark .calibration-section {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f1f0f7 !important;
+}
+.dark .section-head h4,
+.dark .calibration-section h4 {
+  color: #f8fafc !important;
+}
+.dark .section-hint {
+  color: #94a3b8 !important;
+}
+.dark .calibration-table-wrap {
+  border-color: #383742 !important;
+  background: #18171f !important;
+}
+.dark .calibration-table {
+  color: #e2e8f0 !important;
+}
+.dark .calibration-table th {
+  background: #25242e !important;
+  border-bottom-color: #383742 !important;
+  color: #c4b5fd !important;
+}
+.dark .calibration-table td {
+  border-bottom-color: #2e2d38 !important;
+  color: #e2e8f0 !important;
+}
+.dark .calibration-table tr {
+  background: transparent !important;
+}
+.dark .calibration-table tr:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.dark .calibration-table tr.row-disagreement {
+  background: rgba(249, 115, 22, 0.08) !important;
+}
+.dark .calibration-table tr.row-disagreement:hover {
+  background: rgba(249, 115, 22, 0.12) !important;
+}
+.dark .calibration-table td.kpi-cell strong {
+  color: #f8fafc !important;
+}
+.dark .calibration-table td.kpi-cell div {
+  color: #94a3b8 !important;
+}
+.dark .calibration-table td.score-emp div b,
+.dark .calibration-table td.score-dept div b {
+  color: #f8fafc !important;
+}
+.dark .calibration-table td.score-emp small,
+.dark .calibration-table td.score-dept small {
+  color: #94a3b8 !important;
+}
+.dark .diff-pill.pill-plus {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #6ee7b7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.dark .diff-pill.pill-minus {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+.dark .diff-pill.pill-zero {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.dark .disagreement-badge {
+  background: rgba(249, 115, 22, 0.16) !important;
+  color: #fdba74 !important;
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+}
+.dark .aligned-badge {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #86efac !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.dark .toggle-comments-btn {
+  background: rgba(139, 92, 246, 0.18) !important;
+  color: #c4b5fd !important;
+  border: 1px solid rgba(139, 92, 246, 0.35) !important;
+}
+.dark .toggle-comments-btn:hover {
+  background: rgba(139, 92, 246, 0.32) !important;
+}
+.dark .comments-expand-box {
+  background: #17161e !important;
+  border: 1px dashed #423e52 !important;
+}
+.dark .comment-block.emp-comment small,
+.dark .comment-block.dept-comment small {
+  color: #a78bfa !important;
+}
+.dark .comment-block p {
+  color: #e2e8f0 !important;
+}
+
+/* Calibration Summary Cards */
+.dark .calibration-summary-grid {
+  gap: 14px !important;
+}
+.dark .calibration-card {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .calibration-card.diff-card {
+  background: #201e2b !important;
+  border-color: #433d59 !important;
+}
+.dark .calibration-card .card-tag {
+  color: #a5a2b8 !important;
+}
+.dark .calibration-card .card-score {
+  color: #f8fafc !important;
+}
+.dark .calibration-card .card-sub {
+  color: #94a3b8 !important;
+}
+.dark .card-diff.diff-pos {
+  color: #4ade80 !important;
+}
+.dark .card-diff.diff-neg {
+  color: #f87171 !important;
+}
+
+/* HR Calibration Decision Cards */
+.dark .decision-options-grid {
+  gap: 12px !important;
+}
+.dark .decision-option-card {
+  background: #25242e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .decision-option-card:hover {
+  background: #2c2a37 !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .decision-option-card.active {
+  background: rgba(139, 92, 246, 0.16) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3) !important;
+}
+.dark .decision-option-card .option-title {
+  color: #f8fafc !important;
+}
+.dark .decision-option-card .option-sub {
+  color: #94a3b8 !important;
+}
+.dark .decision-option-card .radio-circle {
+  color: #a78bfa !important;
+}
+.dark .final-score-box {
+  background: #252332 !important;
+  border-color: #4a3e6a !important;
+  color: #f8fafc !important;
+}
+.dark .final-score-input {
+  background: #17161e !important;
+  border-color: #63548e !important;
+  color: #c4b5fd !important;
+}
+.dark .calibration-notes-field textarea {
+  background: #17161e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+
+/* Assessment & KPI Cards in Workflow Forms */
+.dark .kpi-assessment-card {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .kpi-title {
+  color: #f8fafc !important;
+}
+.dark .kpi-target-tag {
+  background: #272632 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid #3c3a48 !important;
+}
+.dark .kpi-score-badge {
+  background: rgba(139, 92, 246, 0.18) !important;
+  border: 1px solid #8b5cf6 !important;
+  color: #c4b5fd !important;
+}
+.dark .emp-self-reference {
+  background: #24232c !important;
+  border-color: #383742 !important;
+}
+.dark .emp-self-reference .reference-label {
+  color: #cbd5e1 !important;
+}
+.dark .emp-self-reference .reference-score b {
+  color: #f8fafc !important;
+}
+.dark .emp-self-reference .reference-score small {
+  color: #94a3b8 !important;
+}
+.dark .emp-self-reference .reference-comment {
+  color: #e2e8f0 !important;
+}
+.dark .kpi-comment-input textarea {
+  background: #17161e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .builder-score-summary {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #e2e8f0 !important;
+}
+.dark .builder-score-summary .overall-score-big {
+  color: #a78bfa !important;
+}
+.dark .builder-note {
+  background: #252332 !important;
+  border-color: #423b60 !important;
+  color: #d6d3e3 !important;
+}
+
+/* KPI Library Builder & Competency Config */
+.dark .competency-template-builder .kpi-picker-field select {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .competency-loaded {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+}
+.dark .competency-loaded-head b {
+  color: #f8fafc !important;
+}
+.dark .competency-loaded-head small {
+  color: #94a3b8 !important;
+}
+.dark .competency-table-row {
+  background: #25242e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .competency-table-name input,
+.dark .kpi-table-target input,
+.dark .competency-table-weight input {
+  background: #17161e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .weight-total.ok {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #86efac !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+}
+.dark .weight-total.error {
+  background: rgba(249, 115, 22, 0.16) !important;
+  color: #fdba74 !important;
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+}
+
+/* Template Select & Options */
+.dark .template-select {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+}
+.dark .template-search input {
+  background: #17161e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .template-option {
+  background: #25242e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .template-option:hover {
+  background: #2f2c3b !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .template-option.selected {
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .template-option-label {
+  color: #f8fafc !important;
+}
+.dark .template-option-sub {
+  color: #94a3b8 !important;
+}
+
+/* Workflow Stage Steppers & Details */
+.dark .module-step {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .module-step:hover {
+  background: #25242e !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .module-step.active {
+  background: rgba(139, 92, 246, 0.14) !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .module-step.active .step-marker {
+  background: #7254e3 !important;
+  color: #fff !important;
+  border-color: #7254e3 !important;
+}
+.dark .module-step.complete .step-marker {
+  background: #166534 !important;
+  color: #86efac !important;
+  border-color: #22c55e !important;
+}
+.dark .module-step.pending .step-marker {
+  background: #25242e !important;
+  color: #94a3b8 !important;
+  border-color: #383742 !important;
+}
+.dark .step-copy b {
+  color: #f8fafc !important;
+}
+.dark .step-copy small {
+  color: #94a3b8 !important;
+}
+
+/* Completed Workflow Item */
+.dark .completed-workflow-item {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .completed-workflow-item:hover {
+  background: #25242e !important;
+  border-color: #8b5cf6 !important;
+}
+
+/* Business View Collapsible in Dark Mode */
+.dark .module-biz-toggle {
+  background: #1e1e24 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .module-biz-toggle:hover {
+  background: #25242e !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .module-biz-toggle-label {
+  color: #f8fafc !important;
+}
+.dark .module-biz-toggle-hint {
+  color: #c4b5fd !important;
+}
+.dark .module-biz {
+  background: #18171f !important;
+  border-color: #383742 !important;
+}
+.dark .employee-business-row {
+  background: #201f28 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .employee-business-row:hover {
+  background: #272632 !important;
+}
+.dark .biz-list-search {
+  background: #1a1824 !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+
+/* Modal Dialogs in Dark Mode */
+.dark .schedule-backdrop,
+.dark .settings-backdrop {
+  background: rgba(10, 10, 15, 0.72) !important;
+  backdrop-filter: blur(4px);
+}
+.dark .schedule-dialog,
+.dark .settings-dialog,
+.dark .workflow-modal {
+  background: #1f1f26 !important;
+  border: 1px solid #3c3a48 !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+  color: #f8fafc !important;
+}
+.dark .schedule-dialog h2,
+.dark .settings-dialog h2,
+.dark .composer-head h2 {
+  color: #f8fafc !important;
+}
+.dark .schedule-dialog p,
+.dark .settings-dialog p,
+.dark .composer-head p {
+  color: #94a3b8 !important;
+}
+.dark .composer-employee {
+  background: #25242e !important;
+  border-color: #383742 !important;
+  color: #f8fafc !important;
+}
+.dark .composer-employee:hover {
+  background: #2d2b38 !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .composer-employee.selected {
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: #8b5cf6 !important;
+}
+.dark .composer-employee-copy b {
+  color: #f8fafc !important;
+}
+.dark .composer-employee-copy small {
+  color: #94a3b8 !important;
+}
+.dark .composer-selected {
+  background: rgba(139, 92, 246, 0.12) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  color: #c4b5fd !important;
+}
+
+
