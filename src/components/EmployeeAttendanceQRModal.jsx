@@ -4,7 +4,7 @@ import QRCodeImage from './QRCodeImage'
 import { api } from '../lib/api'
 import {
   X, Camera, QrCode, UserCheck, ShieldCheck, CheckCircle2, AlertCircle,
-  RefreshCw, Volume2, VolumeX, Sparkles, Printer, User, Calendar, Check
+  RefreshCw, Volume2, VolumeX, Sparkles, Printer, User, Calendar, Check, ArrowRight
 } from 'lucide-react'
 
 function playSuccessChime() {
@@ -37,6 +37,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
 
   const [scanningStatus, setScanningStatus] = useState('idle')
   const [statusMessage, setStatusMessage] = useState('')
+  const [lastSuccessData, setLastSuccessData] = useState(null)
   const [recentScans, setRecentScans] = useState([])
 
   const videoRef = useRef(null)
@@ -89,18 +90,25 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
       }
 
       if (parsedSessionId) {
-        // Perform self check-in into the scanned session
         const res = await api.selfCheckinTrainingSession(parsedSessionId, {
           employeeId: user.employeeId || user.id
         })
         if (res.success) {
           if (soundEnabled) playSuccessChime()
           setScanningStatus('success')
-          setStatusMessage('✓ Your attendance is recorded! You are marked PRESENT for ' + (res.session?.title || 'Training Session') + '.')
+          const title = res.session?.title || 'Training Session'
+          setStatusMessage('Your attendance is recorded! You are marked PRESENT.')
+          setLastSuccessData({
+            sessionTitle: title,
+            employeeName: user.name,
+            employeeNumber: user.employeeNumber || user.employee_number || 'E001',
+            venue: res.session?.venue || 'Training Venue',
+            time: new Date().toLocaleTimeString(),
+          })
           setRecentScans(prev => [
             {
               id: 'scan-' + Date.now(),
-              title: res.session?.title || 'Training Session',
+              title,
               name: user.name,
               time: new Date().toLocaleTimeString(),
               type: 'self_session'
@@ -113,13 +121,13 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
       }
 
       // ═════════════════════════════════════════════════════════════════
-      // CASE 2: SCANNED AN EMPLOYEE BADGE (Supervisor / Peer Badge Scanner)
+      // CASE 2: SCANNED AN EMPLOYEE BADGE (Supervisor / Peer Scanner)
       // ═════════════════════════════════════════════════════════════════
       const activeSessId = targetSessionId || scheduledSessions[0]?.id || activeSessions[0]?.id
 
       if (!activeSessId) {
         setScanningStatus('error')
-        setStatusMessage('No active training session available to record attendance.')
+        setStatusMessage('No active training session selected.')
         return
       }
 
@@ -131,16 +139,26 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
       if (res.success) {
         if (soundEnabled) playSuccessChime()
         setScanningStatus('success')
-        setStatusMessage('✓ Your attendance is recorded: ' + res.employee.full_name + ' (' + res.employee.employee_number + ') — PRESENT')
+        const title = activeSessions.find(s => s.id === activeSessId)?.title || 'Training Session'
+        const empName = res.employee?.full_name || 'Employee'
+        const empNum = res.employee?.employee_number || ''
+        setStatusMessage('Your attendance is recorded: ' + empName + ' (' + empNum + ') — PRESENT')
+        setLastSuccessData({
+          sessionTitle: title,
+          employeeName: empName,
+          employeeNumber: empNum,
+          venue: activeSessions.find(s => s.id === activeSessId)?.venue || 'Training Venue',
+          time: new Date().toLocaleTimeString(),
+        })
         setRecentScans(prev => [
           {
             id: 'scan-' + Date.now(),
-            title: activeSessions.find(s => s.id === activeSessId)?.title || 'Training Session',
-            name: res.employee.full_name + ' (' + res.employee.employee_number + ')',
+            title,
+            name: empName + ' (' + empNum + ')',
             time: new Date().toLocaleTimeString(),
             type: 'employee_badge'
           },
-          ...prev.filter(l => !l.name?.startsWith(res.employee.full_name))
+          ...prev.filter(l => !l.name?.startsWith(empName))
         ])
         if (onAttendanceUpdated) onAttendanceUpdated()
       }
@@ -150,14 +168,13 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
     } finally {
       setTimeout(() => {
         isProcessingRef.current = false
-        setScanningStatus('idle')
-      }, 2500)
+      }, 1500)
     }
   }, [user, soundEnabled, onAttendanceUpdated, targetSessionId, scheduledSessions, activeSessions])
 
   // Camera video loop with jsQR
   useEffect(() => {
-    if (activeTab !== 'scan_session' || !cameraActive) {
+    if (activeTab !== 'scan_session' || !cameraActive || lastSuccessData) {
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = videoRef.current.srcObject.getTracks()
         tracks.forEach(t => t.stop())
@@ -222,7 +239,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
       }
       if (animFrameId.current) cancelAnimationFrame(animFrameId.current)
     }
-  }, [activeTab, cameraActive, facingMode, handleProcessScan])
+  }, [activeTab, cameraActive, facingMode, handleProcessScan, lastSuccessData])
 
   const initials = user.name
     ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase()
@@ -252,7 +269,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
 
         {/* Tab Navigation */}
         <div className="qr-tabs-nav">
-          <button className={'qr-tab-btn ' + (activeTab === 'my_badge' ? 'active' : '')} onClick={() => setActiveTab('my_badge')}>
+          <button className={'qr-tab-btn ' + (activeTab === 'my_badge' ? 'active' : '')} onClick={() => { setActiveTab('my_badge'); setLastSuccessData(null); }}>
             <QrCode size={14} /> My Digital Badge
           </button>
           <button className={'qr-tab-btn ' + (activeTab === 'scan_session' ? 'active' : '')} onClick={() => setActiveTab('scan_session')}>
@@ -311,107 +328,153 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
         {/* Tab 2: LIVE CAMERA SCANNER (Universal Scanner) */}
         {activeTab === 'scan_session' && (
           <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Session Selector (If multiple sessions exist) */}
-            {scheduledSessions.length > 1 && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
-                <span style={{ color: '#64748b' }}>Target Session for Badge Scans:</span>
-                <select
-                  value={targetSessionId}
-                  onChange={e => setTargetSessionId(e.target.value)}
-                  style={{ padding: '6px 10px', fontSize: 12.5, borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc' }}
-                >
-                  {scheduledSessions.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.title} ({String(s.start_date).slice(0, 10)} @ {s.venue})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {selectedSessionObj && (
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <small style={{ color: '#64748b' }}>Active Session:</small><br/>
-                  <b>{selectedSessionObj.title}</b>
+            {/* FULL SUCCESS CONFIRMATION VIEW */}
+            {lastSuccessData ? (
+              <div style={{ background: '#ffffff', border: '2px solid #10b981', borderRadius: 16, padding: '24px 20px', textAlign: 'center', boxShadow: '0 8px 25px rgba(16, 185, 129, 0.15)', animation: 'qrItemPop 0.25s ease' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
+                  <CheckCircle2 size={38} />
                 </div>
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#e0e7ff', color: '#4338ca', fontWeight: 700 }}>
-                  {selectedSessionObj.venue}
-                </span>
-              </div>
-            )}
+                <h3 style={{ margin: '0 0 6px', fontSize: 20, color: '#15803d', fontWeight: 800 }}>
+                  Your Attendance is Recorded!
+                </h3>
+                <p style={{ margin: '0 0 14px', fontSize: 13.5, color: '#334155' }}>
+                  You are successfully marked as <strong style={{ color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 6 }}>PRESENT</strong>
+                </p>
 
-            <div className="qr-camera-column">
-              <div className="qr-camera-wrap" style={{ aspectRatio: '4/3' }}>
-                {cameraActive && !cameraError ? (
-                  <>
-                    <video ref={videoRef} className="qr-camera-feed" />
-                    <canvas ref={canvasRef} style={{ display: 'none' }} />
-                    <div className="qr-target-overlay">
-                      <div className="qr-scan-corners" />
-                      <div className="qr-laser-line" />
-                      <div className="qr-scan-hint">Point at Employee Badge QR or Session QR Pass</div>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', textAlign: 'left', fontSize: 12.5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, margin: '14px 0' }}>
+                  <div><small style={{ color: '#64748b' }}>Session:</small><br/><b>{lastSuccessData.sessionTitle}</b></div>
+                  <div><small style={{ color: '#64748b' }}>Attendee:</small><br/><b>{lastSuccessData.employeeName}</b></div>
+                  <div><small style={{ color: '#64748b' }}>Venue:</small><br/><span>{lastSuccessData.venue}</span></div>
+                  <div><small style={{ color: '#64748b' }}>Recorded At:</small><br/><span>{lastSuccessData.time}</span></div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                  <button
+                    type="button"
+                    className="session-action-btn primary"
+                    style={{ padding: '8px 20px', fontSize: 13, background: '#10b981' }}
+                    onClick={onClose}
+                  >
+                    ✓ Done
+                  </button>
+                  <button
+                    type="button"
+                    className="session-action-btn"
+                    style={{ padding: '8px 16px', fontSize: 13 }}
+                    onClick={() => {
+                      setLastSuccessData(null)
+                      setScanningStatus('idle')
+                    }}
+                  >
+                    <Camera size={13} className="inline mr-1" /> Scan Another
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Session Selector (If multiple sessions exist) */}
+                {scheduledSessions.length > 1 && (
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
+                    <span style={{ color: '#64748b' }}>Target Session for Badge Scans:</span>
+                    <select
+                      value={targetSessionId}
+                      onChange={e => setTargetSessionId(e.target.value)}
+                      style={{ padding: '6px 10px', fontSize: 12.5, borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc' }}
+                    >
+                      {scheduledSessions.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.title} ({String(s.start_date).slice(0, 10)} @ {s.venue})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {selectedSessionObj && (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <small style={{ color: '#64748b' }}>Active Session:</small><br/>
+                      <b>{selectedSessionObj.title}</b>
                     </div>
-                  </>
-                ) : (
-                  <div className="qr-camera-fallback">
-                    <Camera size={36} style={{ opacity: 0.3, marginBottom: 8 }} />
-                    <p style={{ margin: '0 0 4px', fontWeight: 600, fontSize: 13 }}>Camera scanner is paused.</p>
-                    <small style={{ color: '#94a3b8' }}>{cameraError || 'Click below to turn camera back on.'}</small>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#e0e7ff', color: '#4338ca', fontWeight: 700 }}>
+                      {selectedSessionObj.venue}
+                    </span>
+                  </div>
+                )}
+
+                <div className="qr-camera-column">
+                  <div className="qr-camera-wrap" style={{ aspectRatio: '4/3' }}>
+                    {cameraActive && !cameraError ? (
+                      <>
+                        <video ref={videoRef} className="qr-camera-feed" />
+                        <canvas ref={canvasRef} style={{ display: 'none' }} />
+                        <div className="qr-target-overlay">
+                          <div className="qr-scan-corners" />
+                          <div className="qr-laser-line" />
+                          <div className="qr-scan-hint">Point at Employee Badge QR or Session QR Pass</div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="qr-camera-fallback">
+                        <Camera size={36} style={{ opacity: 0.3, marginBottom: 8 }} />
+                        <p style={{ margin: '0 0 4px', fontWeight: 600, fontSize: 13 }}>Camera scanner is paused.</p>
+                        <small style={{ color: '#94a3b8' }}>{cameraError || 'Click below to turn camera back on.'}</small>
+                        <button
+                          type="button"
+                          className="session-action-btn primary"
+                          style={{ marginTop: 10, padding: '5px 12px', fontSize: 12 }}
+                          onClick={() => { setCameraError(''); setCameraActive(true) }}
+                        >
+                          <RefreshCw size={12} className="inline mr-1" /> Start Camera
+                        </button>
+                      </div>
+                    )}
+
+                    {scanningStatus !== 'idle' && (
+                      <div className={'qr-scan-feedback ' + scanningStatus}>
+                        {scanningStatus === 'processing' && <RefreshCw size={14} className="animate-spin" />}
+                        {scanningStatus === 'success' && <CheckCircle2 size={16} />}
+                        {scanningStatus === 'error' && <AlertCircle size={16} />}
+                        <span>{statusMessage}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="qr-camera-controls" style={{ marginTop: 8 }}>
                     <button
                       type="button"
-                      className="session-action-btn primary"
-                      style={{ marginTop: 10, padding: '5px 12px', fontSize: 12 }}
-                      onClick={() => { setCameraError(''); setCameraActive(true) }}
+                      className="qr-ctrl-btn"
+                      onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
                     >
-                      <RefreshCw size={12} className="inline mr-1" /> Start Camera
+                      <RefreshCw size={13} /> Flip Lens
+                    </button>
+                    <button
+                      type="button"
+                      className="qr-ctrl-btn"
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                    >
+                      {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                      {soundEnabled ? 'Chime ON' : 'Muted'}
                     </button>
                   </div>
-                )}
 
-                {scanningStatus !== 'idle' && (
-                  <div className={'qr-scan-feedback ' + scanningStatus}>
-                    {scanningStatus === 'processing' && <RefreshCw size={14} className="animate-spin" />}
-                    {scanningStatus === 'success' && <CheckCircle2 size={16} />}
-                    {scanningStatus === 'error' && <AlertCircle size={16} />}
-                    <span>{statusMessage}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="qr-camera-controls" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="qr-ctrl-btn"
-                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-                >
-                  <RefreshCw size={13} /> Flip Lens
-                </button>
-                <button
-                  type="button"
-                  className="qr-ctrl-btn"
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                >
-                  {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                  {soundEnabled ? 'Chime ON' : 'Muted'}
-                </button>
-              </div>
-
-              {/* Recent Scan History */}
-              {recentScans.length > 0 && (
-                <div style={{ marginTop: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px' }}>
-                  <small style={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', fontSize: 10 }}>Recent Activity</small>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                    {recentScans.slice(0, 3).map(scan => (
-                      <div key={scan.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                        <span><b>{scan.name}</b> · {scan.title}</span>
-                        <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓ {scan.time}</span>
+                  {/* Recent Scan History */}
+                  {recentScans.length > 0 && (
+                    <div style={{ marginTop: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px' }}>
+                      <small style={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', fontSize: 10 }}>Recent Activity</small>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                        {recentScans.slice(0, 3).map(scan => (
+                          <div key={scan.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                            <span><b>{scan.name}</b> · {scan.title}</span>
+                            <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓ {scan.time}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         )}
       </div>
