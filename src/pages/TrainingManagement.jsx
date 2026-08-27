@@ -144,7 +144,7 @@ export default function TrainingManagement() {
         api.selfCheckinTrainingSession(checkinSessionId)
           .then(res => {
             if (res.success) {
-              setNotice(res.message || '✓ You are marked PRESENT for this training session!')
+              setNotice(res.message || '✓ Your attendance is recorded! You are marked PRESENT for this training session.')
               void loadSessions()
             }
           })

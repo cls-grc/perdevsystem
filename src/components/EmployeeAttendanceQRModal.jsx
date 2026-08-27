@@ -96,7 +96,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
         if (res.success) {
           if (soundEnabled) playSuccessChime()
           setScanningStatus('success')
-          setStatusMessage('✓ Checked in: Marked PRESENT for ' + (res.session?.title || 'Training Session') + '!')
+          setStatusMessage('✓ Your attendance is recorded! You are marked PRESENT for ' + (res.session?.title || 'Training Session') + '.')
           setRecentScans(prev => [
             {
               id: 'scan-' + Date.now(),
@@ -131,7 +131,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
       if (res.success) {
         if (soundEnabled) playSuccessChime()
         setScanningStatus('success')
-        setStatusMessage('✓ Verified: ' + res.employee.full_name + ' (' + res.employee.employee_number + ') — PRESENT')
+        setStatusMessage('✓ Your attendance is recorded: ' + res.employee.full_name + ' (' + res.employee.employee_number + ') — PRESENT')
         setRecentScans(prev => [
           {
             id: 'scan-' + Date.now(),

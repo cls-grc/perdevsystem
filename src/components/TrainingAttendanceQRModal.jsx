@@ -82,7 +82,7 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
       if (res.success) {
         if (soundEnabled) playSuccessChime()
         setScanningStatus('success')
-        setStatusMessage('Verified: ' + res.employee.full_name + ' (' + res.employee.employee_number + ')')
+        setStatusMessage('✓ Attendance is recorded: ' + res.employee.full_name + ' (' + res.employee.employee_number + ') — PRESENT')
         setLastScanned(res.employee)
         setScannedLogs(prev => [
           {
