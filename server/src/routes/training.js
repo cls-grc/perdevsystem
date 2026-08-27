@@ -399,7 +399,7 @@ router.post('/sessions/:id/attendance', authorize('hr', 'supervisor', 'operation
 // ---------------------------------------------------------------------------
 // 8b. POST /api/training/sessions/:id/scan-attendance — Scan QR & mark attendance instantly
 // ---------------------------------------------------------------------------
-router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
+router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager', 'employee'), async (req, res, next) => {
   try {
     const { id } = req.params
     const { code, employeeId, employeeNumber, status = 'present' } = req.body
@@ -448,9 +448,10 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
     await transaction(async client => {
       await client.query(
         `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
-         VALUES ($1, $2, $3, 'registered', $4, NOW(), $3, NOW())
+         VALUES ($1, $2, $3, 'confirmed', $4, NOW(), $3, NOW())
          ON CONFLICT (session_id, employee_id) DO UPDATE SET
            attendance = $4,
+           status = 'confirmed',
            attendance_recorded_at = NOW(),
            attendance_recorded_by = $3,
            updated_at = NOW()`,
@@ -507,9 +508,10 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
     await transaction(async client => {
       await client.query(
         `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
-         VALUES ($1, $2, $3, 'registered', 'present', NOW(), $3, NOW())
+         VALUES ($1, $2, $3, 'confirmed', 'present', NOW(), $3, NOW())
          ON CONFLICT (session_id, employee_id) DO UPDATE SET
            attendance = 'present',
+           status = 'confirmed',
            attendance_recorded_at = NOW(),
            attendance_recorded_by = $3,
            updated_at = NOW()`,
