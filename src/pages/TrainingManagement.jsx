@@ -110,6 +110,15 @@ export default function TrainingManagement() {
     }
   }
 
+  // Silently refresh session counts WITHOUT showing the loading spinner
+  // Used after attendance scans so the numbers update instantly on screen
+  const silentRefreshSessions = async () => {
+    try {
+      const sessRes = await api.trainingSessions().catch(() => ({ sessions: [] }))
+      setSessions(sessRes.sessions || [])
+    } catch {}
+  }
+
   const loadOverviewStats = async () => {
     setLoadingStats(true)
     try {
@@ -1456,10 +1465,12 @@ export default function TrainingManagement() {
             setQrSessionTarget(null)
           }}
           onAttendanceUpdated={async () => {
+            // Update participant list in the detail modal instantly
             if (selectedSessionDetail && selectedSessionDetail.id === qrSessionTarget.id) {
-              await loadSessionDetail(qrSessionTarget.id)
+              void loadSessionDetail(qrSessionTarget.id)
             }
-            await loadSessions()
+            // Refresh counts on cards instantly, no spinner
+            void silentRefreshSessions()
           }}
         />
       )}
@@ -1470,8 +1481,9 @@ export default function TrainingManagement() {
           user={currentUser}
           activeSessions={sessions}
           onClose={() => setShowEmployeeQRModal(false)}
-          onAttendanceUpdated={async () => {
-            await loadSessions()
+          onAttendanceUpdated={() => {
+            // Instantly refresh counts on session cards, no spinner
+            void silentRefreshSessions()
           }}
         />
       )}

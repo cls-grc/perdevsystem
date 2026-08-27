@@ -399,7 +399,7 @@ router.post('/sessions/:id/attendance', authorize('hr', 'supervisor', 'operation
 // ---------------------------------------------------------------------------
 // 8b. POST /api/training/sessions/:id/scan-attendance — Scan QR & mark attendance instantly
 // ---------------------------------------------------------------------------
-router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager', 'employee'), async (req, res, next) => {
+router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
   try {
     const { id } = req.params
     const { code, employeeId, employeeNumber, status = 'present' } = req.body
