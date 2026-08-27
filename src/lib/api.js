@@ -190,6 +190,7 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   removeTrainingParticipant: (sessionId, employeeId) => request(`/api/training/sessions/${sessionId}/participants/${employeeId}`, { method: 'DELETE' }),
   recordTrainingAttendance: (sessionId, records) => request(`/api/training/sessions/${sessionId}/attendance`, { method: 'POST', body: JSON.stringify({ records }) }),
   scanTrainingAttendance: (sessionId, data) => request(`/api/training/sessions/${sessionId}/scan-attendance`, { method: 'POST', body: JSON.stringify(data) }),
+  selfCheckinTrainingSession: (sessionId, data = {}) => request(`/api/training/sessions/${sessionId}/self-checkin`, { method: 'POST', body: JSON.stringify(data) }),
   submitTrainingEvaluation: (sessionId, data) => request(`/api/training/sessions/${sessionId}/evaluation`, { method: 'POST', body: JSON.stringify(data) }),
   completeTrainingSession: (sessionId) => request(`/api/training/sessions/${sessionId}/complete`, { method: 'POST', body: '{}' }),
   trainingSessionAnalytics: (sessionId) => request(`/api/training/sessions/${sessionId}/analytics`),

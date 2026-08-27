@@ -479,6 +479,66 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
 })
 
 // ---------------------------------------------------------------------------
+// 8c. POST /api/training/sessions/:id/self-checkin — Employee self check-in via session QR
+// ---------------------------------------------------------------------------
+router.post('/sessions/:id/self-checkin', async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const employeeId = req.user.employeeId || req.body.employeeId
+
+    if (!employeeId) {
+      return res.status(400).json({ error: 'Your account is not linked to an employee record.' })
+    }
+
+    const empRes = await query('SELECT id, employee_number, full_name, department, job_title FROM employees WHERE id = $1', [employeeId])
+    if (empRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Employee record not found.' })
+    }
+    const employee = empRes.rows[0]
+
+    const sessRes = await query('SELECT id, title, venue, start_date, status FROM training_sessions WHERE id = $1', [id])
+    if (sessRes.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
+    const session = sessRes.rows[0]
+
+    if (session.status === 'cancelled') {
+      return res.status(400).json({ error: 'This training session has been cancelled.' })
+    }
+
+    await transaction(async client => {
+      await client.query(
+        `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
+         VALUES ($1, $2, $3, 'registered', 'present', NOW(), $3, NOW())
+         ON CONFLICT (session_id, employee_id) DO UPDATE SET
+           attendance = 'present',
+           attendance_recorded_at = NOW(),
+           attendance_recorded_by = $3,
+           updated_at = NOW()`,
+        [id, employee.id, req.user.id]
+      )
+    })
+
+    await logActivity({
+      userId: req.user.id,
+      action: 'training_self_checkin_qr',
+      entityType: 'training_session',
+      entityId: id,
+      details: { employeeId: employee.id, employeeNumber: employee.employee_number, sessionTitle: session.title },
+    })
+
+    res.json({
+      success: true,
+      message: `Checked in: ${employee.full_name} is marked PRESENT for ${session.title}`,
+      session,
+      employee,
+      attendance: 'present',
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ---------------------------------------------------------------------------
 // 9. POST /api/training/sessions/:id/evaluation — Submit training evaluation
 // ---------------------------------------------------------------------------
 router.post('/sessions/:id/evaluation', async (req, res, next) => {

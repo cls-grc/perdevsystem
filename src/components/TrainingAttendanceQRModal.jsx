@@ -45,14 +45,16 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
   const lastScannedCodeRef = useRef('')
   const lastScannedTimeRef = useRef(0)
 
-  const sessionQrPayload = JSON.stringify({
-    type: 'pds_training_session',
-    sessionId: session.id,
-    title: session.title,
-    venue: session.venue,
-    startDate: session.start_date,
-    category: session.category,
-  })
+  const sessionQrPayload = typeof window !== 'undefined'
+    ? `${window.location.origin}/training?checkin=${session.id}`
+    : JSON.stringify({
+        type: 'pds_training_session',
+        sessionId: session.id,
+        title: session.title,
+        venue: session.venue,
+        startDate: session.start_date,
+        category: session.category,
+      })
 
   const handleProcessScan = useCallback(async (code) => {
     if (!code) return
@@ -62,6 +64,14 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     }
     lastScannedCodeRef.current = code
     lastScannedTimeRef.current = now
+
+    // If a session QR code was accidentally scanned with the supervisor camera
+    if (code.includes('checkin=') || code.includes('pds_training_session')) {
+      setScanningStatus('error')
+      setStatusMessage('This is a Session Check-in Pass. Please point the camera at an Employee Badge QR.')
+      setTimeout(() => setScanningStatus('idle'), 3000)
+      return
+    }
 
     isProcessingRef.current = true
     setScanningStatus('processing')

@@ -3,7 +3,8 @@ import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import TrainingAttendanceQRModal from '../components/TrainingAttendanceQRModal'
-import { CheckCircle, AlertTriangle, X, Trash2, Star, QrCode, Camera } from 'lucide-react'
+import EmployeeAttendanceQRModal from '../components/EmployeeAttendanceQRModal'
+import { CheckCircle, AlertTriangle, X, Trash2, Star, QrCode, Camera, ShieldCheck, UserCheck } from 'lucide-react'
 import '../trainingCalendar.css'
 
 const CATEGORIES = ['Customer Service', 'Food Safety', 'Leadership', 'Compliance', 'Kitchen Operations', 'Technical Skills']
@@ -31,6 +32,8 @@ export default function TrainingManagement() {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrSessionTarget, setQrSessionTarget] = useState(null)
+  const [showEmployeeQRModal, setShowEmployeeQRModal] = useState(false)
+  const [employeeQRInitialTab, setEmployeeQRInitialTab] = useState('my_badge')
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false)
   const [analyticsData, setAnalyticsData] = useState(null)
   const [aiReportData, setAiReportData] = useState(null)
@@ -132,6 +135,28 @@ export default function TrainingManagement() {
   useEffect(() => {
     void loadSessions()
     void loadOverviewStats()
+
+    // Handle instant self-check-in when opening via scanned QR link (?checkin=SESSION_ID)
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const checkinSessionId = params.get('checkin')
+      if (checkinSessionId) {
+        api.selfCheckinTrainingSession(checkinSessionId)
+          .then(res => {
+            if (res.success) {
+              setNotice(res.message || '✓ You are marked PRESENT for this training session!')
+              void loadSessions()
+            }
+          })
+          .catch(err => {
+            setError(err.message || 'Self check-in failed. Please check your login session.')
+          })
+          .finally(() => {
+            const cleanUrl = window.location.pathname + window.location.hash
+            window.history.replaceState({}, document.title, cleanUrl)
+          })
+      }
+    } catch {}
   }, [])
 
   // Load single session detail with real participants
@@ -445,7 +470,29 @@ export default function TrainingManagement() {
           <h1>Training Management & Calendar</h1>
           <p>Schedule sessions, view interactive calendar, track attendance, and evaluate training effectiveness.</p>
         </div>
-        <div className="module-heading-actions">
+        <div className="module-heading-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="session-action-btn"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#ffffff', border: 'none', padding: '8px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, boxShadow: '0 2px 10px rgba(99,102,241,0.25)' }}
+            onClick={() => {
+              setEmployeeQRInitialTab('my_badge')
+              setShowEmployeeQRModal(true)
+            }}
+          >
+            <QrCode size={14} className="inline mr-1" /> My Attendance QR Badge
+          </button>
+          <button
+            type="button"
+            className="session-action-btn"
+            style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.3)', padding: '8px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8 }}
+            onClick={() => {
+              setEmployeeQRInitialTab('scan_session')
+              setShowEmployeeQRModal(true)
+            }}
+          >
+            <Camera size={14} className="inline mr-1" /> Scan Session QR
+          </button>
           {canManageSessions && (
             <button className="module-primary" onClick={() => setShowScheduleModal(true)}>
               + Create Training Session
@@ -623,6 +670,19 @@ export default function TrainingManagement() {
                         }}
                       >
                         <QrCode size={13} className="inline mr-1" /> QR Scanner
+                      </button>
+                    )}
+                    {!canRecordAttendance && session.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        className="session-action-btn"
+                        style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+                        onClick={() => {
+                          setEmployeeQRInitialTab('scan_session')
+                          setShowEmployeeQRModal(true)
+                        }}
+                      >
+                        <Camera size={13} className="inline mr-1" /> Check In
                       </button>
                     )}
                     <button className="session-action-btn" onClick={() => handleViewAnalytics(session)}>
@@ -1386,7 +1446,7 @@ export default function TrainingManagement() {
         </div>
       )}
 
-      {/* MODAL 5: LIVE ATTENDANCE QR CODE SCANNER & SESSION DISPLAY */}
+      {/* MODAL 5: LIVE ATTENDANCE QR CODE SCANNER & SESSION DISPLAY (FOR HR / TRAINERS) */}
       {showQRModal && qrSessionTarget && (
         <TrainingAttendanceQRModal
           session={qrSessionTarget}
@@ -1399,6 +1459,18 @@ export default function TrainingManagement() {
             if (selectedSessionDetail && selectedSessionDetail.id === qrSessionTarget.id) {
               await loadSessionDetail(qrSessionTarget.id)
             }
+            await loadSessions()
+          }}
+        />
+      )}
+
+      {/* MODAL 6: EMPLOYEE DIGITAL ATTENDANCE BADGE & SELF CHECK-IN SCANNER */}
+      {showEmployeeQRModal && (
+        <EmployeeAttendanceQRModal
+          user={currentUser}
+          activeSessions={sessions}
+          onClose={() => setShowEmployeeQRModal(false)}
+          onAttendanceUpdated={async () => {
             await loadSessions()
           }}
         />
