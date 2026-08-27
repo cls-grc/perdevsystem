@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users } from 'lucide-react'
 import {
   KPI_LIBRARY, LEARNING_TEMPLATES, COMPETENCY_TEMPLATES, GOAL_TEMPLATES,
   QUICK_COMMENTS, INTELLIGENT_DEFAULTS, COMPETENCY_LEVELS, LEARNING_CATEGORIES,
@@ -6,6 +7,7 @@ import {
   getRecommendedCoursesForGap,
 } from '../workflowConfig'
 import { api } from '../lib/api'
+import SkillRadarChart, { LEVEL_SCORES } from './SkillRadarChart'
 
 // ---------------------------------------------------------------------------
 // Reusable per-step business forms for the workflow engine. Each module's
@@ -73,12 +75,12 @@ function Field({ field, value, onChange, people = [] }) {
           {field.options ? field.options.map(opt => <option key={opt} value={opt}>{opt}</option>) : people.map(p => <option key={p.id} value={p.full_name}>{p.full_name} — {p.department}</option>)}
         </select>
       )
-case 'rating':
+    case 'rating':
       return (
         <div className="rating-row">
           {[1, 2, 3, 4, 5].map(r => (
             <button key={r} type="button" className={Number(value) >= r ? 'on' : ''} onClick={() => set(r)} aria-label={`${r} star${r > 1 ? 's' : ''}`}>
-              ★
+              <Star size={16} fill={Number(value) >= r ? 'currentColor' : 'none'} />
             </button>
           ))}
         </div>
@@ -137,13 +139,13 @@ case 'rating':
             const selected = arr.includes(opt)
             return (
               <button key={opt} type="button" className={`chip ${selected ? 'selected' : ''}`} onClick={() => set(selected ? arr.filter(x => x !== opt) : [...arr, opt])}>
-                {selected ? '✓ ' : '+ '}{opt}
+                {selected ? <Check size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <span style={{ marginRight: 3 }}>+</span>}{opt}
               </button>
             )
           })}
         </div>
       )
-case 'commentSuggestions':
+    case 'commentSuggestions':
       return <CommentChips options={field.options || []} value={value || ''} onInsert={set} />
     case 'template':
       return <TemplateSelect field={field} value={value || ''} onChange={set} />
@@ -165,7 +167,7 @@ function TemplateSelect({ field, value, onChange }) {
   return (
     <div className="template-select">
       <div className="template-search">
-        <span className="template-search-icon">🔍</span>
+        <span className="template-search-icon"><Search size={14} /></span>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder={field.placeholder || 'Search templates…'} />
       </div>
       <div className="template-list">
@@ -199,7 +201,7 @@ function AIGenerateButton({ field, value, onChange }) {
   return (
     <div className="ai-generate-row">
       <button type="button" className="ai-generate-btn" onClick={generate} disabled={busy}>
-        {busy ? 'Generating…' : '✨ Generate using AI'}
+        {busy ? 'Generating…' : <><Sparkles size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Generate using AI</>}
       </button>
       {value && <span className="ai-generate-hint">Draft generated — edit if needed.</span>}
     </div>
@@ -289,7 +291,7 @@ function KpiLibraryBuilder({ value = [], onChange }) {
               <small>Total weight must equal exactly 100% to proceed</small>
             </div>
             <span className={`weight-total ${isWeightValid ? 'ok' : 'error'}`}>
-              {isWeightValid ? '✓ Total 100%' : `Total ${totalWeight}% (Must be 100%)`}
+              {isWeightValid ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Total 100%</> : `Total ${totalWeight}% (Must be 100%)`}
             </span>
           </div>
           <div className="competency-table">
@@ -621,7 +623,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
             {overallDiff > 0 ? `+${overallDiff}` : overallDiff}%
           </b>
           <small className="card-sub">
-            {absOverallDiff >= 5 ? '⚠️ Significant Disagreement' : 'Within Normal Range'}
+            {absOverallDiff >= 5 ? <><AlertTriangle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Significant Disagreement</> : 'Within Normal Range'}
           </small>
         </div>
 
@@ -678,9 +680,9 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
                   <td>
                     <div className="status-notes-cell">
                       {item.isDisagreement ? (
-                        <span className="disagreement-badge">⚠️ {item.absDiff} pts Disagreement</span>
+                        <span className="disagreement-badge"><AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> {item.absDiff} pts Disagreement</span>
                       ) : (
-                        <span className="aligned-badge">✓ Aligned</span>
+                        <span className="aligned-badge"><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Aligned</span>
                       )}
                       
                       {(item.empComment || item.deptComment) && (
@@ -785,48 +787,70 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
 
 // ------------------- Builder: Skill Gap & Learning Plan -------------------
 
-function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
+function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
+  // Guard: value may arrive as undefined before formData is seeded
+  const safeValue = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+
   const [selectedCompetency, setSelectedCompetency] = useState('')
   // Per-competency map of { [competencyName]: courseTitle } for assigned courses
-  // so the badge persists correctly when switching between gap cards.
   const [assignedMap, setAssignedMap] = useState({})
   const [assigning, setAssigning] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [gaps, setGaps] = useState([])
   const [loadingGaps, setLoadingGaps] = useState(false)
+  // AI Auto-Assign All Gaps
+  const [autoAssigning, setAutoAssigning] = useState(false)
+  const [autoProgress, setAutoProgress] = useState(0)
+  const [autoLog, setAutoLog] = useState([])
 
-  const subjectEmp = subject || (people.length > 0 ? people[0] : null)
+  const subjectEmp = subject || (Array.isArray(people) && people.length > 0 ? people[0] : null)
   const employeeId = subjectEmp?.id || subjectEmp?.employee_id
   const subjectName = subjectEmp?.full_name || 'Employee'
+  const isEmployee = role === 'employee'
 
-  // Load (or reload) REAL skill gaps from the database for the selected subject.
-  const loadGaps = async (cancelled = { current: false }) => {
+  // Stable loadGaps — loads real gaps AND existing persistent assignments from DB
+  const loadGaps = useCallback(async (cancelledRef = { current: false }) => {
     if (!employeeId) return
     setLoadingGaps(true)
     setError('')
     try {
-      const result = await api.learningSkillGaps({ employeeId })
-      if (cancelled.current) return
-      const list = result.gaps || []
+      const [result, assignResult] = await Promise.all([
+        api.learningSkillGaps({ employeeId }),
+        api.learningAssignments().catch(() => ({ assignments: [] })),
+      ])
+      if (cancelledRef.current) return
+      const list = Array.isArray(result?.gaps) ? result.gaps : []
       setGaps(list)
-      // Default-select the first gap if none selected yet, or keep current
-      // selection if it's still present in the new list.
       setSelectedCompetency(prev =>
         list.some(g => g.competency === prev) ? prev : (list[0]?.competency || '')
       )
+
+      // Populate assignedMap from persistent database assignments for this employee
+      const persistentMap = {}
+      for (const a of assignResult.assignments || []) {
+        if (a.employee_id === employeeId || !employeeId) {
+          for (const c of a.competencies || []) {
+            persistentMap[c] = a.resource_title
+          }
+          if (a.fromCompetencyGap && a.category) {
+            persistentMap[a.category] = a.resource_title
+          }
+        }
+      }
+      setAssignedMap(prev => ({ ...persistentMap, ...prev }))
     } catch (err) {
-      if (!cancelled.current) setError(err.message || 'Could not load skill gaps.')
+      if (!cancelledRef.current) setError(err?.message || 'Could not load skill gaps.')
     } finally {
-      if (!cancelled.current) setLoadingGaps(false)
+      if (!cancelledRef.current) setLoadingGaps(false)
     }
-  }
+  }, [employeeId])
 
   useEffect(() => {
-    const cancelled = { current: false }
-    void loadGaps(cancelled)
-    return () => { cancelled.current = true }
-  }, [employeeId]) // eslint-disable-line react-hooks/exhaustive-deps
+    const ref = { current: false }
+    void loadGaps(ref)
+    return () => { ref.current = true }
+  }, [loadGaps])
 
   // Recommended courses: prefer real library courses already tagged with the
   // competency (attached by the server), then fall back to the curated
@@ -855,11 +879,11 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
       setAssignedMap(prev => ({ ...prev, [selectedCompetency]: course.title }))
       setNotice(`Learning path "${course.title}" assigned to ${subjectName} to close the ${selectedCompetency} gap.`)
       onChange({
-        ...value,
-        planTitle: value.planTitle || `Dev Plan: ${selectedCompetency}`,
+        ...safeValue,
+        planTitle: safeValue.planTitle || `Dev Plan: ${selectedCompetency}`,
         assignedCourse: course.title,
-        prioritySkills: Array.isArray(value.prioritySkills)
-          ? [...new Set([...value.prioritySkills, selectedCompetency])]
+        prioritySkills: Array.isArray(safeValue.prioritySkills)
+          ? [...new Set([...safeValue.prioritySkills, selectedCompetency])]
           : [selectedCompetency],
         assignedFromCompetencyGap: true,
         competencyName: selectedCompetency,
@@ -881,16 +905,135 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
     setError('')
   }
 
-  const set = patch => onChange({ ...value, ...patch })
+  // AI Auto-Assign: iterate every unassigned gap, pick best course, assign it.
+  const handleAutoAssignAll = async () => {
+    const unassigned = gaps.filter(g => !assignedMap[g.competency])
+    if (!unassigned.length || !employeeId) return
+    setAutoAssigning(true)
+    setAutoProgress(0)
+    setAutoLog([])
+    setNotice('')
+    setError('')
+
+    const newMap = { ...assignedMap }
+    const log = []
+    const allAssigned = []
+
+    for (let i = 0; i < unassigned.length; i++) {
+      const g = unassigned[i]
+      // Pick the best course for this gap
+      const courses = g.courses?.length
+        ? g.courses
+        : getRecommendedCoursesForGap(g.competency, g.score || 0)
+      const course = courses[0]
+      if (!course) {
+        log.push({ gap: g.competency, course: null, status: 'skip' })
+        setAutoLog([...log])
+        setAutoProgress(Math.round(((i + 1) / unassigned.length) * 100))
+        continue
+      }
+
+      try {
+        await api.assignLearningGap({
+          subjectEmployeeId: employeeId,
+          courseTitle: course.title,
+          competencyName: g.competency,
+          gapScore: g.gap || 0,
+        })
+        newMap[g.competency] = course.title
+        allAssigned.push(g.competency)
+        log.push({ gap: g.competency, course: course.title, status: 'ok' })
+      } catch (err) {
+        log.push({ gap: g.competency, course: course.title, status: 'error', msg: err.message })
+      }
+
+      setAssignedMap({ ...newMap })
+      setAutoLog([...log])
+      setAutoProgress(Math.round(((i + 1) / unassigned.length) * 100))
+
+      // Small delay between assignments so the server isn't hammered
+      if (i < unassigned.length - 1) await new Promise(r => setTimeout(r, 280))
+    }
+
+    // Commit all assigned competencies to the parent form value
+    if (allAssigned.length > 0) {
+      onChange({
+        ...safeValue,
+        planTitle: safeValue.planTitle || `AI Dev Plan: ${subjectName}`,
+        prioritySkills: [...new Set([...(Array.isArray(safeValue.prioritySkills) ? safeValue.prioritySkills : []), ...allAssigned])],
+        assignedFromCompetencyGap: true,
+        aiAutoAssigned: true,
+      })
+    }
+
+    setAutoAssigning(false)
+    setNotice(
+      allAssigned.length > 0
+        ? `AI assigned ${allAssigned.length} development ${allAssigned.length === 1 ? 'plan' : 'plans'} to ${subjectName} targeting all detected skill gaps.`
+        : 'No courses could be assigned. Please check the error log above.'
+    )
+    await loadGaps()
+  }
+
+  const set = patch => onChange({ ...safeValue, ...patch })
 
   return (
     <div className="builder skill-gap-builder">
       {/* Skill Gaps Overview */}
       <div className="skill-gaps-section">
         <div className="section-head">
-          <h4>Detected Skill Gaps for {subjectName}</h4>
-          <span className="section-hint">Click a skill gap to view recommended learning courses</span>
+          <div>
+            <h4>Detected Skill Gaps for {subjectName}</h4>
+            <span className="section-hint">Click a skill gap to view recommended learning courses</span>
+          </div>
+          {/* AI Auto-Assign Button */}
+          {gaps.length > 0 && (
+            <button
+              type="button"
+              className="ai-auto-assign-btn"
+              disabled={autoAssigning || assigning || gaps.every(g => assignedMap[g.competency])}
+              onClick={handleAutoAssignAll}
+              title="AI will automatically pick and assign the best-matching development course for every skill gap in one click"
+            >
+              <Sparkles size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />
+              {autoAssigning ? `Assigning… ${autoProgress}%` : 'AI Auto-Assign All Gaps'}
+            </button>
+          )}
         </div>
+
+        {/* AI Progress Bar */}
+        {autoAssigning && (
+          <div style={{ margin: '6px 0 2px', background: 'rgba(124,58,237,0.08)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(124,58,237,0.18)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>AI is assigning development plans…</span>
+              <span style={{ fontSize: 11, color: '#7c3aed' }}>{autoProgress}%</span>
+            </div>
+            <div style={{ height: 5, background: 'rgba(124,58,237,0.15)', borderRadius: 3 }}>
+              <div style={{ height: '100%', width: `${autoProgress}%`, background: 'linear-gradient(90deg, #7c3aed, #10b981)', borderRadius: 3, transition: 'width 0.3s ease' }} />
+            </div>
+          </div>
+        )}
+
+        {/* AI Assignment Log */}
+        {autoLog.length > 0 && !autoAssigning && (
+          <div style={{ margin: '6px 0', background: 'rgba(16,185,129,0.05)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(16,185,129,0.18)', maxHeight: 140, overflowY: 'auto' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#10b981', marginBottom: 5 }}>AI Assignment Summary</div>
+            {autoLog.map((entry, idx) => (
+              <div key={idx} style={{ fontSize: 11, padding: '2px 0', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+                {entry.status === 'ok'
+                  ? <CheckCircle size={11} style={{ color: '#10b981', flexShrink: 0 }} />
+                  : entry.status === 'skip'
+                  ? <AlertTriangle size={11} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  : <AlertTriangle size={11} style={{ color: '#ef4444', flexShrink: 0 }} />
+                }
+                <span style={{ color: 'inherit', fontWeight: 600 }}>{entry.gap}:</span>
+                <span style={{ color: entry.status === 'ok' ? '#10b981' : entry.status === 'skip' ? '#94a3b8' : '#ef4444' }}>
+                  {entry.status === 'ok' ? entry.course : entry.status === 'skip' ? 'No course found' : `Error – ${entry.msg}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {loadingGaps ? (
           <p className="empty-hint">Loading skill gaps…</p>
@@ -908,7 +1051,7 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
                 <div className="gap-card-head">
                   <span className="gap-competency">{g.competency}</span>
                   {assignedMap[g.competency]
-                    ? <span className="gap-pill assigned-pill">✓ Course assigned</span>
+                    ? <span className="gap-pill assigned-pill"><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Course assigned</span>
                     : <span className="gap-pill">-{g.gap}% gap</span>
                   }
                 </div>
@@ -939,7 +1082,7 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
               <div className="recommended-course-card" key={course.title}>
                 <div className="course-card-head">
                   <span className="course-category-tag">{course.category}</span>
-                  <span className="course-duration">⏱ {course.duration_hours || course.duration || '-'} hrs</span>
+                  <span className="course-duration" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={12} /> {course.duration_hours || course.duration || '-'} hrs</span>
                 </div>
                 <h5 className="course-title">{course.title}</h5>
                 <p className="course-desc">{course.description}</p>
@@ -952,8 +1095,8 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
                   onClick={() => handleAssignCourse(course)}
                 >
                   {assignedMap[selectedCompetency] === course.title
-                    ? '✓ Learning Path Assigned'
-                    : assigning ? 'Assigning…' : '⚡ Assign Learning Path'}
+                    ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Learning Path Assigned</>
+                    : assigning ? 'Assigning…' : <><Zap size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Assign Learning Path</>}
                 </button>
               </div>
             ))}
@@ -967,7 +1110,7 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
         <label className="form-field">
           <span>Development Plan Notes</span>
           <textarea
-            value={value.coachingNotes || ''}
+            value={safeValue.coachingNotes || ''}
             onChange={e => set({ coachingNotes: e.target.value })}
             rows={2}
             placeholder="Add coaching objectives or specific targets for this development plan..."
@@ -982,63 +1125,169 @@ function SkillGapPlanBuilder({ value = {}, onChange, people = [], subject }) {
 
 function CompetencyTemplateBuilder({ value = [], onChange }) {
   const positions = Object.keys(COMPETENCY_TEMPLATES)
+  const [selectedSkill, setSelectedSkill] = useState('')
+
   const apply = pos => {
     if (!pos) { onChange([]); return }
-    const rows = COMPETENCY_TEMPLATES[pos].map(r => ({ position: pos, competency: r.competency, level: r.level, weight: r.weight }))
+    const rows = COMPETENCY_TEMPLATES[pos].map(r => ({
+      position: pos,
+      competency: r.competency,
+      level: r.level || 'Proficient',
+      weight: r.weight || 20,
+      category: r.category || 'Competency',
+      targetScore: r.targetScore || LEVEL_SCORES[r.level] || 85,
+      actual: Math.max(40, Math.min(100, Math.round((r.targetScore || LEVEL_SCORES[r.level] || 85) * (0.8 + Math.random() * 0.25)))),
+    }))
     onChange(rows)
+    if (rows.length > 0) setSelectedSkill(rows[0].competency)
   }
+
+  const addCustomSkill = () => {
+    const next = [
+      ...value,
+      {
+        position: value[0]?.position || 'Custom Role',
+        competency: 'New Competency',
+        level: 'Proficient',
+        weight: 15,
+        category: 'Hospitality Service',
+        targetScore: 88,
+        actual: 75,
+      }
+    ]
+    onChange(next)
+  }
+
   const totalWeight = value.reduce((s, r) => s + Number(r.weight || 0), 0)
   const levelColor = lvl => ({ Foundation: '#8a8792', Developing: '#b06948', Proficient: '#5d49be', Expert: '#31965b' }[lvl] || '#5d49be')
+
   return (
-    <div className="builder competency-template-builder">
+    <div className="builder competency-template-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="competency-picker-field">
         <label className="competency-picker-label">
-          <span>Select a position template</span>
+          <span>Select a Role-Based Benchmark Template</span>
           <select value={value.length > 0 ? value[0].position : ''} onChange={e => apply(e.target.value)}>
-            <option value="">Choose a position…</option>
+            <option value="">Choose a hospitality role benchmark…</option>
             {positions.map(pos => (
-              <option key={pos} value={pos}>{pos} ({COMPETENCY_TEMPLATES[pos].length} competencies)</option>
+              <option key={pos} value={pos}>{pos} ({COMPETENCY_TEMPLATES[pos].length} benchmark competencies)</option>
             ))}
           </select>
-          <small>Pick a position to auto-load its required competencies, levels and weights.</small>
+          <small>Select a predefined hospitality role dictionary standard to auto-load standard competency benchmarks, proficiency target levels, and weights.</small>
         </label>
       </div>
+
       {value.length > 0 && (
-        <div className="competency-loaded">
-          <div className="competency-loaded-head">
-            <div>
-              <b>{value[0].position}</b>
-              <small>Template loaded — adjust levels & weights only if needed</small>
-            </div>
-            <span className={`weight-total ${totalWeight === 100 ? 'ok' : ''}`}>Total {totalWeight}%</span>
+        <>
+          {/* Interactive Skill Radar Chart Visual Comparison */}
+          <div style={{ marginTop: 4 }}>
+            <SkillRadarChart
+              competencies={value}
+              roleName={value[0].position}
+              employeeName="Subject Profile"
+              selectedCompetency={selectedSkill}
+              onSelectCompetency={setSelectedSkill}
+              showTable={false}
+              compact={false}
+            />
           </div>
-          <div className="competency-table">
-            {value.map((row, index) => (
-              <div className="competency-table-row" key={index}>
-                <div className="competency-table-name">
-                  <input value={row.competency} onChange={e => {
-                    const next = [...value]; next[index] = { ...row, competency: e.target.value }; onChange(next)
-                  }} />
-                </div>
-                <div className="competency-table-level">
-                  <select value={row.level} style={{ borderColor: levelColor(row.level) }} onChange={e => {
-                    const next = [...value]; next[index] = { ...row, level: e.target.value }; onChange(next)
-                  }}>
-                    <option value="">Level…</option>
-                    {COMPETENCY_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
-                <div className="competency-table-weight">
-                  <input type="number" value={row.weight} onChange={e => {
-                    const next = [...value]; next[index] = { ...row, weight: e.target.value }; onChange(next)
-                  }} min={0} max={100} />
-                  <i className="weight-bar"><em style={{ width: `${Math.min(100, Number(row.weight) || 0)}%` }} /></i>
-                </div>
-                <button type="button" className="builder-remove" onClick={() => onChange(value.filter((_, i) => i !== index))} aria-label="Delete">×</button>
+
+          <div className="competency-loaded">
+            <div className="competency-loaded-head">
+              <div>
+                <b>{value[0].position} · Role Benchmark Matrix</b>
+                <small>Predefined standard loaded — adjust requirements, targets, and weights as needed</small>
               </div>
-            ))}
+              <span className={`weight-total ${totalWeight === 100 ? 'ok' : ''}`}>Total Weight: {totalWeight}%</span>
+            </div>
+            <div className="competency-table">
+              {value.map((row, index) => (
+                <div
+                  className={`competency-table-row ${selectedSkill === row.competency ? 'selected-row' : ''}`}
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(140px, 1.4fr) minmax(110px, 1fr) 90px 80px 32px',
+                    gap: 8,
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    borderBottom: '1px solid rgba(148, 163, 184, 0.15)',
+                    background: selectedSkill === row.competency ? 'rgba(124, 58, 237, 0.05)' : 'transparent',
+                    borderRadius: 6,
+                  }}
+                  onClick={() => setSelectedSkill(row.competency)}
+                >
+                  <div className="competency-table-name">
+                    <input
+                      value={row.competency}
+                      placeholder="Competency name"
+                      onChange={e => {
+                        const next = [...value]; next[index] = { ...row, competency: e.target.value }; onChange(next)
+                      }}
+                    />
+                  </div>
+                  <div className="competency-table-level">
+                    <select
+                      value={row.level}
+                      style={{ borderColor: levelColor(row.level) }}
+                      onChange={e => {
+                        const lvl = e.target.value
+                        const next = [...value]
+                        next[index] = {
+                          ...row,
+                          level: lvl,
+                          targetScore: LEVEL_SCORES[lvl] || 85,
+                        }
+                        onChange(next)
+                      }}
+                    >
+                      <option value="">Level…</option>
+                      {COMPETENCY_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="competency-table-target" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <small style={{ fontSize: 10, color: '#64748b' }}>Target:</small>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={row.targetScore || LEVEL_SCORES[row.level] || 85}
+                      onChange={e => {
+                        const next = [...value]
+                        next[index] = { ...row, targetScore: Number(e.target.value) }
+                        onChange(next)
+                      }}
+                      style={{ width: 44, padding: '4px 6px', textAlign: 'center', fontSize: 11, fontWeight: 700 }}
+                    />
+                    <small style={{ fontSize: 10, color: '#64748b' }}>%</small>
+                  </div>
+                  <div className="competency-table-weight">
+                    <input
+                      type="number"
+                      value={row.weight}
+                      onChange={e => {
+                        const next = [...value]; next[index] = { ...row, weight: e.target.value }; onChange(next)
+                      }}
+                      min={0}
+                      max={100}
+                      placeholder="Weight %"
+                      title="Weight percentage"
+                    />
+                    <i className="weight-bar"><em style={{ width: `${Math.min(100, Number(row.weight) || 0)}%` }} /></i>
+                  </div>
+                  <button type="button" className="builder-remove" onClick={(e) => { e.stopPropagation(); onChange(value.filter((_, i) => i !== index)) }} aria-label="Delete">×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <button type="button" className="builder-add" onClick={addCustomSkill} style={{ margin: 0, padding: '6px 14px', fontSize: 12 }}>
+                + Add Custom Skill Dimension
+              </button>
+              <small style={{ color: totalWeight === 100 ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                {totalWeight === 100 ? '✓ Total weight perfectly balanced at 100%' : `⚠ Total weight is ${totalWeight}% (must equal 100%)`}
+              </small>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
@@ -1199,8 +1448,8 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
         <div style={{ background: '#f0edff', border: '1px solid #d5cefc', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <b style={{ color: '#5f48c5', fontSize: 14 }}>{selectedSess.title}</b>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              <span>📍 {selectedSess.venue}</span> • <span>📅 {String(selectedSess.start_date).slice(0, 10)}</span> • <span>👥 {selectedSess.registered_count || 0}/{selectedSess.capacity} capacity</span>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {selectedSess.venue}</span> • <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={13} /> {String(selectedSess.start_date).slice(0, 10)}</span> • <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={13} /> {selectedSess.registered_count || 0}/{selectedSess.capacity} capacity</span>
             </div>
           </div>
           <span style={{ background: '#5f48c5', color: '#fff', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{selectedSess.category}</span>
@@ -1292,22 +1541,189 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
 
 // ------------------------- Builder: Progress tracker -----------------------
 
-function ProgressBuilder({ value = [], onChange }) {
+// ------------------------- Builder: Progress tracker -----------------------
+
+function ProgressBuilder({ value = [], onChange, role, people = [], subject, events = [] }) {
+  const [dbAssignments, setDbAssignments] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [updatingId, setUpdatingId] = useState(null)
+  const [notice, setNotice] = useState('')
+
+  const subjectEmp = subject || (Array.isArray(people) && people.length > 0 ? people[0] : null)
+  const employeeId = subjectEmp?.id || subjectEmp?.employee_id
+  const subjectName = subjectEmp?.full_name || 'Employee'
+  const isEmployee = role === 'employee'
+
+  const loadAssignments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.learningAssignments()
+      const list = res.assignments || []
+      const filtered = employeeId ? list.filter(a => a.employee_id === employeeId) : list
+      setDbAssignments(filtered)
+      if (filtered.length > 0 && (!value || !value.length)) {
+        onChange(filtered.map(a => ({ name: a.resource_title, progress: a.progress || 0, status: a.status, assignmentId: a.id })))
+      }
+    } catch {
+      // Fallback to value prop if API fails
+    } finally {
+      setLoading(false)
+    }
+  }, [employeeId, onChange, value])
+
+  useEffect(() => {
+    void loadAssignments()
+  }, [loadAssignments])
+
+  const handleUpdateProgress = async (assignment, newProgress) => {
+    setUpdatingId(assignment.id)
+    try {
+      await api.updateLearningProgress(assignment.id, newProgress)
+      const updated = dbAssignments.map(a => a.id === assignment.id ? { ...a, progress: newProgress, status: newProgress >= 100 ? 'completed' : newProgress > 0 ? 'studying' : a.status } : a)
+      setDbAssignments(updated)
+      onChange(updated.map(a => ({ name: a.resource_title, progress: a.progress || 0, status: a.status, assignmentId: a.id })))
+      setNotice(`Updated progress for "${assignment.resource_title}" to ${newProgress}%.`)
+    } catch (err) {
+      setNotice(`Failed to update progress: ${err.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const handleUpdateStatus = async (assignment, newStatus) => {
+    setUpdatingId(assignment.id)
+    try {
+      await api.updateLearningStatus(assignment.id, newStatus)
+      const updated = dbAssignments.map(a => a.id === assignment.id ? { ...a, status: newStatus } : a)
+      setDbAssignments(updated)
+      onChange(updated.map(a => ({ name: a.resource_title, progress: a.progress || 0, status: a.status, assignmentId: a.id })))
+      setNotice(`Updated status for "${assignment.resource_title}" to ${newStatus.replace('_', ' ')}.`)
+    } catch (err) {
+      setNotice(`Failed to update status: ${err.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   return (
-    <div className="builder progress-builder">
-      <div className="builder-note">Current progress for the assigned learners.</div>
-      {value.map((row, index) => (
-        <div className="progress-row" key={index}>
-          <span>{row.name || `Learner ${index + 1}`}</span>
-          <div className="progress-track"><i style={{ width: `${row.progress || 0}%` }} /></div>
-          <b>{row.progress || 0}%</b>
-          <input type="number" value={row.progress || 0} min={0} max={100} onChange={e => {
-            const next = [...value]; next[index] = { ...row, progress: Number(e.target.value) }; onChange(next)
-          }} />
+    <div className="builder progress-builder" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {notice && (
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: 11.5, color: '#059669', fontWeight: 600 }}>
+          {notice}
         </div>
-      ))}
-      {!value.length && <p className="empty-hint">No learners assigned yet — assign employees first.</p>}
-      {value.length > 0 && <button type="button" className="builder-add" onClick={() => onChange([...value, { name: '', progress: 0 }])}>+ Add learner</button>}
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h4 style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700 }}>
+            {isEmployee ? 'My Assigned Development Plans & Learning Paths' : `Assigned Learning Progress for ${subjectName}`}
+          </h4>
+          <span style={{ fontSize: 11, color: '#64748b' }}>
+            {isEmployee ? 'Track your study progress and update your completion status.' : 'Review learner completion against assigned competency development plans.'}
+          </span>
+        </div>
+        {loading && <small style={{ color: '#8b5cf6', fontSize: 11 }}>Syncing progress…</small>}
+      </div>
+
+      {/* Real database assignments list */}
+      {dbAssignments.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {dbAssignments.map(a => (
+            <div
+              key={a.id}
+              style={{
+                background: 'var(--card-bg, #ffffff)',
+                border: '1.5px solid var(--border, #e5e3ee)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                <div>
+                  <b style={{ fontSize: 12.5, color: 'inherit' }}>{a.resource_title}</b>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                      {a.category || 'Skill Development'}
+                    </span>
+                    {a.duration_hours && (
+                      <span style={{ fontSize: 10, color: '#64748b' }}>· {a.duration_hours} hrs</span>
+                    )}
+                    {(a.competencies || []).map(c => (
+                      <span key={c} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(16,185,129,0.1)', color: '#059669', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        ✦ Closes gap in {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select
+                    value={a.status || 'not_started'}
+                    onChange={e => handleUpdateStatus(a, e.target.value)}
+                    disabled={updatingId === a.id || a.is_completed}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      border: '1px solid #d1d5db',
+                      background: 'inherit',
+                      color: 'inherit',
+                    }}
+                  >
+                    <option value="not_started">Not started</option>
+                    <option value="studying">Studying</option>
+                    <option value="completed">Completed</option>
+                    <option value="need_help">Need help</option>
+                  </select>
+                  {a.is_completed && (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 12, background: '#d1fae5', color: '#065f46' }}>
+                      ✓ Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Slider & Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(148,163,184,0.2)', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${a.progress || 0}%`,
+                      background: a.progress >= 100 ? '#10b981' : 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                      borderRadius: 3,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+                <b style={{ fontSize: 11.5, minWidth: 36, textAlign: 'right' }}>{a.progress || 0}%</b>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={a.progress || 0}
+                  disabled={updatingId === a.id || a.is_completed}
+                  onChange={e => handleUpdateProgress(a, Number(e.target.value))}
+                  style={{ width: 100, cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ padding: '16px', borderRadius: 10, background: 'rgba(99,102,241,0.04)', border: '1px dashed rgba(99,102,241,0.2)', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 4px', fontSize: 12.5, fontWeight: 600, color: 'inherit' }}>
+            No development courses assigned yet.
+          </p>
+          <small style={{ color: '#64748b', fontSize: 11 }}>
+            HR and supervisors assign development plans and courses in the <b>Assign development plan</b> step.
+          </small>
+        </div>
+      )}
     </div>
   )
 }
@@ -1505,7 +1921,7 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
       )}
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <small className="form-status">{isRequiredFilled ? '✓ Ready to complete' : 'Complete required fields to continue'}</small>
+        <small className="form-status">{isRequiredFilled ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Ready to complete</> : 'Complete required fields to continue'}</small>
       </div>
     </form>
   )

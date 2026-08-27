@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { downloadCsv } from '../lib/exportUtils'
+import { Download, CheckCircle, ShieldCheck, Zap, Eye, EyeOff } from 'lucide-react'
 
 const roleLabels = { employee: 'Employee', supervisor: 'Supervisor', management: 'Management', hr: 'HR', operations_manager: 'Ops Manager' }
 
@@ -199,13 +200,16 @@ export default function EmployeeManagement() {
           <p>Manage the employee lifecycle, organizational assignments, and system access.</p>
         </div>
         <div className="er-heading-actions">
-          <button className="module-secondary" onClick={exportCsv} title="Export all employee records to CSV">⬇ Export CSV</button>
+          <button className="module-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export all employee records to CSV">
+            <Download className="w-4 h-4 inline" />
+            <span>Export CSV</span>
+          </button>
           <button className="module-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>
           <button className="module-primary" onClick={() => { resetForm(); setShowForm(true) }}>+ Add employee</button>
         </div>
       </div>
 
-      {notice && <p className="module-notice">✓ {notice}</p>}
+      {notice && <p className="module-notice"><CheckCircle className="w-4 h-4 inline mr-1 text-emerald-500" /> {notice}</p>}
       {error && <p className="module-error">{error}</p>}
 
       <section className="er-kpis">
@@ -310,7 +314,7 @@ export default function EmployeeManagement() {
                   <>
                     <div className="er-full" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, marginTop: 8 }}>
                       <b style={{ fontSize: 13, color: '#a855f7', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>🔐</span>
+                        <ShieldCheck className="w-4 h-4 text-purple-400" />
                         <span>User Login Account &amp; RBAC Access</span>
                       </b>
                       <small style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
@@ -353,9 +357,13 @@ export default function EmployeeManagement() {
                             fontWeight: 600,
                             cursor: 'pointer',
                             padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4
                           }}
                         >
-                          ⚡ Generate Password
+                          <Zap className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Generate Password</span>
                         </button>
                       </div>
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -389,7 +397,7 @@ export default function EmployeeManagement() {
                             zIndex: 2,
                           }}
                         >
-                          <span>{showEmpPass ? '👁' : '👁‍🗨'}</span>
+                          {showEmpPass ? <EyeOff size={14} /> : <Eye size={14} />}
                           <span>{showEmpPass ? `${empPassSeconds}s` : 'Show'}</span>
                         </button>
                       </div>

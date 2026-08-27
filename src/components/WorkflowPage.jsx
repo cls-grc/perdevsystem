@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Component } from 'react'
 import SearchableSelector from './SearchableSelector'
 import ModuleAIInsights from './ModuleAIInsights'
-import WorkflowForms from './WorkflowForms'
+import WorkflowForms, { getInitialValue } from './WorkflowForms'
 import WorkflowTimeline from './WorkflowTimeline'
 import ModuleDashboard from './ModuleDashboard'
 import ModuleBusinessView from './ModuleBusinessView'
@@ -9,7 +9,58 @@ import useDialogFocus from '../hooks/useDialogFocus'
 import { usePolling } from '../hooks/usePolling'
 import { api } from '../lib/api'
 import { configFor, computeModuleStats, STAGE_GUIDES, COMMENT_SUGGESTIONS, QUICK_DECISIONS, isApprovalStage } from '../workflowConfig'
-import { getInitialValue } from './WorkflowForms'
+import { Check, CheckCircle, AlertTriangle, Zap, Sparkles, Pencil, ClipboardList, Clock, Info } from 'lucide-react'
+
+// Error boundary — catches render errors in any step form so the entire page
+// doesn't go blank. Shows a recoverable error card instead.
+class StepFormErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, errorMsg: '' }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, errorMsg: error?.message || 'Unexpected error' }
+  }
+  componentDidCatch(error, info) {
+    console.error('[StepForm] render error:', error, info)
+  }
+  componentDidUpdate(prevProps) {
+    // Reset when the step changes so the next step renders fresh
+    if (prevProps.stageKey !== this.props.stageKey) {
+      this.setState({ hasError: false, errorMsg: '' })
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '20px 22px', borderRadius: 12, margin: '12px 0',
+          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <strong style={{ fontSize: 13, color: '#dc2626' }}>
+            ⚠ This step encountered an error while rendering.
+          </strong>
+          <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+            {this.state.errorMsg}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, errorMsg: '' })}
+            style={{
+              alignSelf: 'flex-start', padding: '5px 12px', borderRadius: 7,
+              border: '1px solid #dc2626', background: 'transparent', color: '#dc2626',
+              fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const getRole = () => {
   try {
@@ -79,7 +130,7 @@ function Notice({ notice, type = 'success', onDismiss }) {
   if (!notice) return null
   return (
     <div className={`module-notice module-notice-${type}`}>
-      <span>{type === 'success' ? '✓' : '!'} {notice}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{type === 'success' ? <CheckCircle size={15} className="text-emerald-500" /> : <AlertTriangle size={15} className="text-amber-500" />} {notice}</span>
       <button type="button" className="notice-dismiss" onClick={onDismiss} aria-label="Dismiss notification">×</button>
     </div>
   )
@@ -243,14 +294,10 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
   }, [definitions, stages])
 
 const current = normalizedStages.find(stage => stage.key === workflow?.current_stage)
-  // Include stages the user can act on: their assigned-role stages, plus any
-  // employee-assigned stage where they are the workflow's subject.
+  // All workflow stages are visible in the stepper so every role can see the full pipeline.
   const roleStages = useMemo(
-    () => normalizedStages.filter(stage =>
-      stage.roles.includes(role) ||
-      (workflow && stage.roles.length === 1 && stage.roles[0] === 'employee' && Boolean(employeeId && workflow.subject_employee_id && employeeId === workflow.subject_employee_id)),
-    ),
-    [normalizedStages, role, workflow?.subject_employee_id, employeeId],
+    () => normalizedStages,
+    [normalizedStages],
   )
 const canStart = Boolean(normalizedStages[0]?.roles.includes(role))
   // The actor may act if their role is assigned to the current stage, OR if the
@@ -942,7 +989,7 @@ const saveSchedule = async () => {
             disabled={saving || bulkSaving}
             title="Launch a batch review cycle for multiple employees"
           >
-            ⚡ Launch Review Cycle
+            <Zap size={14} className="inline mr-1 text-amber-400" /> Launch Review Cycle
           </button>
         )}
         {roleAction && <button className="module-primary" type="button" onClick={handleHeaderAction} disabled={saving}>{saving ? 'Creating...' : roleAction}</button>}
@@ -1028,7 +1075,7 @@ const saveSchedule = async () => {
                 onClick={() => { setDetailsStage(stage); setDetailsOpen(true) }}
                 onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailsStage(stage); setDetailsOpen(true) } }}
               >
-                <div className="step-marker">{isFinalized ? '✓' : stStatus === 'complete' ? '✓' : isAi ? '✦' : index + 1}</div>
+                <div className="step-marker">{isFinalized ? <Check size={14} /> : stStatus === 'complete' ? <Check size={14} /> : isAi ? <Sparkles size={13} /> : index + 1}</div>
                 <div className="step-copy"><b>{stage.label}</b><small>{statusLabel}</small></div>
               </div>
             )
@@ -1095,16 +1142,18 @@ const saveSchedule = async () => {
 {/* Per-step business form */}
               {currentFormConfig && !currentFormConfig.aiOnly && (
                 <div className="workflow-form-wrap">
-<WorkflowForms
-                    formConfig={currentFormConfig}
-                    value={currentFormValue}
-                    onChange={setFormValue}
-                    role={role}
-                    people={people}
-                    suggestions={currentSuggestions}
-                    events={events}
-                    subject={workflow ? { id: workflow.subject_employee_id, full_name: workflow.subject_name } : evaluatingSubject}
-                  />
+                  <StepFormErrorBoundary stageKey={workflow?.current_stage}>
+                    <WorkflowForms
+                      formConfig={currentFormConfig}
+                      value={currentFormValue}
+                      onChange={setFormValue}
+                      role={role}
+                      people={people}
+                      suggestions={currentSuggestions}
+                      events={events}
+                      subject={workflow ? { id: workflow.subject_employee_id, full_name: workflow.subject_name } : evaluatingSubject}
+                    />
+                  </StepFormErrorBoundary>
                 </div>
               )}
 
@@ -1119,7 +1168,7 @@ const saveSchedule = async () => {
                 isApproval ? (
                   <>
                     <label className="collapsible-block">
-                      <span className="collapsible-toggle">✎ Add approval note (optional)</span>
+                      <span className="collapsible-toggle"><Pencil size={12} style={{ display: 'inline', marginRight: 4 }} /> Add approval note (optional)</span>
                       <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add an approval note or review comment for this step." rows={2} />
                     </label>
                     <div className="module-actions single-action">
@@ -1132,7 +1181,7 @@ const saveSchedule = async () => {
                 ) : (
                   <>
                     <label className="collapsible-block">
-                      <span className="collapsible-toggle">✎ Add note or review comment (optional)</span>
+                      <span className="collapsible-toggle"><Pencil size={12} style={{ display: 'inline', marginRight: 4 }} /> Add note or review comment (optional)</span>
                       <textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add a note or review comment for this step." rows={2} />
                     </label>
                     <div className="module-actions single-action">
@@ -1143,7 +1192,17 @@ const saveSchedule = async () => {
                   </>
                 )
               ) : (
-                <p>This workflow is currently assigned to another role. No action controls are available.</p>
+                <div className="workflow-waiting-banner" style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ color: '#6366f1', flexShrink: 0 }}><Clock size={18} /></div>
+                  <div style={{ fontSize: 12 }}>
+                    <b style={{ display: 'block', color: 'inherit', marginBottom: 2 }}>
+                      Step in progress by {current?.roles?.map(r => r === 'hr' ? 'HR Admin' : r === 'supervisor' ? 'Supervisor' : r === 'employee' ? 'Employee' : r).join(' / ') || 'Reviewer'}
+                    </b>
+                    <span style={{ color: '#64748b' }}>
+                      This step is currently being managed. You can review the details and development plan above, and you will be notified when your action is required.
+                    </span>
+                  </div>
+                </div>
               )}
               {canCancel && (
                 <div className="module-actions module-cancel-row">
@@ -1153,7 +1212,7 @@ const saveSchedule = async () => {
             </>
 ) : (
             <div className="workflow-empty-state">
-              <div className="workflow-empty-illustration">📋</div>
+              <div className="workflow-empty-illustration"><ClipboardList size={40} style={{ opacity: 0.4 }} /></div>
               <h3>No active workflow</h3>
               <p>{canStart ? `Start a new ${title.toLowerCase()} to begin.` : 'Your role does not have a start action for this workflow.'}</p>
               {canStart && (
@@ -1385,7 +1444,7 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
           <div className="bulk-modal-body">
             {bulkResult ? (
               <div className="bulk-result-card">
-                <div className="bulk-result-icon">✓</div>
+                <div className="bulk-result-icon"><CheckCircle size={32} className="text-emerald-500 inline" /></div>
                 <h3>Cycle Successfully Launched!</h3>
                 <p><strong>{bulkResult.cycleTitle}</strong></p>
                 <div className="bulk-result-stats">
@@ -1565,7 +1624,7 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
                     disabled={bulkSaving || bulkSelectedEmployeeIds.length === 0 || !bulkCycleTitle.trim()}
                     onClick={submitBulkLaunch}
                   >
-                    {bulkSaving ? 'Launching Batch...' : `⚡ Launch ${bulkSelectedEmployeeIds.length} Workflows`}
+                    {bulkSaving ? 'Launching Batch...' : <><Zap size={14} className="inline mr-1 text-amber-400" /> Launch {bulkSelectedEmployeeIds.length} Workflows</>}
                   </button>
                 </div>
               </>

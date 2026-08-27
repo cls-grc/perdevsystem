@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
+import { Sparkles, Download, CheckCircle, X } from 'lucide-react'
 import { printElementAsPdf, downloadCsv } from '../lib/exportUtils'
 import { Icon } from '../components/Sidebar'
 import AnimatedNumber from '../components/AnimatedNumber'
@@ -179,7 +180,7 @@ export default function AIAnalytics() {
       <div className="saas-header-banner">
         <div className="saas-header-text">
           <h1>
-            Welcome back, {userName.split(' ')[0]}! <span className="wave-hand">👋</span>
+            Welcome back, {userName.split(' ')[0]}!
           </h1>
           <p>
             Here's what's happening across your hospitality workforce today.{' '}
@@ -198,7 +199,7 @@ export default function AIAnalytics() {
               onClick={generateExecutive}
               disabled={generating}
             >
-              <span className="btn-spark">✦</span>
+              <Sparkles className="w-3.5 h-3.5 inline mr-1" />
               <span>{generating ? 'Generating AI Report...' : 'Generate AI Report'}</span>
             </button>
           )}
@@ -246,7 +247,7 @@ export default function AIAnalytics() {
             }}
             title="Export all employee records to CSV"
           >
-            <span>⬇ CSV Export</span>
+            <span className="flex items-center gap-1"><Download className="w-3.5 h-3.5 inline" /> CSV Export</span>
           </button>
         </div>
       </div>
@@ -934,7 +935,7 @@ export default function AIAnalytics() {
         <aside className="saas-ai-report-panel">
           <div className="report-panel-head">
             <div className="rph-left">
-              <span className="rph-spark">✦</span>
+              <Sparkles className="w-4 h-4 text-purple-400 inline mr-2" />
               <div>
                 <h3>{selected ? `${selected.full_name} Analytics` : 'AI Executive Report'}</h3>
                 <p>{selected ? 'Individual hospitality brief' : report ? 'Saved executive report' : 'Organization-wide intelligence'}</p>
@@ -943,12 +944,12 @@ export default function AIAnalytics() {
             {selected && (
               <button
                 type="button"
-                className="ai-status-chip"
+                className="ai-status-chip flex items-center gap-1"
                 onClick={() => { setSelected(null); setInsights(null); }}
                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer' }}
                 title="Reset selection to Organization Brief"
               >
-                ✕ Deselect
+                <X className="w-3 h-3 inline" /> Deselect
               </button>
             )}
           </div>
@@ -958,7 +959,7 @@ export default function AIAnalytics() {
               <div className="insight-results-box">
                 <div className="report-meta-tag">
                   <span>Generated {new Date(report.created_at).toLocaleDateString()}{report.generated_by_name ? ` by ${report.generated_by_name}` : ''}</span>
-                  {report.metrics_json && <span className="data-chip">✓ Data-backed</span>}
+                  {report.metrics_json && <span className="data-chip"><CheckCircle className="w-3 h-3 inline mr-0.5 text-emerald-400" /> Data-backed</span>}
                 </div>
                 <AIReport content={report.content} title={report.title} />
               </div>
@@ -966,7 +967,7 @@ export default function AIAnalytics() {
               <div className="insight-results-box">
                 <div className="report-meta-tag">
                   <span>Individual Performance Analysis</span>
-                  <span className="data-chip">✓ Live Data</span>
+                  <span className="data-chip"><CheckCircle className="w-3 h-3 inline mr-0.5 text-emerald-400" /> Live Data</span>
                 </div>
                 <AIReport insights={insights} />
                 {canGenerate && (
@@ -978,14 +979,14 @@ export default function AIAnalytics() {
                       disabled={generating}
                       style={{ fontSize: 12, padding: '7px 14px' }}
                     >
-                      {generating ? 'Regenerating...' : '✦ Regenerate Analysis'}
+                      {generating ? 'Regenerating...' : <><Sparkles className="w-3.5 h-3.5 inline mr-1" /> Regenerate Analysis</>}
                     </button>
                   </div>
                 )}
               </div>
             ) : (
               <div className="report-empty-state">
-                <div className="empty-spark-icon">✦</div>
+                <div className="empty-spark-icon"><Sparkles className="w-6 h-6 text-purple-400" /></div>
                 <b>{selected ? `AI Analysis Ready: ${selected.full_name}` : canGenerate ? 'Workforce Brief Ready' : 'Executive Overview'}</b>
                 <p>
                   {selected
@@ -997,15 +998,18 @@ export default function AIAnalytics() {
                 {canGenerate && (
                   <button
                     type="button"
-                    className="saas-btn-primary"
+                    className="saas-btn-primary flex items-center justify-center gap-1.5"
                     onClick={() => generate(selected)}
                     disabled={generating}
                   >
-                    {generating
-                      ? 'Analyzing Records...'
-                      : selected
-                      ? `✦ Generate AI Insights for ${selected.full_name}`
-                      : '✦ Generate Workforce Brief'}
+                    <Sparkles className="w-4 h-4 inline" />
+                    <span>
+                      {generating
+                        ? 'Analyzing Records...'
+                        : selected
+                        ? `Generate AI Insights for ${selected.full_name}`
+                        : 'Generate Workforce Brief'}
+                    </span>
                   </button>
                 )}
               </div>

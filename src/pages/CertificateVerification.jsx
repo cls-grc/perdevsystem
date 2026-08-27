@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { CheckCircle, XCircle, AlertTriangle, Link as LinkIcon, X } from 'lucide-react'
 import QRCodeImage from '../components/QRCodeImage'
 import { api } from '../lib/api'
 
@@ -61,7 +62,7 @@ export default function CertificateVerification() {
       <div className="verify-page-container">
         <div className="verify-card invalid-state">
           <div className="verify-badge invalid">
-            <span className="verify-icon">✕</span>
+            <X className="w-5 h-5" />
             <span>Certificate Not Found</span>
           </div>
           <h1>Invalid Certificate Code</h1>
@@ -98,19 +99,19 @@ export default function CertificateVerification() {
         {/* BADGES */}
         {isValid && (
           <div className="verify-badge valid">
-            <span className="verify-icon">✓</span>
+            <CheckCircle className="w-5 h-5" />
             <span>Certificate Verified</span>
           </div>
         )}
         {isRevoked && (
           <div className="verify-badge revoked">
-            <span className="verify-icon">✕</span>
+            <XCircle className="w-5 h-5" />
             <span>Certificate Revoked</span>
           </div>
         )}
         {isExpired && (
           <div className="verify-badge expired">
-            <span className="verify-icon">⚠</span>
+            <AlertTriangle className="w-5 h-5" />
             <span>Certificate Expired</span>
           </div>
         )}
@@ -175,11 +176,12 @@ export default function CertificateVerification() {
               View / Download PDF
             </button>
             <button
-              className="verify-btn outline"
+              className="verify-btn outline flex items-center justify-center gap-1.5"
               onClick={handleCopyLink}
               title="Copy verification link"
             >
-              🔗 Copy Verification Link
+              <LinkIcon className="w-4 h-4 inline" />
+              <span>Copy Verification Link</span>
             </button>
           </div>
         </div>

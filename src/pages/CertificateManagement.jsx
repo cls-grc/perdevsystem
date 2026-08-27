@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import QRCodeImage from '../components/QRCodeImage'
+import { CheckCircle, AlertTriangle, Pencil, Trash2 } from 'lucide-react'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
 const date = value => value ? new Date(value).toLocaleDateString() : '—'
@@ -417,7 +418,7 @@ export default function CertificateManagement({ embedded = false }) {
     const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
     const url = `${publicAppUrl}/verify/certificate/${code}`
     navigator.clipboard.writeText(url)
-    setNotice(`✓ Copied verification link: ${url}`)
+    setNotice(`Copied verification link: ${url}`)
   }
 
   const verifyCertificate = async certificate => {
@@ -547,8 +548,8 @@ export default function CertificateManagement({ embedded = false }) {
         <button onClick={openCreateForm}>+ Create template</button>
       </header>
 
-      {notice && <p className="certificate-notice">✓ {notice}</p>}
-      {error && <p className="certificate-error">⚠ {error}</p>}
+      {notice && <p className="certificate-notice"><CheckCircle className="inline w-4 h-4 mr-1 text-emerald-500" /> {notice}</p>}
+      {error && <p className="certificate-error"><AlertTriangle className="inline w-4 h-4 mr-1 text-amber-500" /> {error}</p>}
 
       <section className="certificate-issue">
         <div className="certificate-controls">
@@ -586,7 +587,7 @@ export default function CertificateManagement({ embedded = false }) {
                             title="Edit template"
                             onClick={(e) => { e.stopPropagation(); setTemplate(item); editTemplate(item) }}
                           >
-                            ✏️ Edit
+                            <Pencil className="w-3.5 h-3.5 inline mr-1" /> Edit
                           </button>
                           <button
                             type="button"
@@ -595,7 +596,7 @@ export default function CertificateManagement({ embedded = false }) {
                             disabled={retiring === item.id}
                             onClick={(e) => { e.stopPropagation(); retireTemplate(item) }}
                           >
-                            {retiring === item.id ? '…' : '🗑️ Retire'}
+                            {retiring === item.id ? '…' : <><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Retire</>}
                           </button>
                         </div>
                       </div>

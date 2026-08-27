@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
+import CourseContentViewer from '../components/CourseContentViewer'
+import { CheckCircle, Target, Play, FileText, BookOpen } from 'lucide-react'
 import '../learningLibrary.css'
 
 const CATEGORIES = ['Leadership', 'Customer Service', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Communication', 'Sales', 'Technical Skills']
@@ -49,9 +51,11 @@ export default function LearningManagement() {
 
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '', category: CATEGORIES[0], provider: '', providerType: 'internal', durationHours: '', objectives: '', url: '', competencies: [] })
+  const [form, setForm] = useState({ title: '', description: '', category: CATEGORIES[0], provider: '', providerType: 'internal', durationHours: '', objectives: '', url: '', videoUrl: '', pdfUrl: '', lessonContent: '', competencies: [] })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // Course Content Viewer
+  const [viewResource, setViewResource] = useState(null)
 
   // Assign flow
   const [assignResource, setAssignResource] = useState(null)
@@ -135,7 +139,10 @@ export default function LearningManagement() {
       title: resource.title, description: resource.description, category: resource.category,
       provider: resource.provider || '', providerType: resource.provider_type || 'internal',
       durationHours: resource.duration_hours || '', objectives: resource.objectives || '',
-      url: resource.url || '', competencies: resource.competencies || [],
+      url: resource.url || '', videoUrl: resource.video_url || resource.videoUrl || '',
+      pdfUrl: resource.pdf_url || resource.pdfUrl || '',
+      lessonContent: resource.lesson_content || resource.lessonContent || '',
+      competencies: resource.competencies || [],
     })
     setEditing(resource); setShowForm(true)
   }
@@ -198,10 +205,10 @@ export default function LearningManagement() {
         <h1>Course Library</h1>
         <p>Curate legitimate learning resources, assign them to employees, and track self-reported study progress.</p>
       </div>
-      {canManage && <div className="module-heading-actions"><button className="module-primary" type="button" onClick={() => { setForm({ title: '', description: '', category: CATEGORIES[0], provider: '', providerType: 'internal', durationHours: '', objectives: '', url: '', competencies: [] }); setEditing(null); setShowForm(true) }}>Add course</button></div>}
+      {canManage && <div className="module-heading-actions"><button className="module-primary" type="button" onClick={() => { setForm({ title: '', description: '', category: CATEGORIES[0], provider: '', providerType: 'internal', durationHours: '', objectives: '', url: '', videoUrl: '', pdfUrl: '', lessonContent: '', competencies: [] }); setEditing(null); setShowForm(true) }}>Add course</button></div>}
     </div>
 
-    {notice && <div className="module-notice"><span>✓ {notice}</span><button type="button" className="notice-dismiss" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
+    {notice && <div className="module-notice"><span><CheckCircle className="inline w-4 h-4 mr-1 text-emerald-500" /> {notice}</span><button type="button" className="notice-dismiss" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
     {error && <div className="module-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
 
     {/* Module metrics strip — consistent with other modules */}
@@ -210,8 +217,8 @@ export default function LearningManagement() {
     </section>
 
     <nav className="learning-tabs" aria-label="Learning views">
-      {[['library', 'Course Library'], ['assign', 'Assign Courses'], ['progress', 'My Progress'], ['gaps', '🎯 Skill Gap Assignments'], ['completions', 'Verified Completions'], ['ai', 'AI Insights']].map(([key, label]) => (
-        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>
+      {[['library', 'Course Library'], ['assign', 'Assign Courses'], ['progress', 'My Progress'], ['gaps', 'Skill Gap Assignments'], ['completions', 'Verified Completions'], ['ai', 'AI Insights']].map(([key, label]) => (
+        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{key === 'gaps' ? <><Target className="inline w-3.5 h-3.5 mr-1" /> {label}</> : label}</button>
       ))}
     </nav>
 
@@ -225,28 +232,46 @@ export default function LearningManagement() {
           {canManage && <label className="learning-archived"><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} /> Show archived</label>}
         </div>
         <div className="course-grid">
-          {filtered.map(resource => <article className="course-card" key={resource.id}>
-            <div className="course-top">
-              <span className={`course-badge ${resource.provider_type}`}>{resource.provider_type === 'internal' ? 'Internal' : 'External'}</span>
-              <span className="course-category">{resource.category}</span>
-            </div>
-            <h3>{resource.title}</h3>
-            <p className="course-provider"><b>{resource.provider || (resource.provider_type === 'internal' ? 'Company training' : 'External provider')}</b>{resource.duration_hours ? ` · ${resource.duration_hours}h` : ''}</p>
-            <p className="course-desc">{resource.description}</p>
-            {resource.objectives && <div className="course-objectives"><b>Objectives</b><ul>{resource.objectives.split(';').filter(Boolean).map((o, i) => <li key={i}>{o.trim()}</li>)}</ul></div>}
-            {(resource.competencies || []).length > 0 && <div className="course-tags">{resource.competencies.map(c => <span key={c}>{c}</span>)}</div>}
-            {resource.url && <a className="course-link" href={resource.url} target="_blank" rel="noreferrer">Open resource ↗</a>}
-            <div className="course-stats">
-              <span>{resource.assigned_count || 0} assigned</span>
-              <span>{resource.completed_count || 0} completed</span>
-            </div>
-            {canManage && resource.is_active !== false && (
-              <div className="course-actions">
-                <button onClick={() => editResource(resource)}>Edit</button>
-                <button className="danger" onClick={() => archive(resource)}>Archive</button>
-              </div>
-            )}
-          </article>)}
+          {filtered.map(resource => {
+            const hasVideo = !!(resource.video_url || resource.videoUrl) || /(?:youtu\.be\/|youtube\.com\/|vimeo\.com\/)/i.test(resource.url || '')
+            const hasPdf = !!(resource.pdf_url || resource.pdfUrl) || /\.pdf(\?.*)?$/i.test(resource.url || '') || (resource.url || '').includes('drive.google.com')
+            const hasLesson = !!(resource.lesson_content || resource.lessonContent)
+            return (
+              <article className="course-card" key={resource.id}>
+                <div className="course-top">
+                  <span className={`course-badge ${resource.provider_type}`}>{resource.provider_type === 'internal' ? 'Internal' : 'External'}</span>
+                  <span className="course-category">{resource.category}</span>
+                </div>
+                <h3>{resource.title}</h3>
+                <p className="course-provider"><b>{resource.provider || (resource.provider_type === 'internal' ? 'Company training' : 'External provider')}</b>{resource.duration_hours ? ` · ${resource.duration_hours}h` : ''}</p>
+                <p className="course-desc">{resource.description}</p>
+                {resource.objectives && <div className="course-objectives"><b>Objectives</b><ul>{resource.objectives.split(';').filter(Boolean).map((o, i) => <li key={i}>{o.trim()}</li>)}</ul></div>}
+                {(resource.competencies || []).length > 0 && <div className="course-tags">{resource.competencies.map(c => <span key={c}>{c}</span>)}</div>}
+                {/* Content type indicators */}
+                <div className="course-content-indicators">
+                  {hasLesson && <span className="ccv-indicator lesson"><BookOpen size={11} /> Lesson</span>}
+                  {hasVideo && <span className="ccv-indicator video"><Play size={11} /> Video</span>}
+                  {hasPdf && <span className="ccv-indicator pdf"><FileText size={11} /> PDF</span>}
+                  {resource.url && !hasPdf && <a className="course-link" href={resource.url} target="_blank" rel="noreferrer">Open resource ↗</a>}
+                </div>
+                <div className="course-stats">
+                  <span>{resource.assigned_count || 0} assigned</span>
+                  <span>{resource.completed_count || 0} completed</span>
+                </div>
+                <div className="course-actions">
+                  <button className="ccv-open-btn" type="button" onClick={() => setViewResource(resource)}>
+                    <BookOpen size={13} /> View Content
+                  </button>
+                  {canManage && resource.is_active !== false && (
+                    <>
+                      <button onClick={() => editResource(resource)}>Edit</button>
+                      <button className="danger" onClick={() => archive(resource)}>Archive</button>
+                    </>
+                  )}
+                </div>
+              </article>
+            )
+          })}
           {!filtered.length && <div className="learning-empty">No courses {query || category || provType || compFilter ? 'match your filters' : 'in the library yet'}.</div>}
         </div>
       </section>
@@ -350,8 +375,8 @@ export default function LearningManagement() {
               <small>{employee ? a.category : `${a.employee_name} · ${a.department}`}{a.due_date ? ` · due ${new Date(a.due_date).toLocaleDateString()}` : ''}</small>
               <div className="assignment-badges">
                 <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
-                {a.is_completed && <span className="pill verified">✓ Verified</span>}
-                {a.fromCompetencyGap && <span className="pill gap-sourced" title="Assigned from a detected competency gap">🎯 From competency gap</span>}
+                {a.is_completed && <span className="pill verified"><CheckCircle className="inline w-3 h-3 mr-0.5 text-emerald-500" /> Verified</span>}
+                {a.fromCompetencyGap && <span className="pill gap-sourced" title="Assigned from a detected competency gap"><Target className="inline w-3 h-3 mr-0.5" /> From competency gap</span>}
               </div>
             </div>
             <div className="assignment-progress">
@@ -419,10 +444,10 @@ export default function LearningManagement() {
                   {/* Competency tags and status badges */}
                   <div className="assignment-badges">
                     {(a.competencies || []).map(c => (
-                      <span key={c} className="pill gap-sourced" title={`Closes gap in ${c}`}>🎯 {c}</span>
+                      <span key={c} className="pill gap-sourced" title={`Closes gap in ${c}`}><Target className="inline w-3 h-3 mr-0.5" /> {c}</span>
                     ))}
                     <span className={`pill ${STATUS_PILL[a.status] || 'status not-started'}`}>{STATUS_LABELS[a.status] || 'Not started'}</span>
-                    {a.is_completed && <span className="pill verified">✓ Verified — competency improved</span>}
+                    {a.is_completed && <span className="pill verified"><CheckCircle className="inline w-3 h-3 mr-0.5 text-emerald-500" /> Verified — competency improved</span>}
                   </div>
                 </div>
                 <div className="assignment-progress">
@@ -481,8 +506,24 @@ export default function LearningManagement() {
             <label>Provider type<select value={form.providerType} onChange={e => setForm({ ...form, providerType: e.target.value })}>{PROV_TYPES.map(t => <option key={t} value={t}>{t === 'internal' ? 'Internal' : 'External'}</option>)}</select></label>
             <label>Duration (hours)<input type="number" min="0" value={form.durationHours} onChange={e => setForm({ ...form, durationHours: e.target.value })} /></label>
             <label>URL / reference<input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" /></label>
+            <label>Video URL (YouTube / Vimeo / direct)
+              <input value={form.videoUrl} onChange={e => setForm({ ...form, videoUrl: e.target.value })} placeholder="https://youtube.com/watch?v=… or vimeo.com/…" />
+            </label>
+            <label>PDF attachment URL (direct link or Google Drive)
+              <input value={form.pdfUrl} onChange={e => setForm({ ...form, pdfUrl: e.target.value })} placeholder="https://…/module.pdf or drive.google.com/file/…" />
+            </label>
             <label className="full">Description<textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
             <label className="full">Learning objectives<textarea value={form.objectives} onChange={e => setForm({ ...form, objectives: e.target.value })} placeholder="Separate objectives with semicolons (;)" /></label>
+            <label className="full">
+              Lesson content
+              <span style={{ fontSize: 10, color: '#888', marginLeft: 6 }}>Supports **bold**, *italic*, # Heading, - bullet list, {'>'} quote</span>
+              <textarea
+                value={form.lessonContent}
+                onChange={e => setForm({ ...form, lessonContent: e.target.value })}
+                rows={8}
+                placeholder={"# Module Introduction\n\nWrite your lesson notes here.\n\n## Key Points\n- Point one\n- Point two\n\n**Bold text** and *italic text* supported."}
+              />
+            </label>
             <div className="full learning-competencies-block">
               <b>Related competencies</b>
               <div className="comp-picker">
@@ -516,6 +557,11 @@ export default function LearningManagement() {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Course Content Viewer modal */}
+    {viewResource && (
+      <CourseContentViewer resource={viewResource} onClose={() => setViewResource(null)} />
     )}
   </main>
 }

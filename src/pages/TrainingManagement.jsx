@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
 import ModuleAIInsights from '../components/ModuleAIInsights'
+import TrainingAttendanceQRModal from '../components/TrainingAttendanceQRModal'
+import { CheckCircle, AlertTriangle, X, Trash2, Star, QrCode, Camera } from 'lucide-react'
 import '../trainingCalendar.css'
 
 const CATEGORIES = ['Customer Service', 'Food Safety', 'Leadership', 'Compliance', 'Kitchen Operations', 'Technical Skills']
@@ -27,6 +29,8 @@ export default function TrainingManagement() {
   const [selectedSession, setSelectedSession] = useState(null)
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [qrSessionTarget, setQrSessionTarget] = useState(null)
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false)
   const [analyticsData, setAnalyticsData] = useState(null)
   const [aiReportData, setAiReportData] = useState(null)
@@ -453,14 +457,14 @@ export default function TrainingManagement() {
       {/* Notifications / Errors */}
       {notice && (
         <div className="module-notice">
-          <span>✓ {notice}</span>
+          <span><CheckCircle className="inline w-4 h-4 mr-1 text-emerald-500" /> {notice}</span>
           <button type="button" className="notice-dismiss" onClick={() => setNotice('')} aria-label="Dismiss">×</button>
         </div>
       )}
       {error && (
         <div className="module-error" role="alert" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', padding: '10px 14px', borderRadius: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-          <span>⚠️ {error}</span>
-          <button onClick={() => setError('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b91c1c', fontWeight: 'bold' }}>✕</button>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle className="w-4 h-4 text-amber-500" /> {error}</span>
+          <button onClick={() => setError('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b91c1c', fontWeight: 'bold' }}><X className="w-4 h-4" /></button>
         </div>
       )}
 
@@ -608,6 +612,19 @@ export default function TrainingManagement() {
                     <button className="session-action-btn primary" onClick={() => openSessionDetailModal(session)}>
                       Manage Session
                     </button>
+                    {canRecordAttendance && session.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        className="session-action-btn"
+                        style={{ background: 'rgba(99, 102, 241, 0.08)', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                        onClick={() => {
+                          setQrSessionTarget(session)
+                          setShowQRModal(true)
+                        }}
+                      >
+                        <QrCode size={13} className="inline mr-1" /> QR Scanner
+                      </button>
+                    )}
                     <button className="session-action-btn" onClick={() => handleViewAnalytics(session)}>
                       Analytics & AI
                     </button>
@@ -643,7 +660,7 @@ export default function TrainingManagement() {
                   <div className="session-card-head">
                     <span className="session-category-tag">{session.category}</span>
                     <span className={`session-status-badge ${session.status}`}>
-                      {session.status === 'completed' ? '✓ COMPLETED' : session.status.toUpperCase()}
+                      {session.status === 'completed' ? 'COMPLETED' : session.status.toUpperCase()}
                     </span>
                   </div>
                   <h3 className="session-title">{session.title}</h3>
@@ -878,7 +895,7 @@ export default function TrainingManagement() {
           <div className="training-modal-content">
             <div className="training-modal-header">
               <h3>Create Training Session</h3>
-              <button className="training-modal-close" onClick={() => setShowScheduleModal(false)}>✕</button>
+              <button className="training-modal-close" onClick={() => setShowScheduleModal(false)}><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleCreateSession}>
               <div className="training-modal-body">
@@ -1024,7 +1041,7 @@ export default function TrainingManagement() {
                   {String(selectedSessionDetail.start_date).slice(0, 10)} @ {selectedSessionDetail.venue} ({selectedSessionDetail.status.toUpperCase()})
                 </small>
               </div>
-              <button className="training-modal-close" onClick={() => setShowDetailModal(false)}>✕</button>
+              <button className="training-modal-close" onClick={() => setShowDetailModal(false)}><X className="w-4 h-4" /></button>
             </div>
 
             <div className="training-modal-body">
@@ -1041,6 +1058,19 @@ export default function TrainingManagement() {
                 {canInvite && selectedSessionDetail.status !== 'completed' && selectedSessionDetail.status !== 'cancelled' && (
                   <button className="session-action-btn primary" onClick={() => setShowInviteModal(true)}>
                     + Invite Participants
+                  </button>
+                )}
+                {canRecordAttendance && selectedSessionDetail.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    className="session-action-btn"
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#ffffff', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}
+                    onClick={() => {
+                      setQrSessionTarget(selectedSessionDetail)
+                      setShowQRModal(true)
+                    }}
+                  >
+                    <QrCode size={13} className="inline mr-1" /> Live QR Attendance Scanner
                   </button>
                 )}
                 {canCompleteSession && selectedSessionDetail.status === 'scheduled' && (
@@ -1120,7 +1150,7 @@ export default function TrainingManagement() {
                                   await api.removeTrainingParticipant(selectedSession.id, p.employee_id)
                                   await loadSessionDetail(selectedSession.id)
                                 } catch (err) { setError(err.message) }
-                              }}>✕ Remove</button>
+                               }}><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Remove</button>
                             )}
                           </td>
                         </tr>
@@ -1176,7 +1206,7 @@ export default function TrainingManagement() {
                                     transition: 'all 0.15s ease',
                                   }}
                                 >
-                                  {num}★
+                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>{num}<Star className="w-3 h-3 fill-amber-400 text-amber-400" /></span>
                                 </button>
                               )
                             })}
@@ -1239,7 +1269,7 @@ export default function TrainingManagement() {
           <div className="training-modal-content">
             <div className="training-modal-header">
               <h3>Invite Participants to "{selectedSession.title}"</h3>
-              <button className="training-modal-close" onClick={() => setShowInviteModal(false)}>✕</button>
+              <button className="training-modal-close" onClick={() => setShowInviteModal(false)}><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleInviteSubmit}>
               <div className="training-modal-body">
@@ -1302,7 +1332,7 @@ export default function TrainingManagement() {
           <div className="training-modal-content" style={{ maxWidth: 680 }}>
             <div className="training-modal-header">
               <h3>Training Analytics & AI Insights</h3>
-              <button className="training-modal-close" onClick={() => setShowAnalyticsModal(false)}>✕</button>
+              <button className="training-modal-close" onClick={() => setShowAnalyticsModal(false)}><X className="w-4 h-4" /></button>
             </div>
 
             <div className="training-modal-body">
@@ -1354,6 +1384,24 @@ export default function TrainingManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL 5: LIVE ATTENDANCE QR CODE SCANNER & SESSION DISPLAY */}
+      {showQRModal && qrSessionTarget && (
+        <TrainingAttendanceQRModal
+          session={qrSessionTarget}
+          employees={employees}
+          onClose={() => {
+            setShowQRModal(false)
+            setQrSessionTarget(null)
+          }}
+          onAttendanceUpdated={async () => {
+            if (selectedSessionDetail && selectedSessionDetail.id === qrSessionTarget.id) {
+              await loadSessionDetail(qrSessionTarget.id)
+            }
+            await loadSessions()
+          }}
+        />
       )}
     </main>
   )

@@ -32,7 +32,10 @@ const resourceSchema = z.object({
   providerType: z.enum(['internal', 'external']).default('internal'),
   durationHours: z.coerce.number().nonnegative().max(1000).nullable().optional(),
   objectives: z.string().max(4000).optional().default(''),
-  url: z.string().max(500).optional().default(''),
+  url: z.string().max(1000).optional().default(''),
+  videoUrl: z.string().max(1000).optional().default(''),
+  pdfUrl: z.string().max(1000).optional().default(''),
+  lessonContent: z.string().max(50000).optional().default(''),
   competencies: z.array(z.string().min(1).max(120)).max(50).default([]),
 })
 
@@ -100,53 +103,52 @@ router.get('/skill-gaps', async (req, res, next) => {
               e.competency_score AS aggregate_competency_score
        FROM competency_assessments ca
        JOIN employees e ON e.id = ca.employee_id
-       ${where}
-       ORDER BY (ca.required_score - ca.score) DESC`,
+       ${where} AND ca.score < ca.required_score
+       ORDER BY gap DESC, e.full_name ASC`,
       params,
     )
-    const gaps = rows
-      .filter(r => Number(r.score) < Number(r.required_score))
-      .map(r => ({ ...r, score: Number(r.score), required_score: Number(r.required_score), gap: Number(r.gap) }))
-
-    // Attach matching library courses per gap competency (already-existing
-    // resources tagged with that competency).
-    const comps = [...new Set(gaps.map(g => g.competency))]
-    const courseResult = comps.length
-      ? await query(
-          `SELECT r.id, r.title, r.category, r.provider, r.duration_hours, r.description,
-                  COALESCE((SELECT array_agg(lrc.competency ORDER BY lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies
-           FROM learning_resources r
-           WHERE r.is_active = true
-             AND r.id IN (SELECT resource_id FROM learning_resource_competencies WHERE competency = ANY($1::text[]))
-           ORDER BY r.title`,
-          [comps],
+    // Enrich each gap with matching active learning resources
+    const gapsWithCourses = await Promise.all(
+      rows.map(async g => {
+        const matchingResources = await query(
+          `SELECT r.* FROM learning_resources r
+           JOIN learning_resource_competencies lrc ON lrc.resource_id = r.id
+           WHERE r.is_active = true AND LOWER(lrc.competency) = LOWER($1)
+           ORDER BY r.title ASC`,
+          [g.competency],
         )
-      : { rows: [] }
-    const byCompetency = {}
-    for (const course of courseResult.rows) {
-      for (const comp of course.competencies || []) {
-        byCompetency[comp] = byCompetency[comp] || []
-        byCompetency[comp].push(course)
-      }
-    }
-    for (const gap of gaps) gap.courses = byCompetency[gap.competency] || []
-
-    res.json({ gaps, employeeId: req.user.employeeId })
+        return {
+          ...g,
+          recommendedResources: matchingResources.rows,
+        }
+      }),
+    )
+    res.json({ skillGaps: gapsWithCourses })
   } catch (error) { next(error) }
 })
 
-// List resources — all roles. Supports filtering.
+// List resources (course library). HR and Supervisors see all active courses;
+// employees see active courses. Optional category/search filtering.
 router.get('/', async (req, res, next) => {
   try {
-    const { category, providerType, competency, includeArchived } = req.query
+    const { category, search, competency, providerType } = req.query
     const params = []
     let where = 'WHERE r.is_active = true'
-    if (includeArchived === 'true') where = 'WHERE 1=1'
-    if (category) { params.push(category); where += ` AND r.category = $${params.length}` }
-    if (providerType) { params.push(providerType); where += ` AND r.provider_type = $${params.length}` }
+    if (category) {
+      params.push(category)
+      where += ` AND r.category = $${params.length}`
+    }
+    if (providerType && (providerType === 'internal' || providerType === 'external')) {
+      params.push(providerType)
+      where += ` AND r.provider_type = $${params.length}`
+    }
+    if (search) {
+      params.push(`%${search}%`)
+      where += ` AND (r.title ILIKE $${params.length} OR r.description ILIKE $${params.length} OR r.provider ILIKE $${params.length})`
+    }
     if (competency) {
       params.push(competency)
-      where += ` AND r.id IN (SELECT resource_id FROM learning_resource_competencies WHERE competency = $${params.length})`
+      where += ` AND EXISTS (SELECT 1 FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id AND LOWER(lrc.competency) = LOWER($${params.length}))`
     }
     const { rows } = await query(
       `SELECT r.*,
@@ -167,15 +169,28 @@ router.post('/', authorize('hr'), async (req, res, next) => {
     const input = resourceSchema.parse(req.body)
     const result = await transaction(async client => {
       const { rows } = await client.query(
-        `INSERT INTO learning_resources (title, description, category, provider, provider_type, duration_hours, objectives, url, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [input.title, input.description, input.category, input.provider || null, input.providerType, input.durationHours ?? null, input.objectives || null, input.url || null, req.user.sub],
+        `INSERT INTO learning_resources (title, description, category, provider, provider_type, duration_hours, objectives, url, video_url, pdf_url, lesson_content, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [
+          input.title,
+          input.description,
+          input.category,
+          input.provider || null,
+          input.providerType,
+          input.durationHours ?? null,
+          input.objectives || null,
+          input.url || null,
+          input.videoUrl || null,
+          input.pdfUrl || null,
+          input.lessonContent || null,
+          req.user.sub,
+        ],
       )
       const resource = rows[0]
       for (const competency of [...new Set(input.competencies)]) {
         await client.query('INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2)', [resource.id, competency])
       }
-return { ...resource, competencies: [...new Set(input.competencies)] }
+      return { ...resource, competencies: [...new Set(input.competencies)] }
     })
     await logActivity({ req, user: req.user, action: 'learning.resource_create', category: 'learning', targetId: result.id, description: `${req.user.name} created learning resource "${result.title}"` })
     res.status(201).json({ resource: result })
@@ -189,16 +204,29 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
     const result = await transaction(async client => {
       const { rows } = await client.query(
         `UPDATE learning_resources SET title=$1, description=$2, category=$3, provider=$4, provider_type=$5,
-           duration_hours=$6, objectives=$7, url=$8, updated_at=NOW()
-         WHERE id=$9 AND is_active=true RETURNING *`,
-        [input.title, input.description, input.category, input.provider || null, input.providerType, input.durationHours ?? null, input.objectives || null, input.url || null, req.params.id],
+           duration_hours=$6, objectives=$7, url=$8, video_url=$9, pdf_url=$10, lesson_content=$11, updated_at=NOW()
+         WHERE id=$12 AND is_active=true RETURNING *`,
+        [
+          input.title,
+          input.description,
+          input.category,
+          input.provider || null,
+          input.providerType,
+          input.durationHours ?? null,
+          input.objectives || null,
+          input.url || null,
+          input.videoUrl || null,
+          input.pdfUrl || null,
+          input.lessonContent || null,
+          req.params.id,
+        ],
       )
       if (!rows[0]) throw Object.assign(new Error('Active learning resource not found.'), { status: 404 })
       await client.query('DELETE FROM learning_resource_competencies WHERE resource_id=$1', [req.params.id])
       for (const competency of [...new Set(input.competencies)]) {
         await client.query('INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2)', [req.params.id, competency])
       }
-return { ...rows[0], competencies: [...new Set(input.competencies)] }
+      return { ...rows[0], competencies: [...new Set(input.competencies)] }
     })
     await logActivity({ req, user: req.user, action: 'learning.resource_update', category: 'learning', targetId: req.params.id, description: `${req.user.name} updated learning resource "${result.title}"` })
     res.json({ resource: result })

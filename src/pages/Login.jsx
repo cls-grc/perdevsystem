@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import LoginIllustration from '../components/LoginIllustration'
+import { Key, Eye, EyeOff, Tag, AlertTriangle, CheckCircle, Clock, Lock, Info } from 'lucide-react'
 
 export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
@@ -66,6 +67,9 @@ export default function Login({ onLogin, notice }) {
   const [is2FA, setIs2FA] = useState(false)
   const [tempToken, setTempToken] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
+
+  // Login Success Portal Exit Transition State
+  const [isLoggingInSuccess, setIsLoggingInSuccess] = useState(false)
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -155,7 +159,7 @@ export default function Login({ onLogin, notice }) {
 
   const submit = async (event) => {
     event.preventDefault()
-    if (lockoutSeconds > 0) return
+    if (lockoutSeconds > 0 || isLoggingInSuccess) return
 
     setLoading(true)
     setError('')
@@ -172,7 +176,12 @@ export default function Login({ onLogin, notice }) {
       localStorage.setItem('pds-token', result.token)
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
-      onLogin(result.user)
+
+      // Trigger Hotel Entrance & VIP Access Hologram Zoom Transition
+      setIsLoggingInSuccess(true)
+      setTimeout(() => {
+        onLogin(result.user)
+      }, 1480)
     } catch (requestError) {
       const errMsg = requestError.message || ''
       setError(errMsg)
@@ -190,7 +199,7 @@ export default function Login({ onLogin, notice }) {
 
   const submit2FA = async (event) => {
     event.preventDefault()
-    if (!twoFactorCode || twoFactorCode.length < 6) {
+    if (!twoFactorCode || twoFactorCode.length < 6 || isLoggingInSuccess) {
       setError('Please enter your 6-digit Google Authenticator code.')
       return
     }
@@ -201,7 +210,12 @@ export default function Login({ onLogin, notice }) {
       localStorage.setItem('pds-token', result.token)
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
-      onLogin(result.user)
+
+      // Trigger Hotel Entrance & VIP Access Hologram Zoom Transition
+      setIsLoggingInSuccess(true)
+      setTimeout(() => {
+        onLogin(result.user)
+      }, 1350)
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -310,7 +324,12 @@ export default function Login({ onLogin, notice }) {
 
       {/* LEFT SIDE: Seamless 3D Illustration Hero */}
       <section className="login-illustration-column" aria-label="PerDevSys Workforce Development Illustration">
-        <LoginIllustration isPasswordVisible={isEyesClosed} isLoading={loading} />
+        <LoginIllustration
+          isPasswordVisible={isEyesClosed}
+          isLoading={loading}
+          isLoggingInSuccess={isLoggingInSuccess}
+          isDark={isDark}
+        />
       </section>
 
       {/* RIGHT SIDE: Authentication Form Card */}
@@ -343,7 +362,7 @@ export default function Login({ onLogin, notice }) {
 
               {error && (
                 <div className="login-error">
-                  <span>⚠</span>
+                  <AlertTriangle size={16} />
                   <span>{error}</span>
                 </div>
               )}
@@ -351,7 +370,7 @@ export default function Login({ onLogin, notice }) {
               <label>
                 Authenticator Code
                 <div className="login-input-wrap">
-                  <span className="login-input-icon">🔑</span>
+                  <span className="login-input-icon"><Key size={18} /></span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -413,14 +432,14 @@ export default function Login({ onLogin, notice }) {
 
               {error && (
                 <div className="login-error">
-                  <span>⚠</span>
+                  <AlertTriangle size={16} />
                   <span>{error}</span>
                 </div>
               )}
 
               {successMsg && (
                 <div className="login-notice">
-                  <span>✓</span>
+                  <CheckCircle size={16} />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -483,14 +502,14 @@ export default function Login({ onLogin, notice }) {
 
               {error && (
                 <div className="login-error">
-                  <span>⚠</span>
+                  <AlertTriangle size={16} />
                   <span>{error}</span>
                 </div>
               )}
 
               {successMsg && (
                 <div className="login-notice">
-                  <span>ℹ</span>
+                  <Info size={16} />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -498,7 +517,7 @@ export default function Login({ onLogin, notice }) {
               <label>
                 Reset Verification Token
                 <div className="login-input-wrap">
-                  <span className="login-input-icon">🏷️</span>
+                  <span className="login-input-icon"><Tag size={18} /></span>
                   <input
                     type="text"
                     value={resetToken}
@@ -534,7 +553,7 @@ export default function Login({ onLogin, notice }) {
                     title={showResetPass ? `Visible for ${resetSecondsLeft}s` : 'Show password for 5 seconds'}
                     tabIndex={0}
                   >
-                    <span className="password-toggle-icon">👁</span>
+                    <span className="password-toggle-icon">{showResetPass ? <EyeOff size={16} /> : <Eye size={16} />}</span>
                     <span className="password-toggle-label">{showResetPass ? `${resetSecondsLeft}s` : 'Show'}</span>
                   </button>
                 </div>
@@ -603,19 +622,19 @@ export default function Login({ onLogin, notice }) {
                   </svg>
                 </div>
                 <div className="login-brand-text">
-                  <span className="brand-per">Per</span>
-                  <span className="brand-dev">Dev</span>
-                  <span className="brand-sys">Sys</span>
+                  <span className="brand-per">HORECA</span>
+                  <span className="brand-sys">OS</span>
+                  <span className="brand-sub-chip">Hotel & Restaurant</span>
                 </div>
               </div>
 
-              <h1>Welcome back! 👋</h1>
-              <p>Sign in to continue to your account</p>
+              <h1>Welcome to HORECAOS</h1>
+              <p>Sign in to your luxury hotel & restaurant workforce account</p>
 
               {/* Inactivity Notice Banner */}
               {displayNotice && !error && !successMsg && (
                 <div className="login-notice">
-                  <span>⏰</span>
+                  <Clock size={16} />
                   <span>{displayNotice}</span>
                 </div>
               )}
@@ -623,7 +642,7 @@ export default function Login({ onLogin, notice }) {
               {/* Success Message Banner */}
               {successMsg && (
                 <div className="login-notice">
-                  <span>✓</span>
+                  <CheckCircle size={16} />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -631,7 +650,7 @@ export default function Login({ onLogin, notice }) {
               {/* Lockout Banner */}
               {lockoutSeconds > 0 && (
                 <div className="login-lockout-banner">
-                  <span style={{ fontSize: 18 }}>🔒</span>
+                  <Lock size={20} />
                   <div>
                     <div style={{ fontWeight: 700 }}>Account temporarily locked (3 failed attempts).</div>
                     <div style={{ fontSize: 11.5, marginTop: 3 }}>
@@ -644,7 +663,7 @@ export default function Login({ onLogin, notice }) {
               {/* Standard Error Banner */}
               {error && lockoutSeconds === 0 && (
                 <div className="login-error">
-                  <span>⚠</span>
+                  <AlertTriangle size={16} />
                   <span>{error}</span>
                 </div>
               )}
@@ -699,7 +718,7 @@ export default function Login({ onLogin, notice }) {
                     title={showPassword ? `Visible for ${secondsLeft}s (auto-hides)` : 'Show password for 5 seconds'}
                     tabIndex={0}
                   >
-                    <span className="password-toggle-icon">👁</span>
+                    <span className="password-toggle-icon">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</span>
                     <span className="password-toggle-label">{showPassword ? `${secondsLeft}s` : 'Show'}</span>
                   </button>
                 </div>

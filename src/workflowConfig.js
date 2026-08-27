@@ -110,50 +110,232 @@ export function getRecommendedCoursesForGap(competencyName, score = 0) {
   return matches
 }
 
+// ---------------------------------------------------------------------------
+// Pre-built & Dynamic AI Curricula for Hospitality Learning Resources
+// ---------------------------------------------------------------------------
+export const AI_CURRICULUM_LIBRARY = {
+  'customer service': `# Module 1: Foundations of Hospitality Excellence
+- **The Service Mindset**: Anticipating guest needs before being asked and taking ownership of guest comfort.
+- **The 10-5 Hospitality Standard**: Maintain eye contact and a warm smile at 10 feet; deliver a clear verbal greeting at 5 feet.
+- **Professional Presence**: Impeccable grooming, upright posture, and approachable, welcoming body language.
+
+# Module 2: Effective Communication & Etiquette
+- **Tone & Active Listening**: Listen without interrupting, take notes for complex requests, and summarize back to confirm understanding.
+- **Positive Language**: Replace "I can't do that" with "Here is what I can do for you right now."
+- **Telephone & Messaging Etiquette**: Answer within 3 rings with a warm greeting, personal name, and department.
+
+# Module 3: Service Recovery & The LAST Framework
+- **L - Listen**: Hear the guest out fully with genuine empathy, patience, and non-defensive posture.
+- **A - Apologize**: Acknowledge the frustration sincerely without making excuses or blaming colleagues.
+- **S - Solve**: Propose an immediate, practical solution and verify that the guest agrees with the resolution.
+- **T - Thank**: Express appreciation for their feedback, which helps our team continually elevate standards.
+
+# Module 4: Upselling & Experience Personalization
+- **Organic Recommendations**: Suggest pairings, specials, and local amenities naturally based on guest preferences.
+- **Delighting VIP & Returning Guests**: Recognize loyalty members, remember past preferences, and add thoughtful personalized touches.
+
+# Key Takeaways & Best Practices
+> "Hospitality is not just a department—it is the art of making guests feel genuinely valued through attention to detail and consistent warmth."`,
+
+  'leadership': `# Module 1: Shift Leadership & Daily Briefings
+- **Pre-Shift Huddles**: Setting clear daily covers and revenue targets, reviewing VIP arrivals, and motivating the team.
+- **Effective Delegation**: Assigning station responsibilities based on individual strengths and volume peaks.
+
+# Module 2: Constructive Feedback & 1-on-1 Coaching
+- **The SBI Model**: Situation, Behavior, and Impact feedback delivered privately, constructively, and promptly.
+- **Encouraging Peer Recognition**: Fostering a supportive team culture where effort is noticed and celebrated.
+
+# Module 3: Operational Problem Solving & Escalation
+- **Peak Hour Management**: Managing bottlenecks at reception, floor, or kitchen pass under high pressure.
+- **Inter-Department Harmony**: Seamless coordination between Front of House, Back of House, and Housekeeping.
+
+# Module 4: Performance Standards & Compliance
+- **Auditing SOPs**: Conducting regular spot checks on brand standards, hygiene, and guest satisfaction scores.
+- **Developing Talent**: Identifying high-potential team members and mentoring them into supervisory roles.
+
+# Key Takeaways & Best Practices
+> "A great leader doesn't just manage shifts—they build confidence, uphold standards, and inspire their team to excel."`,
+
+  'food safety': `# Module 1: HACCP & Critical Control Points
+- **Temperature Danger Zone**: Maintaining cold food strictly below 4°C (40°F) and hot holding above 60°C (140°F).
+- **Temperature Logging**: Mandatory calibration of probe thermometers and scheduled hourly log entries.
+
+# Module 2: Cross-Contamination & Allergen Isolation
+- **Color-Coded Board System**: Red (raw meat), Blue (raw fish), Yellow (cooked meat), Green (produce), White (bakery/dairy).
+- **Allergen Protocols**: Strict separation of utensils, pans, and prep areas for top 14 allergen requests.
+
+# Module 3: Hygiene, Sanitization & Chemical Safety
+- **Handwashing Standards**: 20-second thorough wash using warm water, antimicrobial soap, and single-use paper towels.
+- **Sanitizing Workstations**: 3-sink method (wash, rinse, sanitize) with calibrated PPM test strips.
+
+# Module 4: Food Storage & FIFO Rotation
+- **FIFO (First In, First Out)**: Clear dating, labeling, and shelf placement (raw poultry on lowest shelves).
+- **Receiving & Inspection**: Rejecting compromised packaging, dented cans, or out-of-spec delivery temperatures.
+
+# Key Takeaways & Best Practices
+> "Food safety is non-negotiable—every guest trusts our kitchen with their health and well-being."`,
+
+  'conflict resolution': `# Module 1: De-Escalation & Emotion Management
+- **Staying Composed**: Maintaining a steady, calm tone of voice and relaxed non-confrontational posture.
+- **Separating Emotion from Facts**: Acknowledging the guest's emotion while focusing on the actionable solution.
+
+# Module 2: The Empathy-First Dialogue
+- **Empathetic Phrases**: "I completely understand why this is frustrating for you, and I am here to fix it."
+- **Avoiding Escalation Triggers**: Eliminating phrases like "You should have known" or "That's company policy."
+
+# Module 3: Collaborative Resolution & Options
+- **Presenting 2-3 Clear Choices**: Giving the guest agency in deciding how they would like the issue resolved.
+- **Empowered Service Recovery**: Offering appropriate compensation, complimentary amenities, or room adjustments.
+
+# Module 4: Incident Logging & Team Debriefing
+- **Duty Manager Handover**: Recording detailed notes on the incident log for shift continuity.
+- **Root Cause Prevention**: Reviewing recurring complaints to improve training and operational workflows.
+
+# Key Takeaways & Best Practices
+> "Conflict handled with professionalism and grace turns our most frustrated guests into our most loyal advocates."`
+}
+
+export function getAiCurriculumForCourse(resource = {}) {
+  const title = (resource.title || '').toLowerCase()
+  const cat = (resource.category || '').toLowerCase()
+  const desc = (resource.description || '').toLowerCase()
+
+  if (title.includes('customer') || title.includes('service') || cat.includes('customer') || desc.includes('customer') || desc.includes('servicing')) {
+    return AI_CURRICULUM_LIBRARY['customer service']
+  }
+  if (title.includes('leader') || cat.includes('leader') || desc.includes('leader') || title.includes('supervis')) {
+    return AI_CURRICULUM_LIBRARY['leadership']
+  }
+  if (title.includes('food') || title.includes('hygiene') || title.includes('haccp') || cat.includes('food') || desc.includes('safety')) {
+    return AI_CURRICULUM_LIBRARY['food safety']
+  }
+  if (title.includes('conflict') || title.includes('communicat') || cat.includes('communicat')) {
+    return AI_CURRICULUM_LIBRARY['conflict resolution']
+  }
+
+  // Dynamic fallback tailored to the course metadata
+  const courseName = resource.title || 'Professional Hospitality Training'
+  return `# Module 1: Core Fundamentals & Principles
+- **Introduction to ${courseName}**: Industry benchmarks and hospitality standards.
+- **Key Roles & Responsibilities**: Understanding the standard operating procedures.
+- **Tooling & Standard Practices**: Essential equipment, workflows, and quality checks.
+
+# Module 2: Step-by-Step Practical Application
+- **Operational Execution**: Applying standard techniques in live daily shifts.
+- **Efficiency & Quality Assurance**: Maintaining speed without compromising precision.
+- **Inter-Department Collaboration**: Communicating effectively with shift teams and management.
+
+# Module 3: Troubleshooting & Exception Handling
+- **Common Obstacles**: Identifying frequent bottlenecks or service errors early.
+- **Root Cause Problem Solving**: Taking proactive corrective actions immediately.
+- **Escalation Guidelines**: Knowing when and how to report issues to the supervisor.
+
+# Module 4: Continuous Improvement & Assessment
+- **Reviewing Results**: Comparing outcomes against required competency KPIs.
+- **Action Plan**: Setting daily development targets for ongoing mastery.
+
+# Key Takeaways & Best Practices
+> "Mastery in ${courseName} requires consistent practice, attention to detail, and a passion for hospitality excellence."`
+}
+
 // Competency template library — selecting a position auto-loads required
 // competencies, suggested proficiency levels and weights.
+// Competency template library — centralized role dictionary with predefined
+// required competency benchmarks, target levels, categories, and weights.
 export const COMPETENCY_TEMPLATES = {
+  'Head Sommelier': [
+    { competency: 'Wine & Beverage Master', level: 'Expert', weight: 25, category: 'Hospitality Service', targetScore: 98 },
+    { competency: 'Food & Wine Pairing', level: 'Expert', weight: 20, category: 'Technical', targetScore: 95 },
+    { competency: 'Cellar & Inventory Control', level: 'Proficient', weight: 20, category: 'Operations', targetScore: 88 },
+    { competency: 'VIP Guest Etiquette', level: 'Expert', weight: 15, category: 'Hospitality Service', targetScore: 95 },
+    { competency: 'Beverage Cost Control', level: 'Proficient', weight: 10, category: 'Financial Acumen', targetScore: 85 },
+    { competency: 'Staff Coaching & Tasting', level: 'Proficient', weight: 10, category: 'Leadership', targetScore: 85 },
+  ],
+  'Front Office Manager': [
+    { competency: 'Guest Relations & VIP Protocol', level: 'Expert', weight: 25, category: 'Hospitality Service', targetScore: 98 },
+    { competency: 'PMS & Reservation Control', level: 'Expert', weight: 20, category: 'Technical', targetScore: 95 },
+    { competency: 'Conflict Resolution', level: 'Expert', weight: 20, category: 'Communication', targetScore: 95 },
+    { competency: 'Team Leadership & Rostering', level: 'Proficient', weight: 15, category: 'Leadership', targetScore: 88 },
+    { competency: 'Night Audit & Revenue Tracking', level: 'Proficient', weight: 10, category: 'Financial Acumen', targetScore: 85 },
+    { competency: 'Safety & Emergency Procedures', level: 'Proficient', weight: 10, category: 'Compliance', targetScore: 88 },
+  ],
+  'Executive Chef': [
+    { competency: 'Advanced Culinary Artistry', level: 'Expert', weight: 25, category: 'Technical', targetScore: 98 },
+    { competency: 'Menu Engineering & Costing', level: 'Expert', weight: 20, category: 'Financial Acumen', targetScore: 95 },
+    { competency: 'Kitchen Brigade Leadership', level: 'Expert', weight: 20, category: 'Leadership', targetScore: 95 },
+    { competency: 'HACCP & Food Safety Mastery', level: 'Expert', weight: 15, category: 'Food Safety', targetScore: 98 },
+    { competency: 'Supplier & Inventory Control', level: 'Proficient', weight: 10, category: 'Operations', targetScore: 88 },
+    { competency: 'Quality & Speed Audits', level: 'Proficient', weight: 10, category: 'Operations', targetScore: 90 },
+  ],
+  'Restaurant Supervisor': [
+    { competency: 'Floor Operations & Speed', level: 'Expert', weight: 25, category: 'Operations', targetScore: 95 },
+    { competency: 'Guest Satisfaction', level: 'Expert', weight: 25, category: 'Hospitality Service', targetScore: 95 },
+    { competency: 'Staff Mentorship & Briefings', level: 'Proficient', weight: 20, category: 'Leadership', targetScore: 88 },
+    { competency: 'POS & Cash Reconciliation', level: 'Proficient', weight: 15, category: 'Financial Acumen', targetScore: 85 },
+    { competency: 'Hygiene & Health Standards', level: 'Proficient', weight: 15, category: 'Food Safety', targetScore: 88 },
+  ],
+  'Housekeeping Executive': [
+    { competency: 'Room Standards & Inspection', level: 'Expert', weight: 30, category: 'Technical', targetScore: 95 },
+    { competency: 'Chemical & Bio-Safety Compliance', level: 'Expert', weight: 20, category: 'Compliance', targetScore: 95 },
+    { competency: 'Linen & Inventory Management', level: 'Proficient', weight: 20, category: 'Operations', targetScore: 88 },
+    { competency: 'Turnaround Time Optimization', level: 'Proficient', weight: 15, category: 'Operations', targetScore: 85 },
+    { competency: 'Team Supervision & Training', level: 'Proficient', weight: 15, category: 'Leadership', targetScore: 85 },
+  ],
+  'Bartender / Mixologist': [
+    { competency: 'Craft Cocktail Mixology', level: 'Expert', weight: 30, category: 'Technical', targetScore: 95 },
+    { competency: 'Bar Speed & Multitasking', level: 'Proficient', weight: 25, category: 'Operations', targetScore: 88 },
+    { competency: 'Guest Engagement & Upselling', level: 'Proficient', weight: 20, category: 'Hospitality Service', targetScore: 85 },
+    { competency: 'Alcohol Compliance & Verification', level: 'Expert', weight: 15, category: 'Compliance', targetScore: 95 },
+    { competency: 'Sanitation & Bar Maintenance', level: 'Proficient', weight: 10, category: 'Food Safety', targetScore: 88 },
+  ],
+  'Pastry Chef': [
+    { competency: 'Baking & Pastry Techniques', level: 'Expert', weight: 30, category: 'Technical', targetScore: 95 },
+    { competency: 'Dessert Plating & Artistry', level: 'Expert', weight: 25, category: 'Technical', targetScore: 92 },
+    { competency: 'Temperature & Food Safety', level: 'Expert', weight: 20, category: 'Food Safety', targetScore: 95 },
+    { competency: 'Recipe Scaling & Waste Reduction', level: 'Proficient', weight: 15, category: 'Operations', targetScore: 85 },
+    { competency: 'Pastry Brigade Coordination', level: 'Developing', weight: 10, category: 'Leadership', targetScore: 75 },
+  ],
+  'Concierge Manager': [
+    { competency: 'Local & Destination Mastery', level: 'Expert', weight: 30, category: 'Hospitality Service', targetScore: 98 },
+    { competency: 'VIP Guest Logistics & Transport', level: 'Expert', weight: 25, category: 'Operations', targetScore: 95 },
+    { competency: 'Multilingual Communication', level: 'Proficient', weight: 20, category: 'Communication', targetScore: 88 },
+    { competency: 'Vendor & Experience Networking', level: 'Proficient', weight: 15, category: 'Relationship Management', targetScore: 85 },
+    { competency: 'Discretion & Privacy Compliance', level: 'Expert', weight: 10, category: 'Compliance', targetScore: 95 },
+  ],
+  'F&B Director': [
+    { competency: 'Strategic P&L & Revenue Mgmt', level: 'Expert', weight: 30, category: 'Financial Acumen', targetScore: 95 },
+    { competency: 'Multi-Outlet Operational Excellence', level: 'Expert', weight: 25, category: 'Operations', targetScore: 95 },
+    { competency: 'Department Leadership & Culture', level: 'Expert', weight: 20, category: 'Leadership', targetScore: 95 },
+    { competency: 'Food Safety & Brand Standards', level: 'Proficient', weight: 15, category: 'Compliance', targetScore: 90 },
+    { competency: 'Supplier Contract Negotiations', level: 'Proficient', weight: 10, category: 'Operations', targetScore: 85 },
+  ],
+  'Sous Chef': [
+    { competency: 'Line Expediting & Speed', level: 'Expert', weight: 30, category: 'Operations', targetScore: 95 },
+    { competency: 'Recipe Consistency & Flavor', level: 'Expert', weight: 25, category: 'Technical', targetScore: 95 },
+    { competency: 'HACCP & Kitchen Sanitation', level: 'Expert', weight: 20, category: 'Food Safety', targetScore: 95 },
+    { competency: 'Junior Cook Mentorship', level: 'Proficient', weight: 15, category: 'Leadership', targetScore: 88 },
+    { competency: 'Prep & Station Inventory', level: 'Proficient', weight: 10, category: 'Operations', targetScore: 85 },
+  ],
   'Restaurant Manager': [
-    { competency: 'Operational Management', level: 'Expert', weight: 30 },
-    { competency: 'Financial Acumen', level: 'Proficient', weight: 20 },
-    { competency: 'Leadership', level: 'Expert', weight: 25 },
-    { competency: 'Customer Service', level: 'Proficient', weight: 15 },
-    { competency: 'Food Safety', level: 'Proficient', weight: 10 },
+    { competency: 'Operational Management', level: 'Expert', weight: 30, category: 'Operations', targetScore: 95 },
+    { competency: 'Financial Acumen', level: 'Proficient', weight: 20, category: 'Financial Acumen', targetScore: 88 },
+    { competency: 'Leadership', level: 'Expert', weight: 25, category: 'Leadership', targetScore: 95 },
+    { competency: 'Customer Service', level: 'Proficient', weight: 15, category: 'Hospitality Service', targetScore: 88 },
+    { competency: 'Food Safety', level: 'Proficient', weight: 10, category: 'Food Safety', targetScore: 88 },
   ],
   'Front Desk Officer': [
-    { competency: 'Customer Service', level: 'Expert', weight: 30 },
-    { competency: 'Communication', level: 'Proficient', weight: 25 },
-    { competency: 'Reservation Management', level: 'Proficient', weight: 20 },
-    { competency: 'Conflict Resolution', level: 'Developing', weight: 15 },
-    { competency: 'Compliance', level: 'Foundation', weight: 10 },
-  ],
-  'Chef': [
-    { competency: 'Culinary Skill', level: 'Expert', weight: 30 },
-    { competency: 'Food Safety', level: 'Expert', weight: 25 },
-    { competency: 'Kitchen Operations', level: 'Proficient', weight: 20 },
-    { competency: 'Team Leadership', level: 'Proficient', weight: 15 },
-    { competency: 'Inventory Control', level: 'Developing', weight: 10 },
-  ],
-  'Waiter': [
-    { competency: 'Customer Service', level: 'Proficient', weight: 30 },
-    { competency: 'Service Speed', level: 'Proficient', weight: 25 },
-    { competency: 'Communication', level: 'Developing', weight: 20 },
-    { competency: 'Upselling', level: 'Developing', weight: 15 },
-    { competency: 'Food Safety', level: 'Foundation', weight: 10 },
+    { competency: 'Customer Service', level: 'Expert', weight: 30, category: 'Hospitality Service', targetScore: 95 },
+    { competency: 'Communication', level: 'Proficient', weight: 25, category: 'Communication', targetScore: 88 },
+    { competency: 'Reservation Management', level: 'Proficient', weight: 20, category: 'Technical', targetScore: 88 },
+    { competency: 'Conflict Resolution', level: 'Developing', weight: 15, category: 'Communication', targetScore: 75 },
+    { competency: 'Compliance', level: 'Foundation', weight: 10, category: 'Compliance', targetScore: 60 },
   ],
   'HR Staff': [
-    { competency: 'Employee Relations', level: 'Proficient', weight: 25 },
-    { competency: 'Recruitment', level: 'Proficient', weight: 20 },
-    { competency: 'Compliance', level: 'Proficient', weight: 20 },
-    { competency: 'Communication', level: 'Developing', weight: 20 },
-    { competency: 'Data & Payroll', level: 'Developing', weight: 15 },
-  ],
-  'Housekeeping': [
-    { competency: 'Room Standards', level: 'Proficient', weight: 30 },
-    { competency: 'Hygiene & Safety', level: 'Proficient', weight: 25 },
-    { competency: 'Attention to Detail', level: 'Developing', weight: 20 },
-    { competency: 'Guest Service', level: 'Developing', weight: 15 },
-    { competency: 'Time Management', level: 'Foundation', weight: 10 },
+    { competency: 'Employee Relations', level: 'Proficient', weight: 25, category: 'Leadership', targetScore: 88 },
+    { competency: 'Recruitment', level: 'Proficient', weight: 20, category: 'Operations', targetScore: 88 },
+    { competency: 'Compliance', level: 'Proficient', weight: 20, category: 'Compliance', targetScore: 88 },
+    { competency: 'Communication', level: 'Developing', weight: 20, category: 'Communication', targetScore: 75 },
+    { competency: 'Data & Payroll', level: 'Developing', weight: 15, category: 'Financial Acumen', targetScore: 75 },
   ],
 }
 

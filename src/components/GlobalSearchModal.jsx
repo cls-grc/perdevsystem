@@ -1,27 +1,32 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import {
+  LayoutDashboard, BarChart3, Target, GraduationCap, Calendar, Crown, Trophy, Users,
+  ScrollText, ClipboardList, Zap, Plus, Bot, Mail, User, Search, Loader2, X as XIcon,
+  Sparkles
+} from 'lucide-react'
 
 const SYSTEM_PAGES = [
-  { id: 'page-dashboard', type: 'page', title: 'AI Analytics Dashboard', subtitle: 'Overview, workforce KPIs, charts & reports', path: '/', icon: '📊', category: 'Pages' },
-  { id: 'page-performance', type: 'page', title: 'Performance Reviews', subtitle: 'Self assessments, supervisor ratings & HR calibration', path: '/performance', icon: '📈', category: 'Pages' },
-  { id: 'page-competency', type: 'page', title: 'Skill Development & Competency', subtitle: 'Skill assessments, gap analysis & development plans', path: '/competency', icon: '🎯', category: 'Pages' },
-  { id: 'page-learning', type: 'page', title: 'Learning Progress & Courses', subtitle: 'Curated courses, study tracking & verified completions', path: '/learning', icon: '🎓', category: 'Pages' },
-  { id: 'page-training', type: 'page', title: 'Training Management & Calendar', subtitle: 'Session scheduling, QR attendance & evaluations', path: '/training', icon: '📅', category: 'Pages' },
-  { id: 'page-succession', type: 'page', title: 'Succession Planning', subtitle: 'Talent pools, readiness matrices & bench strength', path: '/succession', icon: '👑', category: 'Pages' },
-  { id: 'page-recognition', type: 'page', title: 'Social Recognition', subtitle: 'Peer badges, nominations & team leaderboard', path: '/recognition', icon: '🏆', category: 'Pages' },
-  { id: 'page-employees', type: 'page', title: 'Employee Records & Directory', subtitle: 'Staff profiles, organizational roles & access', path: '/employees', icon: '👥', category: 'Pages' },
-  { id: 'page-certificates', type: 'page', title: 'Certificate Management', subtitle: 'Award generation, templates & QR verification', path: '/certificates', icon: '📜', category: 'Pages' },
-  { id: 'page-audit', type: 'page', title: 'Audit Trail & Activity Logs', subtitle: 'Security logs, user actions & CSV exports', path: '/audit', icon: '📋', category: 'Pages' },
+  { id: 'page-dashboard', type: 'page', title: 'AI Analytics Dashboard', subtitle: 'Overview, workforce KPIs, charts & reports', path: '/', IconComponent: LayoutDashboard, category: 'Pages' },
+  { id: 'page-performance', type: 'page', title: 'Performance Reviews', subtitle: 'Self assessments, supervisor ratings & HR calibration', path: '/performance', IconComponent: BarChart3, category: 'Pages' },
+  { id: 'page-competency', type: 'page', title: 'Skill Development & Competency', subtitle: 'Skill assessments, gap analysis & development plans', path: '/competency', IconComponent: Target, category: 'Pages' },
+  { id: 'page-learning', type: 'page', title: 'Learning Progress & Courses', subtitle: 'Curated courses, study tracking & verified completions', path: '/learning', IconComponent: GraduationCap, category: 'Pages' },
+  { id: 'page-training', type: 'page', title: 'Training Management & Calendar', subtitle: 'Session scheduling, QR attendance & evaluations', path: '/training', IconComponent: Calendar, category: 'Pages' },
+  { id: 'page-succession', type: 'page', title: 'Succession Planning', subtitle: 'Talent pools, readiness matrices & bench strength', path: '/succession', IconComponent: Crown, category: 'Pages' },
+  { id: 'page-recognition', type: 'page', title: 'Social Recognition', subtitle: 'Peer badges, nominations & team leaderboard', path: '/recognition', IconComponent: Trophy, category: 'Pages' },
+  { id: 'page-employees', type: 'page', title: 'Employee Records & Directory', subtitle: 'Staff profiles, organizational roles & access', path: '/employees', IconComponent: Users, category: 'Pages' },
+  { id: 'page-certificates', type: 'page', title: 'Certificate Management', subtitle: 'Award generation, templates & QR verification', path: '/certificates', IconComponent: ScrollText, category: 'Pages' },
+  { id: 'page-audit', type: 'page', title: 'Audit Trail & Activity Logs', subtitle: 'Security logs, user actions & CSV exports', path: '/audit', IconComponent: ClipboardList, category: 'Pages' },
 ]
 
 const QUICK_ACTIONS = [
-  { id: 'act-review', type: 'action', title: '⚡ Launch Review Cycle', subtitle: 'Bulk start performance reviews across departments', path: '/performance', actionKey: 'bulk_review', icon: '⚡', category: 'Quick Actions' },
-  { id: 'act-course', type: 'action', title: '🎓 Add New Course', subtitle: 'Add a new training or learning resource to library', path: '/learning', actionKey: 'add_course', icon: '➕', category: 'Quick Actions' },
-  { id: 'act-training', type: 'action', title: '📅 Schedule Training Session', subtitle: 'Create a new training session on the calendar', path: '/training', actionKey: 'schedule_training', icon: '🗓️', category: 'Quick Actions' },
-  { id: 'act-employee', type: 'action', title: '👤 Add Employee Record', subtitle: 'Create a new employee profile in the directory', path: '/employees', actionKey: 'add_employee', icon: '➕', category: 'Quick Actions' },
-  { id: 'act-ai', type: 'action', title: '✦ Open AI Workforce Assistant', subtitle: 'Ask questions, query analytics, or draft plans', path: null, actionKey: 'open_ai', icon: '✦', category: 'Quick Actions' },
-  { id: 'act-outbox', type: 'action', title: '📧 View Email Outbox', subtitle: 'Inspect simulated transactional emails and logs', path: null, actionKey: 'open_outbox', icon: '📧', category: 'Quick Actions' },
+  { id: 'act-review', type: 'action', title: 'Launch Review Cycle', subtitle: 'Bulk start performance reviews across departments', path: '/performance', actionKey: 'bulk_review', IconComponent: Zap, category: 'Quick Actions' },
+  { id: 'act-course', type: 'action', title: 'Add New Course', subtitle: 'Add a new training or learning resource to library', path: '/learning', actionKey: 'add_course', IconComponent: Plus, category: 'Quick Actions' },
+  { id: 'act-training', type: 'action', title: 'Schedule Training Session', subtitle: 'Create a new training session on the calendar', path: '/training', actionKey: 'schedule_training', IconComponent: Calendar, category: 'Quick Actions' },
+  { id: 'act-employee', type: 'action', title: 'Add Employee Record', subtitle: 'Create a new employee profile in the directory', path: '/employees', actionKey: 'add_employee', IconComponent: Plus, category: 'Quick Actions' },
+  { id: 'act-ai', type: 'action', title: 'Open AI Workforce Assistant', subtitle: 'Ask questions, query analytics, or draft plans', path: null, actionKey: 'open_ai', IconComponent: Bot, category: 'Quick Actions' },
+  { id: 'act-outbox', type: 'action', title: 'View Email Outbox', subtitle: 'Inspect simulated transactional emails and logs', path: null, actionKey: 'open_outbox', IconComponent: Mail, category: 'Quick Actions' },
 ]
 
 export default function GlobalSearchModal({ isOpen, onClose, onOpenAiChat, onOpenOutbox }) {
@@ -80,7 +85,7 @@ export default function GlobalSearchModal({ isOpen, onClose, onOpenAiChat, onOpe
       title: e.full_name,
       subtitle: `${e.job_title || 'Staff'} · ${e.department || 'General'} (${e.employee_number || 'ID'})`,
       path: '/employees',
-      icon: '👤',
+      IconComponent: User,
       category: 'Employees',
       meta: {
         score: e.performance_score,
@@ -180,7 +185,7 @@ export default function GlobalSearchModal({ isOpen, onClose, onOpenAiChat, onOpe
           />
           {query && (
             <button className="global-search-clear" type="button" onClick={() => setQuery('')} aria-label="Clear search">
-              ✕
+              <XIcon size={16} />
             </button>
           )}
           <kbd className="global-search-esc" onClick={onClose}>ESC</kbd>
@@ -220,18 +225,19 @@ export default function GlobalSearchModal({ isOpen, onClose, onOpenAiChat, onOpe
         <div className="global-search-results" ref={listRef}>
           {loading && employees.length === 0 ? (
             <div className="global-search-empty">
-              <span className="search-spinner">⏳</span>
+              <Loader2 size={24} className="search-spinner-icon" style={{ animation: 'spin 1s linear infinite' }} />
               <p>Loading directory data...</p>
             </div>
           ) : filteredResults.length === 0 ? (
             <div className="global-search-empty">
-              <span style={{ fontSize: 24 }}>🔍</span>
+              <Search size={24} style={{ opacity: 0.4 }} />
               <b>No matching results found for "{query}"</b>
               <p>Try searching for employee names, departments, module names, or action keywords.</p>
             </div>
           ) : (
             filteredResults.map((item, idx) => {
               const isSelected = idx === selectedIndex
+              const ItemIcon = item.IconComponent
               return (
                 <div
                   key={item.id}
@@ -240,7 +246,7 @@ export default function GlobalSearchModal({ isOpen, onClose, onOpenAiChat, onOpe
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
                   <div className="global-search-item-icon">
-                    <span>{item.icon}</span>
+                    {ItemIcon ? <ItemIcon size={18} /> : null}
                   </div>
                   <div className="global-search-item-info">
                     <div className="global-search-item-title">

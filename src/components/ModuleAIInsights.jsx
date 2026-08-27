@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import AIReport from './AIReport'
+import { Check, Sparkles } from 'lucide-react'
 
 const METRIC_LABELS = {
   employee_count: 'Active Employees',
@@ -174,7 +175,7 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
             <b>Metrics Summary</b>
             <small>Calculated from database</small>
           </div>
-          <div className="metrics-ready-badge">✓ Metrics ready</div>
+          <div className="metrics-ready-badge"><Check size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Metrics ready</div>
           <div className="metrics-preview-grid">
             {previewEntries.map(([key, value]) => (
               <article key={key}>
@@ -286,7 +287,7 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
                 transition: 'all 0.2s ease',
               }}
             >
-              {generating ? 'Generating Insights...' : '✦ Generate AI Insights'}
+              {generating ? 'Generating Insights...' : <><Sparkles size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} /> Generate AI Insights</>}
             </button>
           )}
         </div>

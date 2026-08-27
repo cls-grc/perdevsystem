@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../lib/api'
+import { Lock, KeyRound, Check, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
 
 export default function TwoFactorModal({ onClose }) {
   const [status, setStatus] = useState(null)
@@ -72,7 +73,7 @@ export default function TwoFactorModal({ onClose }) {
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>🔒 Two-Factor Authentication</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><Lock size={17} /> Two-Factor Authentication</h2>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 22, color: '#888', lineHeight: 1 }}>×</button>
         </div>
 
@@ -95,7 +96,7 @@ export default function TwoFactorModal({ onClose }) {
               disabled={loading}
               style={{ width: '100%', padding: '11px 16px', borderRadius: 8, border: 'none', background: '#7254e5', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
-              🔐 Set Up Google Authenticator
+              <KeyRound size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} /> Set Up Google Authenticator
             </button>
           </div>
         )}
@@ -140,7 +141,7 @@ export default function TwoFactorModal({ onClose }) {
               disabled={loading || code.length < 6}
               style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}
             >
-              {loading ? 'Verifying…' : '✓ Confirm and Activate 2FA'}
+              {loading ? 'Verifying…' : <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Confirm and Activate 2FA</>}
             </button>
             <button
               type="button"
@@ -157,7 +158,7 @@ export default function TwoFactorModal({ onClose }) {
         {!loading && status === 'enabled' && backupCodes.length > 0 && (
           <div>
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 12, color: '#92400e' }}>⚠️ Save Your Backup Codes</p>
+              <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={13} /> Save Your Backup Codes</p>
               <p style={{ margin: '0 0 10px', fontSize: 11, color: '#78350f' }}>Store these somewhere safe. Each code can be used once to sign in if you lose access to your phone.</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                 {backupCodes.map((c, i) => (
@@ -178,7 +179,7 @@ export default function TwoFactorModal({ onClose }) {
         {!loading && status === 'enabled' && backupCodes.length === 0 && (
           <div>
             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 22 }}>✅</span>
+              <CheckCircle2 size={26} style={{ color: '#16a34a', flexShrink: 0 }} />
               <div>
                 <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 13, color: '#166534' }}>2FA is Active</p>
                 <p style={{ margin: 0, fontSize: 11, color: '#14532d' }}>Your account is protected with Google Authenticator.</p>
@@ -197,7 +198,7 @@ export default function TwoFactorModal({ onClose }) {
         {!loading && status === 'disabling' && (
           <form onSubmit={doDisable}>
             <div style={{ background: '#fff0ed', border: '1px solid #fca5a5', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 12, color: '#9b1c1c' }}>⚠️ Disabling 2FA reduces account security</p>
+              <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 12, color: '#9b1c1c', display: 'flex', alignItems: 'center', gap: 5 }}><ShieldAlert size={13} /> Disabling 2FA reduces account security</p>
               <p style={{ margin: 0, fontSize: 11, color: '#7f1d1d' }}>Enter your password to confirm you want to turn off Two-Factor Authentication.</p>
             </div>
             <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 650, color: '#4e4a54', marginBottom: 12 }}>

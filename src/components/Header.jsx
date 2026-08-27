@@ -4,16 +4,17 @@ import { api } from '../lib/api'
 import EmailOutboxDrawer from './EmailOutboxDrawer'
 import TwoFactorModal from './TwoFactorModal'
 import GlobalSearchModal from './GlobalSearchModal'
+import { BarChart3, Target, GraduationCap, Calendar, Crown, Trophy, Bell, Check, Sparkles, Mail, BellOff } from 'lucide-react'
 
 function getNotifMeta(item) {
   const t = (item.title || '').toLowerCase()
-  if (t.includes('performance')) return { icon: '📊', color: '#654bd2', bg: '#f0ebff', label: 'Performance' }
-  if (t.includes('competency') || t.includes('skill')) return { icon: '🎯', color: '#0284c7', bg: '#e0f2fe', label: 'Competency' }
-  if (t.includes('learning')) return { icon: '🎓', color: '#16a34a', bg: '#dcfce7', label: 'Learning' }
-  if (t.includes('training')) return { icon: '📅', color: '#d97706', bg: '#fef3c7', label: 'Training' }
-  if (t.includes('succession')) return { icon: '👑', color: '#9333ea', bg: '#f3e8ff', label: 'Succession' }
-  if (t.includes('recognition')) return { icon: '🏆', color: '#e11d48', bg: '#ffe4e6', label: 'Recognition' }
-  return { icon: '🔔', color: '#5e48c0', bg: '#efebff', label: 'Workflow' }
+  if (t.includes('performance')) return { IconComponent: BarChart3, color: '#654bd2', bg: '#f0ebff', label: 'Performance' }
+  if (t.includes('competency') || t.includes('skill')) return { IconComponent: Target, color: '#0284c7', bg: '#e0f2fe', label: 'Competency' }
+  if (t.includes('learning')) return { IconComponent: GraduationCap, color: '#16a34a', bg: '#dcfce7', label: 'Learning' }
+  if (t.includes('training')) return { IconComponent: Calendar, color: '#d97706', bg: '#fef3c7', label: 'Training' }
+  if (t.includes('succession')) return { IconComponent: Crown, color: '#9333ea', bg: '#f3e8ff', label: 'Succession' }
+  if (t.includes('recognition')) return { IconComponent: Trophy, color: '#e11d48', bg: '#ffe4e6', label: 'Recognition' }
+  return { IconComponent: Bell, color: '#5e48c0', bg: '#efebff', label: 'Workflow' }
 }
 
 function timeAgo(dateString) {
@@ -123,7 +124,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           onClick={() => onOpenAiChat && onOpenAiChat()}
           title="Open AI Workforce Assistant"
         >
-          <span className="ai-pill-spark">✦</span>
+          <span className="ai-pill-spark"><Sparkles size={14} /></span>
           <span>AI Assistant</span>
         </button>
 
@@ -134,7 +135,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
             onClick={() => setOutboxOpen(true)}
             title="Live Email Outbox Inspector"
           >
-            <span>📧 Outbox</span>
+            <span><Mail size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Outbox</span>
           </button>
         )}
 
@@ -208,8 +209,9 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
             </div>
             <div className="notif-panel-actions">
               {unread > 0 && (
-                <button className="notif-btn-text" onClick={markAllRead}>
-                  ✓ Mark all read
+                <button className="notif-btn-text flex items-center gap-1" onClick={markAllRead}>
+                  <Check className="w-3.5 h-3.5 inline" />
+                  <span>Mark all read</span>
                 </button>
               )}
               <button className="notif-close-icon" onClick={() => setOpen(false)}>×</button>
@@ -245,7 +247,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
                     onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   >
                     <div className="notif-card-icon" style={{ background: meta.bg, color: meta.color }}>
-                      {meta.icon}
+                      <meta.IconComponent size={16} />
                     </div>
                     <div className="notif-card-main">
                       <div className="notif-card-header">
@@ -281,7 +283,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
               })
             ) : (
               <div className="notif-empty-container">
-                <div className="notif-empty-icon">🔕</div>
+                <div className="notif-empty-icon"><BellOff size={28} style={{ opacity: 0.4 }} /></div>
                 <b>{notifFilter === 'unread' ? 'No unread notifications' : 'No notifications yet'}</b>
                 <p>Workflow notifications and action items will appear here automatically.</p>
               </div>

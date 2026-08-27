@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import { CheckCircle } from 'lucide-react'
 
 export default function Register() {
   const [searchParams] = useSearchParams()
@@ -53,7 +54,7 @@ export default function Register() {
         <h1 style={{ fontSize: 20, marginBottom: 4 }}>Create your account</h1>
         <p style={{ fontSize: 13, marginBottom: 20, color: '#666' }}>Complete your registration to access the system.</p>
 
-        {notice && <p className="module-notice">✓ {notice}</p>}
+        {notice && <p className="module-notice"><CheckCircle className="inline w-4 h-4 mr-1" /> {notice}</p>}
         {error && <p className="module-error" role="alert">{error}</p>}
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

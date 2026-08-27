@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { Icon } from '../components/Sidebar'
 import AnimatedNumber from '../components/AnimatedNumber'
+import { BookOpen, Target, CheckCircle, ArrowRight, Sparkles, Clock } from 'lucide-react'
 
 const pct = value => `${Math.round(Number(value || 0))}%`
 const getRole = () => {
@@ -34,6 +35,8 @@ export default function RoleHome({ role, name }) {
       calls.push(api.workflows().catch(() => ({ workflows: [], total: 0 })))
       // Certificates for operations_manager & employee.
       if (operationsManager || employee) calls.push(api.certificates().catch(() => ({ certificates: [] })))
+      // Real assigned development plans and courses
+      calls.push(api.learningAssignments().catch(() => ({ assignments: [] })))
 
       const results = await Promise.all(calls)
       let index = 0
@@ -41,8 +44,10 @@ export default function RoleHome({ role, name }) {
       const me = (supervisor || management || employee || operationsManager) ? results[index++] : null
       const workflowData = results[index++] || { workflows: [], total: 0 }
       const certData = (operationsManager || employee) ? results[index++] : null
+      const assignmentData = results[index++] || { assignments: [] }
 
       const workflows = workflowData.workflows || []
+      const assignments = assignmentData.assignments || []
       const activeWorkflows = workflows.filter(w => w.status === 'active')
       const completedWorkflows = workflows.filter(w => w.status === 'completed')
       const myEmployee = me?.employee || null
@@ -110,7 +115,7 @@ export default function RoleHome({ role, name }) {
         ]
       }
 
-      setData({ cards, workflows, activeWorkflows, completedWorkflows })
+      setData({ cards, workflows, activeWorkflows, completedWorkflows, assignments })
     } catch (requestError) {
       setError(requestError.message || 'Unable to load your dashboard.')
     } finally {
@@ -251,6 +256,115 @@ export default function RoleHome({ role, name }) {
           )
         })}
       </section>
+
+      {/* Assigned Development Plans & Learning Paths (for employees, supervisors, and HR) */}
+      {(employee || supervisor || (data?.assignments || []).length > 0) && (
+        <section className="role-home-dev-plans" style={{ marginTop: 24, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(124,58,237,0.1)', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={16} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+                  {employee ? 'My Assigned Development Plans & Courses' : 'Assigned Development Plans & Courses'}
+                </h3>
+                <small style={{ color: '#64748b' }}>
+                  {employee ? 'Learning courses assigned to address your competency and skill gaps' : 'Current employee development and study assignments'}
+                </small>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/learning')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: 'none', border: 'none', color: '#7c3aed',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 8px',
+              }}
+            >
+              View in Learning Center <ArrowRight size={13} />
+            </button>
+          </div>
+
+          {(data?.assignments || []).length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+              {(data.assignments).slice(0, 6).map(a => (
+                <div
+                  key={a.id}
+                  onClick={() => navigate('/learning')}
+                  style={{
+                    background: 'var(--card-bg, #ffffff)',
+                    border: '1.5px solid var(--border, #ecebf2)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    transition: 'all 0.18s ease',
+                  }}
+                  className="role-dev-plan-card"
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: 'rgba(99,102,241,0.1)', color: '#6366f1', textTransform: 'uppercase' }}>
+                        {a.category || 'Skill Development'}
+                      </span>
+                      <h4 style={{ margin: '6px 0 2px', fontSize: 13, fontWeight: 700, color: 'inherit' }}>
+                        {a.resource_title}
+                      </h4>
+                      {!employee && a.employee_name && (
+                        <small style={{ color: '#64748b', display: 'block' }}>{a.employee_name} · {a.department}</small>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                        background: a.status === 'completed' ? 'rgba(16,185,129,0.1)' : a.status === 'studying' ? 'rgba(99,102,241,0.1)' : 'rgba(245,158,11,0.1)',
+                        color: a.status === 'completed' ? '#059669' : a.status === 'studying' ? '#6366f1' : '#d97706',
+                      }}
+                    >
+                      {a.status ? a.status.replace('_', ' ') : 'Not started'}
+                    </span>
+                  </div>
+
+                  {(a.competencies || []).length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {a.competencies.map(c => (
+                        <span key={c} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.08)', color: '#059669', border: '1px solid rgba(16,185,129,0.2)' }}>
+                          ✦ Gap: {c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 'auto', paddingTop: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>
+                      <span>Study Progress</span>
+                      <span>{a.progress || 0}%</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 3, background: 'rgba(148,163,184,0.18)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%', width: `${a.progress || 0}%`,
+                          background: a.progress >= 100 ? '#10b981' : 'linear-gradient(90deg, #7c3aed, #6366f1)',
+                          borderRadius: 3,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '18px', borderRadius: 12, background: 'rgba(99,102,241,0.03)', border: '1px dashed rgba(99,102,241,0.2)', textAlign: 'center' }}>
+              <p style={{ margin: '0 0 4px', fontSize: 12.5, fontWeight: 600 }}>No development plans assigned yet.</p>
+              <small style={{ color: '#64748b' }}>When HR or your supervisor assigns a learning course or development plan, it will appear here.</small>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Next Priority Action Card */}
       <div className="role-home-action-banner">

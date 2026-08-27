@@ -397,6 +397,88 @@ router.post('/sessions/:id/attendance', authorize('hr', 'supervisor', 'operation
 })
 
 // ---------------------------------------------------------------------------
+// 8b. POST /api/training/sessions/:id/scan-attendance — Scan QR & mark attendance instantly
+// ---------------------------------------------------------------------------
+router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { code, employeeId, employeeNumber, status = 'present' } = req.body
+
+    let targetEmpNumber = employeeNumber
+    let targetEmpId = employeeId
+
+    if (code) {
+      try {
+        const parsed = JSON.parse(code)
+        if (parsed.employeeId) targetEmpId = parsed.employeeId
+        if (parsed.employee_number || parsed.employeeNumber) targetEmpNumber = parsed.employee_number || parsed.employeeNumber
+      } catch {
+        const trimmed = String(code).trim()
+        if (/^E\d+$/i.test(trimmed)) {
+          targetEmpNumber = trimmed.toUpperCase()
+        } else if (/^[0-9a-f-]{36}$/i.test(trimmed)) {
+          targetEmpId = trimmed
+        } else {
+          targetEmpNumber = trimmed
+        }
+      }
+    }
+
+    let empSql = 'SELECT id, employee_number, full_name, department, job_title FROM employees WHERE '
+    const params = []
+    if (targetEmpId) {
+      params.push(targetEmpId)
+      empSql += `id = $1`
+    } else if (targetEmpNumber) {
+      params.push(targetEmpNumber.toUpperCase())
+      empSql += `UPPER(employee_number) = $1`
+    } else {
+      return res.status(400).json({ error: 'Please provide a valid employee ID or badge QR code.' })
+    }
+
+    const empRes = await query(empSql, params)
+    if (empRes.rows.length === 0) {
+      return res.status(404).json({ error: `Employee not found for badge code: ${code || targetEmpNumber || targetEmpId}` })
+    }
+
+    const employee = empRes.rows[0]
+    const sessRes = await query('SELECT id, title, status FROM training_sessions WHERE id = $1', [id])
+    if (sessRes.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
+
+    await transaction(async client => {
+      await client.query(
+        `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
+         VALUES ($1, $2, $3, 'registered', $4, NOW(), $3, NOW())
+         ON CONFLICT (session_id, employee_id) DO UPDATE SET
+           attendance = $4,
+           attendance_recorded_at = NOW(),
+           attendance_recorded_by = $3,
+           updated_at = NOW()`,
+        [id, employee.id, req.user.id, status]
+      )
+    })
+
+    await logActivity({
+      userId: req.user.id,
+      action: 'training_qr_attendance_scanned',
+      entityType: 'training_session',
+      entityId: id,
+      details: { employeeId: employee.id, employeeNumber: employee.employee_number, employeeName: employee.full_name, status },
+    })
+
+    res.json({
+      success: true,
+      message: `Checked in: ${employee.full_name} (${employee.employee_number})`,
+      employee,
+      attendance: status,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ---------------------------------------------------------------------------
 // 9. POST /api/training/sessions/:id/evaluation — Submit training evaluation
 // ---------------------------------------------------------------------------
 router.post('/sessions/:id/evaluation', async (req, res, next) => {

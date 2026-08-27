@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api } from '../lib/api'
+import { Sparkles, Maximize2, Minimize2, Lock, Zap } from 'lucide-react'
 
 const SAMPLE_PROMPTS_BY_ROLE = {
   hr: [
@@ -125,7 +126,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
     return [
       {
         role: 'assistant',
-        content: `👋 Hi! I'm your **PerDevSys AI Assistant**. I can help you explore workforce insights — including performance scores, skill gaps, training sessions, learning progress, and succession readiness — tailored to your role (${role.replace('_', ' ').toUpperCase()}). What would you like to know?`,
+        content: `Hi! I'm your **PerDevSys AI Assistant**. I can help you explore workforce insights — including performance scores, skill gaps, training sessions, learning progress, and succession readiness — tailored to your role (${role.replace('_', ' ').toUpperCase()}). What would you like to know?`,
         summary: 'Ready',
       }
     ]
@@ -207,7 +208,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(101, 75, 210, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
       }}
     >
-      <span style={{ fontSize: 16, display: 'inline-block', filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' }}>✦</span>
+      <Sparkles size={16} className="inline-block" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' }} />
       <span>AI Assistant</span>
       {isMinimized && (
         <span
@@ -299,7 +300,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18, color: '#b9a5ff' }}>✦</span>
+                <Sparkles size={18} className="text-purple-300" />
                 <h2 style={{ margin: 0, fontSize: 16, color: '#fff', fontWeight: 700 }}>AI Assistant Chatbox</h2>
                 {isMaximized && (
                   <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, color: '#d8d1f7' }}>
@@ -363,7 +364,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = isMaximized ? 'rgba(101, 75, 210, 0.4)' : 'rgba(255, 255, 255, 0.1)' }}
               >
-                {isMaximized ? '🗗' : '⤢'}
+                {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
 
               {/* Close button */}
@@ -413,7 +414,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          <span>🔒 Authorized Access Active</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={12} /> Authorized Access Active</span>
           <span style={{ fontWeight: 600, color: '#654bd2' }}>{dataContextSummary || 'Analytics Context Active'}</span>
         </div>
 
@@ -446,7 +447,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
             >
               {m.role === 'assistant' && (
                 <div style={{ fontSize: 10, color: '#8e8b95', marginBottom: 4, fontWeight: 700, display: 'flex', gap: 6 }}>
-                  <span>✦ AI ASSISTANT</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Sparkles size={10} className="text-purple-500" /> AI ASSISTANT</span>
                   {m.summary && <span>· {m.summary}</span>}
                 </div>
               )}
@@ -463,8 +464,11 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
               border: '1px solid #ecebf0',
               fontSize: 12,
               color: '#8e8b95',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
             }}>
-              ✦ Analyzing available data & generating response…
+              <Sparkles size={12} className="text-purple-400" /> Analyzing available data & generating response…
             </div>
           )}
 
@@ -499,9 +503,12 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                   fontSize: 10,
                   cursor: 'pointer',
                   fontWeight: 500,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
                 }}
               >
-                ⚡ {prompt}
+                <Zap size={10} className="text-amber-500" /> {prompt}
               </button>
             ))}
           </div>

@@ -51,10 +51,7 @@ button { touch-action: manipulation; }
   .topbar .search { display: none; }
   .top-actions { gap: 8px; }
   .top-actions .header-text-button { font-size: 0; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; }
-  .top-actions .header-text-button::after { font-size: 15px; }
-  .top-actions .ai-chat-btn::after { content: '✦'; }
-  .top-actions .header-text-button:nth-of-type(3)::after { content: '🔔'; }
-  .top-actions .header-text-button svg { width: 16px; height: 16px; }
+  .top-actions .header-text-button svg { width: 16px; height: 16px; display: block; }
 
   /* Mobile hamburger button */
   .mobile-menu-btn {

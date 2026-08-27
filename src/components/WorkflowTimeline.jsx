@@ -55,7 +55,7 @@ export default function WorkflowTimeline({ workflow, events = [], currentStageLa
     <section className="workflow-timeline">
       <div className="timeline-head">
         <h3>Workflow history</h3>
-        <span className={hasAiReport ? 'timeline-ai generated' : 'timeline-ai'}>{hasAiReport ? '✓ AI report on file' : 'No AI report yet'}</span>
+        <span className={hasAiReport ? 'timeline-ai generated' : 'timeline-ai'}>{hasAiReport ? <><CheckCircle className="w-3.5 h-3.5 inline mr-1 text-emerald-400" /> AI report on file</> : 'No AI report yet'}</span>
       </div>
       {items.length === 0 ? (
         <p className="empty-hint">No activity recorded yet for this workflow.</p>
