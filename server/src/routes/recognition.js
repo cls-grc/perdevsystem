@@ -43,6 +43,9 @@ const initialKudos = [
       },
     ],
     isOfficialAward: true,
+    status: 'approved',
+    approvedBy: 'Ava Reyes (HR)',
+    approvedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
     createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
   },
   {
@@ -71,6 +74,9 @@ const initialKudos = [
       },
     ],
     isOfficialAward: false,
+    status: 'approved',
+    approvedBy: 'Ava Reyes (HR)',
+    approvedAt: new Date(Date.now() - 3600000 * 10).toISOString(),
     createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
   },
   {
@@ -91,6 +97,9 @@ const initialKudos = [
     userReactions: ['star'],
     comments: [],
     isOfficialAward: true,
+    status: 'approved',
+    approvedBy: 'Ava Reyes (HR)',
+    approvedAt: new Date(Date.now() - 3600000 * 22).toISOString(),
     createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
   },
   {
@@ -111,6 +120,9 @@ const initialKudos = [
     userReactions: ['flame'],
     comments: [],
     isOfficialAward: false,
+    status: 'approved',
+    approvedBy: 'Ava Reyes (HR)',
+    approvedAt: new Date(Date.now() - 3600000 * 34).toISOString(),
     createdAt: new Date(Date.now() - 3600000 * 36).toISOString(),
   },
 ]
@@ -126,6 +138,7 @@ const createKudosSchema = z.object({
   coreValue: z.string().min(1),
   tag: z.string().min(1),
   message: z.string().min(5).max(1000),
+  isOfficialAward: z.boolean().optional(),
 })
 
 const commentSchema = z.object({
@@ -136,10 +149,10 @@ const reactSchema = z.object({
   reaction: z.enum(['heart', 'thumbsUp', 'trophy', 'star', 'flame']),
 })
 
-// GET /api/recognition/feed — fetch combined social feed
+// GET /api/recognition/feed — fetch published/approved social feed
 router.get('/feed', async (req, res, next) => {
   try {
-    // Also pull official completed/approved workflows from database
+    // Pull only approved posts for the live public Merit Wall
     let dbKudos = []
     try {
       const wfRes = await query(`
@@ -149,7 +162,7 @@ router.get('/feed', async (req, res, next) => {
         FROM workflows w
         JOIN employees e ON e.id = w.subject_employee_id
         LEFT JOIN users u ON u.id = w.created_by
-        WHERE w.module = 'recognition' AND (w.current_stage = 'hr' OR w.status = 'completed')
+        WHERE w.module = 'recognition' AND (w.status = 'completed')
         ORDER BY w.updated_at DESC
         LIMIT 10
       `)
@@ -171,14 +184,15 @@ router.get('/feed', async (req, res, next) => {
         userReactions: [],
         comments: [],
         isOfficialAward: true,
+        status: 'approved',
         createdAt: row.created_at,
       }))
     } catch {
-      // Fallback to in-memory store if db table is empty
+      // Fallback
     }
 
-    // Merge and deduplicate by id
-    const combined = [...kudosStore]
+    // Merge and filter only approved recognitions
+    const combined = kudosStore.filter(k => !k.status || k.status === 'approved')
     dbKudos.forEach((dk) => {
       if (!combined.some(k => k.id === dk.id)) {
         combined.push(dk)
@@ -192,15 +206,64 @@ router.get('/feed', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-// POST /api/recognition/post — give recognition to a colleague
+// GET /api/recognition/pending — fetch nominations awaiting supervisor validation or HR review
+router.get('/pending', async (req, res, next) => {
+  try {
+    const role = req.user.role || 'employee'
+    const userId = req.user.sub
+
+    // Filter pending based on RBAC:
+    // HR & Ops Manager see all awaiting_hr and awaiting_supervisor
+    // Supervisors see awaiting_supervisor for their department/employees and their own
+    // Employees see their own submitted nominations
+    const pendingList = kudosStore.filter(k => {
+      if (k.status === 'approved' || k.status === 'rejected') return false
+      if (role === 'hr' || role === 'operations_manager' || role === 'management') return true
+      if (role === 'supervisor') {
+        return k.status === 'awaiting_supervisor' || k.senderId === userId || k.senderDepartment === req.user.department
+      }
+      return k.senderId === userId
+    })
+
+    res.json({
+      pending: pendingList,
+      counts: {
+        awaitingSupervisor: kudosStore.filter(k => k.status === 'awaiting_supervisor').length,
+        awaitingHr: kudosStore.filter(k => k.status === 'awaiting_hr').length,
+        totalPending: kudosStore.filter(k => k.status === 'awaiting_supervisor' || k.status === 'awaiting_hr').length,
+      }
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/recognition/post — submit recognition / nomination
 router.post('/post', async (req, res, next) => {
   try {
     const input = createKudosSchema.parse(req.body)
+    const role = req.user.role || 'employee'
+    const isHr = role === 'hr' || role === 'operations_manager'
+    const isSupervisor = role === 'supervisor'
+
+    // Flow determination:
+    // 1. Employee submits -> status = 'awaiting_supervisor'
+    // 2. Supervisor submits -> status = 'awaiting_hr'
+    // 3. HR Admin submits -> status = 'approved' (posted immediately to the wall)
+    let initialStatus = 'awaiting_supervisor'
+    let isOfficialAward = false
+
+    if (isHr) {
+      initialStatus = 'approved'
+      isOfficialAward = true
+    } else if (isSupervisor) {
+      initialStatus = 'awaiting_hr'
+      isOfficialAward = true
+    }
+
     const newKudos = {
       id: `kudos-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       senderId: req.user.sub,
       senderName: req.user.name || 'Team Member',
-      senderRole: req.user.role,
+      senderRole: role,
       senderDepartment: req.user.department || 'Hospitality',
       recipientId: input.recipientId,
       recipientName: input.recipientName,
@@ -210,33 +273,172 @@ router.post('/post', async (req, res, next) => {
       coreValue: input.coreValue,
       tag: input.tag.startsWith('#') ? input.tag : `#${input.tag}`,
       message: input.message,
-      reactions: { heart: 1, thumbsUp: 1, trophy: 0, star: 1, flame: 0 },
-      userReactions: ['heart'],
+      reactions: { heart: 0, thumbsUp: 0, trophy: 0, star: 0, flame: 0 },
+      userReactions: [],
       comments: [],
-      isOfficialAward: false,
+      isOfficialAward,
+      status: initialStatus,
+      validatedBy: isSupervisor ? req.user.name : null,
+      validatedAt: isSupervisor ? new Date().toISOString() : null,
+      approvedBy: isHr ? req.user.name : null,
+      approvedAt: isHr ? new Date().toISOString() : null,
       createdAt: new Date().toISOString(),
     }
 
     kudosStore.unshift(newKudos)
 
-    // Notify recipient if recipient user exists
+    // Notify appropriate reviewers
+    if (initialStatus === 'awaiting_supervisor') {
+      try {
+        await query(
+          'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE role IN (\'supervisor\', \'operations_manager\') AND is_active = true',
+          ['Recognition Nomination Pending Validation', `${req.user.name} submitted a recognition nomination for ${input.recipientName} awaiting supervisor validation.`]
+        )
+      } catch {}
+    } else if (initialStatus === 'awaiting_hr') {
+      try {
+        await query(
+          'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE role = \'hr\' AND is_active = true',
+          ['Recognition Validated - Awaiting HR Approval', `Supervisor ${req.user.name} submitted/validated recognition for ${input.recipientName} awaiting final HR approval to publish.`]
+        )
+      } catch {}
+    } else if (initialStatus === 'approved') {
+      try {
+        await query(
+          'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE full_name = $3 AND is_active = true',
+          ['Recognition Awarded on Merit Wall', `${req.user.name} recognized you on the Social Recognition Wall: "${input.badge}"`, input.recipientName]
+        )
+      } catch {}
+    }
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'recognition.nominate',
+      category: 'recognition',
+      description: `${req.user.name} submitted recognition for ${input.recipientName} (${initialStatus})`,
+      details: { badge: input.badge, tag: input.tag, status: initialStatus },
+    })
+
+    res.status(201).json({
+      post: newKudos,
+      status: initialStatus,
+      message: initialStatus === 'approved'
+        ? `Recognition officially approved and published on the Merit Wall!`
+        : initialStatus === 'awaiting_hr'
+        ? `Nomination validated! Forwarded to HR for final review & publishing.`
+        : `Nomination submitted! Awaiting supervisor validation before HR approval.`
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/recognition/:id/validate — supervisor validates nomination -> forwards to HR
+router.post('/:id/validate', async (req, res, next) => {
+  try {
+    const role = req.user.role || 'employee'
+    if (role !== 'supervisor' && role !== 'operations_manager' && role !== 'hr' && role !== 'management') {
+      return res.status(403).json({ error: 'Only supervisors and management can validate nominations.' })
+    }
+
+    const post = kudosStore.find(p => p.id === req.params.id)
+    if (!post) return res.status(404).json({ error: 'Nomination not found.' })
+
+    post.status = 'awaiting_hr'
+    post.validatedBy = req.user.name || 'Supervisor'
+    post.validatedAt = new Date().toISOString()
+    if (req.body.note) {
+      post.supervisorNote = req.body.note
+    }
+
+    // Notify HR
     try {
       await query(
-        'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE full_name = $3 AND is_active = true',
-        ['Recognition Received', `${req.user.name} recognized you on the Social Recognition Wall: "${input.badge}"`, input.recipientName]
+        'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE role = \'hr\' AND is_active = true',
+        ['Recognition Validated for HR Review', `Supervisor ${req.user.name} validated recognition for ${post.recipientName}. Ready for HR approval.`]
       )
     } catch {}
 
     await logActivity({
       req,
       user: req.user,
-      action: 'recognition.post',
+      action: 'recognition.validate',
       category: 'recognition',
-      description: `${req.user.name} recognized ${input.recipientName} with ${input.badge}`,
-      details: { badge: input.badge, tag: input.tag },
+      description: `${req.user.name} validated recognition nomination for ${post.recipientName}`,
     })
 
-    res.status(201).json({ post: newKudos })
+    res.json({
+      success: true,
+      post,
+      message: `Nomination for ${post.recipientName} validated! Forwarded to HR Admin for final approval.`
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/recognition/:id/approve — HR reviews and approves -> published to Merit Wall!
+router.post('/:id/approve', async (req, res, next) => {
+  try {
+    const role = req.user.role || 'employee'
+    if (role !== 'hr' && role !== 'operations_manager' && role !== 'management') {
+      return res.status(403).json({ error: 'Only HR Administrators can give final approval to post to the Merit Wall.' })
+    }
+
+    const post = kudosStore.find(p => p.id === req.params.id)
+    if (!post) return res.status(404).json({ error: 'Nomination not found.' })
+
+    post.status = 'approved'
+    post.approvedBy = req.user.name || 'HR Administrator'
+    post.approvedAt = new Date().toISOString()
+    if (req.body.isOfficialAward !== undefined) {
+      post.isOfficialAward = req.body.isOfficialAward
+    } else {
+      post.isOfficialAward = post.senderRole === 'hr' || post.senderRole === 'supervisor' || post.senderRole === 'operations_manager'
+    }
+
+    // Notify recipient that their recognition is now live on the Merit Wall!
+    try {
+      await query(
+        'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE full_name = $3 AND is_active = true',
+        ['Recognition Published on Merit Wall', `Congratulations! Your recognition for "${post.badge}" was approved by HR and is now live on the Merit Wall!`, post.recipientName]
+      )
+    } catch {}
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'recognition.approve',
+      category: 'recognition',
+      description: `${req.user.name} approved recognition for ${post.recipientName} onto the Merit Wall`,
+    })
+
+    res.json({
+      success: true,
+      post,
+      message: `Recognition for ${post.recipientName} approved and published on the Merit Wall!`
+    })
+  } catch (error) { next(error) }
+})
+
+// POST /api/recognition/:id/reject — reject nomination
+router.post('/:id/reject', async (req, res, next) => {
+  try {
+    const role = req.user.role || 'employee'
+    if (role !== 'hr' && role !== 'supervisor' && role !== 'operations_manager' && role !== 'management') {
+      return res.status(403).json({ error: 'Unauthorized to reject nominations.' })
+    }
+
+    const post = kudosStore.find(p => p.id === req.params.id)
+    if (!post) return res.status(404).json({ error: 'Nomination not found.' })
+
+    post.status = 'rejected'
+    post.rejectedBy = req.user.name
+    post.rejectedAt = new Date().toISOString()
+    post.rejectionNote = req.body.note || 'Nomination did not meet criteria.'
+
+    res.json({
+      success: true,
+      post,
+      message: `Nomination for ${post.recipientName} has been declined.`
+    })
   } catch (error) { next(error) }
 })
 

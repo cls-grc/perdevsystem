@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import CourseContentViewer from '../components/CourseContentViewer'
-import { CheckCircle, Target, Play, FileText, BookOpen } from 'lucide-react'
+import { CheckCircle, Target, Play, FileText, BookOpen, X } from 'lucide-react'
 import '../learningLibrary.css'
 
 const CATEGORIES = ['Leadership', 'Customer Service', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Communication', 'Sales', 'Technical Skills']
@@ -492,71 +493,87 @@ export default function LearningManagement() {
       </section>
     )}
 
-    {showForm && (
-      <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Course form" onClick={() => { setShowForm(false); setEditing(null) }}>
-        <form onSubmit={save} className="schedule-dialog learning-form" onClick={event => event.stopPropagation()}>
-          <div className="learning-modal-head">
-            <div><h2>{editing ? 'Edit course' : 'Add course to library'}</h2><p>Describe the learning resource, its provider, and which competencies it supports.</p></div>
-            <button type="button" onClick={() => { setShowForm(false); setEditing(null) }}>×</button>
+    {showForm && createPortal(
+      <div className="learning-modal-backdrop" role="dialog" aria-modal="true" aria-label="Course form" onClick={() => { setShowForm(false); setEditing(null) }}>
+        <form onSubmit={save} className="learning-modal-dialog" onClick={event => event.stopPropagation()}>
+          <div className="learning-modal-header">
+            <div>
+              <h2>{editing ? 'Edit course' : 'Add course to library'}</h2>
+              <p>Describe the learning resource, its provider, and which competencies it supports.</p>
+            </div>
+            <button type="button" className="learning-modal-close-btn" onClick={() => { setShowForm(false); setEditing(null) }} aria-label="Close">
+              <X size={20} />
+            </button>
           </div>
-          <div className="learning-fields">
-            <label>Title<input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required /></label>
-            <label>Category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-            <label>Provider / source<input value={form.provider} onChange={e => setForm({ ...form, provider: e.target.value })} placeholder="e.g. TESDA, Internal Training, Coursera" /></label>
-            <label>Provider type<select value={form.providerType} onChange={e => setForm({ ...form, providerType: e.target.value })}>{PROV_TYPES.map(t => <option key={t} value={t}>{t === 'internal' ? 'Internal' : 'External'}</option>)}</select></label>
-            <label>Duration (hours)<input type="number" min="0" value={form.durationHours} onChange={e => setForm({ ...form, durationHours: e.target.value })} /></label>
-            <label>URL / reference<input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" /></label>
-            <label>Video URL (YouTube / Vimeo / direct)
-              <input value={form.videoUrl} onChange={e => setForm({ ...form, videoUrl: e.target.value })} placeholder="https://youtube.com/watch?v=… or vimeo.com/…" />
-            </label>
-            <label>PDF attachment URL (direct link or Google Drive)
-              <input value={form.pdfUrl} onChange={e => setForm({ ...form, pdfUrl: e.target.value })} placeholder="https://…/module.pdf or drive.google.com/file/…" />
-            </label>
-            <label className="full">Description<textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
-            <label className="full">Learning objectives<textarea value={form.objectives} onChange={e => setForm({ ...form, objectives: e.target.value })} placeholder="Separate objectives with semicolons (;)" /></label>
-            <label className="full">
-              Lesson content
-              <span style={{ fontSize: 10, color: '#888', marginLeft: 6 }}>Supports **bold**, *italic*, # Heading, - bullet list, {'>'} quote</span>
-              <textarea
-                value={form.lessonContent}
-                onChange={e => setForm({ ...form, lessonContent: e.target.value })}
-                rows={8}
-                placeholder={"# Module Introduction\n\nWrite your lesson notes here.\n\n## Key Points\n- Point one\n- Point two\n\n**Bold text** and *italic text* supported."}
-              />
-            </label>
-            <div className="full learning-competencies-block">
-              <b>Related competencies</b>
-              <div className="comp-picker">
-                {competencies.map(c => <label key={c} className={form.competencies.includes(c) ? 'selected' : ''}><input type="checkbox" checked={form.competencies.includes(c)} onChange={() => setForm(s => ({ ...s, competencies: s.competencies.includes(c) ? s.competencies.filter(x => x !== c) : [...s.competencies, c] }))} />{c}</label>)}
-                {!competencies.length && <small>No competencies available yet.</small>}
+          <div className="learning-modal-body">
+            <div className="learning-fields">
+              <label>Title<input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required /></label>
+              <label>Category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
+              <label>Provider / source<input value={form.provider} onChange={e => setForm({ ...form, provider: e.target.value })} placeholder="e.g. TESDA, Internal Training, Coursera" /></label>
+              <label>Provider type<select value={form.providerType} onChange={e => setForm({ ...form, providerType: e.target.value })}>{PROV_TYPES.map(t => <option key={t} value={t}>{t === 'internal' ? 'Internal' : 'External'}</option>)}</select></label>
+              <label>Duration (hours)<input type="number" min="0" value={form.durationHours} onChange={e => setForm({ ...form, durationHours: e.target.value })} /></label>
+              <label>URL / reference<input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://…" /></label>
+              <label>Video URL (YouTube / Vimeo / direct)
+                <input value={form.videoUrl} onChange={e => setForm({ ...form, videoUrl: e.target.value })} placeholder="https://youtube.com/watch?v=… or vimeo.com/…" />
+              </label>
+              <label>PDF attachment URL (direct link or Google Drive)
+                <input value={form.pdfUrl} onChange={e => setForm({ ...form, pdfUrl: e.target.value })} placeholder="https://…/module.pdf or drive.google.com/file/…" />
+              </label>
+              <label className="full">Description<textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
+              <label className="full">Learning objectives<textarea value={form.objectives} onChange={e => setForm({ ...form, objectives: e.target.value })} placeholder="Separate objectives with semicolons (;)" /></label>
+              <label className="full">
+                Lesson content
+                <span style={{ fontSize: 10, color: '#888', marginLeft: 6 }}>Supports **bold**, *italic*, # Heading, - bullet list, {'>'} quote</span>
+                <textarea
+                  value={form.lessonContent}
+                  onChange={e => setForm({ ...form, lessonContent: e.target.value })}
+                  rows={8}
+                  placeholder={"# Module Introduction\n\nWrite your lesson notes here.\n\n## Key Points\n- Point one\n- Point two\n\n**Bold text** and *italic text* supported."}
+                />
+              </label>
+              <div className="full learning-competencies-block">
+                <b>Related competencies</b>
+                <div className="comp-picker">
+                  {competencies.map(c => <label key={c} className={form.competencies.includes(c) ? 'selected' : ''}><input type="checkbox" checked={form.competencies.includes(c)} onChange={() => setForm(s => ({ ...s, competencies: s.competencies.includes(c) ? s.competencies.filter(x => x !== c) : [...s.competencies, c] }))} />{c}</label>)}
+                  {!competencies.length && <small>No competencies available yet.</small>}
+                </div>
               </div>
             </div>
           </div>
-          <div className="module-actions">
+          <div className="learning-modal-footer">
             <button type="button" className="module-secondary" onClick={() => { setShowForm(false); setEditing(null) }}>Cancel</button>
-            <button className="module-primary">{editing ? 'Save changes' : 'Add course'}</button>
+            <button type="submit" className="module-primary">{editing ? 'Save changes' : 'Add course'}</button>
           </div>
         </form>
-      </div>
+      </div>,
+      document.body
     )}
 
-    {completeTarget && (
-      <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Verify completion" onClick={() => setCompleteTarget(null)}>
-        <div className="schedule-dialog learning-form" onClick={event => event.stopPropagation()}>
-          <div className="learning-modal-head">
-            <div><h2>Verify completion</h2><p>Officially record "{completeTarget.resource_title}" as completed for {completeTarget.employee_name}.</p></div>
-            <button type="button" onClick={() => setCompleteTarget(null)}>×</button>
+    {completeTarget && createPortal(
+      <div className="learning-modal-backdrop" role="dialog" aria-modal="true" aria-label="Verify completion" onClick={() => setCompleteTarget(null)}>
+        <div className="learning-modal-dialog" style={{ maxWidth: 540 }} onClick={event => event.stopPropagation()}>
+          <div className="learning-modal-header">
+            <div>
+              <h2>Verify completion</h2>
+              <p>Officially record "{completeTarget.resource_title}" as completed for {completeTarget.employee_name}.</p>
+            </div>
+            <button type="button" className="learning-modal-close-btn" onClick={() => setCompleteTarget(null)} aria-label="Close">
+              <X size={20} />
+            </button>
           </div>
-          <div className="learning-fields">
-            <label>Assessment result<select value={assessmentPass} onChange={e => setAssessmentPass(e.target.value)}><option>Pass</option><option>Fail</option><option>Incomplete</option></select></label>
-            <label className="full">Assessment notes<textarea value={assessmentNote} onChange={e => setAssessmentNote(e.target.value)} placeholder="Optional notes about the assessment outcome" /></label>
+          <div className="learning-modal-body">
+            <div className="learning-fields" style={{ gridTemplateColumns: '1fr' }}>
+              <label>Assessment result<select value={assessmentPass} onChange={e => setAssessmentPass(e.target.value)}><option>Pass</option><option>Fail</option><option>Incomplete</option></select></label>
+              <label className="full">Assessment notes<textarea value={assessmentNote} onChange={e => setAssessmentNote(e.target.value)} placeholder="Optional notes about the assessment outcome" /></label>
+            </div>
           </div>
-          <div className="module-actions">
+          <div className="learning-modal-footer">
             <button type="button" className="module-secondary" onClick={() => setCompleteTarget(null)}>Cancel</button>
-            <button className="module-primary" onClick={recordCompletion}>Confirm verification</button>
+            <button type="button" className="module-primary" onClick={recordCompletion}>Confirm verification</button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* Course Content Viewer modal */}

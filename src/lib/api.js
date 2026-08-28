@@ -203,7 +203,11 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
 
   // Social Recognition Wall & Feed
   recognitionFeed: () => request('/api/recognition/feed'),
+  recognitionPending: () => request('/api/recognition/pending'),
   postRecognition: (data) => request('/api/recognition/post', { method: 'POST', body: JSON.stringify(data) }),
+  validateRecognition: (id, note = '') => request(`/api/recognition/${id}/validate`, { method: 'POST', body: JSON.stringify({ note }) }),
+  approveRecognition: (id, note = '', isOfficialAward) => request(`/api/recognition/${id}/approve`, { method: 'POST', body: JSON.stringify({ note, isOfficialAward }) }),
+  rejectRecognition: (id, note = '') => request(`/api/recognition/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
   reactRecognition: (id, reaction) => request(`/api/recognition/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction }) }),
   commentRecognition: (id, text) => request(`/api/recognition/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) }),
   recognitionLeaderboard: () => request('/api/recognition/leaderboard'),

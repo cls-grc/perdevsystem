@@ -1375,42 +1375,43 @@ function ResourcesBuilder({ value = [], onChange }) {
   const unlink = (id) => onChange(value.filter(r => r.id !== id))
 
   return (
-    <div className="builder resources-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="builder lm-resources-builder">
 
       {/* Linked Resources Summary */}
       {value.length > 0 && (
-        <div style={{ background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.18)', borderRadius: 10, padding: '12px 14px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5', marginBottom: 8 }}>
-            ✓ {value.length} Learning Resource{value.length !== 1 ? 's' : ''} Linked
+        <div className="lm-linked-summary">
+          <div className="lm-linked-summary-title">
+            <Sparkles size={13} />
+            <span>{value.length} Learning Resource{value.length !== 1 ? 's' : ''} Linked to Plan</span>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div className="lm-linked-tags-wrap">
             {value.map((r, i) => (
-              <span key={r.id || i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', border: '1px solid #e0e7ff', borderRadius: 20, padding: '3px 10px', fontSize: 11.5, fontWeight: 600, color: '#3730a3' }}>
+              <span key={r.id || i} className="lm-linked-tag">
                 {r.name}
-                <button type="button" onClick={() => unlink(r.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 13, lineHeight: 1, padding: 0 }} aria-label="Unlink">×</button>
+                <button type="button" className="lm-unlink-btn" onClick={() => unlink(r.id)} aria-label="Unlink">×</button>
               </span>
             ))}
           </div>
         </div>
       )}
 
-      {notice && <div style={{ padding: '8px 12px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#065f46', fontSize: 12, fontWeight: 600 }}>{notice}</div>}
+      {notice && <div className="assigned-success-notice">{notice}</div>}
 
       {/* Filter Bar */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+      <div className="lm-filter-bar">
+        <div className="lm-filter-input-wrap">
+          <Search size={13} className="lm-filter-icon" />
           <input
             value={searchQ}
             onChange={e => setSearchQ(e.target.value)}
             placeholder="Search learning resources…"
-            style={{ width: '100%', paddingLeft: 28, paddingRight: 8, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, boxSizing: 'border-box' }}
+            className="lm-filter-input"
           />
         </div>
         <select
           value={catFilter}
           onChange={e => setCatFilter(e.target.value)}
-          style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#374151', minWidth: 140 }}
+          className="lm-filter-select"
         >
           <option value="">All categories</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1419,40 +1420,31 @@ function ResourcesBuilder({ value = [], onChange }) {
 
       {/* Resource Cards from Learning Management */}
       {loading ? (
-        <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>Loading learning resources…</p>
+        <p className="empty-hint" style={{ textAlign: 'center', padding: '20px 0' }}>Loading learning resources…</p>
       ) : filtered.length === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No resources found. Add resources in Learning Management first.</p>
+        <p className="empty-hint" style={{ textAlign: 'center', padding: '20px 0' }}>No resources found. Add resources in Learning Management first.</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', paddingRight: 2 }}>
+        <div className="lm-resources-grid">
           {filtered.map(resource => {
             const isLinked = linkedIds.has(resource.id)
             return (
               <div
                 key={resource.id}
-                style={{
-                  border: `1px solid ${isLinked ? '#a5b4fc' : '#e2e8f0'}`,
-                  borderRadius: 10,
-                  padding: '11px 12px',
-                  background: isLinked ? '#f5f3ff' : '#fff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                  transition: 'box-shadow 0.15s ease',
-                }}
+                className={`lm-resource-card ${isLinked ? 'linked' : ''}`}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                  <span style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', borderRadius: 12, padding: '2px 8px', fontSize: 10.5, fontWeight: 700 }}>
+                <div className="lm-card-head">
+                  <span className="lm-card-category">
                     {resource.category || 'General'}
                   </span>
                   {resource.duration_hours && (
-                    <span style={{ fontSize: 10.5, color: '#64748b', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <span className="lm-card-duration">
                       <Clock size={11} /> {resource.duration_hours}h
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>{resource.title}</div>
+                <h5 className="lm-card-title">{resource.title}</h5>
                 {resource.description && (
-                  <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                  <p className="lm-card-desc">
                     {resource.description}
                   </p>
                 )}
@@ -1460,19 +1452,13 @@ function ResourcesBuilder({ value = [], onChange }) {
                   type="button"
                   disabled={isLinked}
                   onClick={() => link(resource)}
-                  style={{
-                    marginTop: 4,
-                    padding: '5px 10px',
-                    borderRadius: 7,
-                    border: 'none',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: isLinked ? 'default' : 'pointer',
-                    background: isLinked ? '#e0e7ff' : '#4f46e5',
-                    color: isLinked ? '#4f46e5' : '#fff',
-                  }}
+                  className={`lm-link-btn ${isLinked ? 'linked' : ''}`}
                 >
-                  {isLinked ? '✓ Linked' : '+ Link to Plan'}
+                  {isLinked ? (
+                    <><CheckCircle size={13} /> Linked to Plan</>
+                  ) : (
+                    <><Zap size={13} /> + Link to Plan</>
+                  )}
                 </button>
               </div>
             )

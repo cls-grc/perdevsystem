@@ -487,41 +487,217 @@
 .completion-date { font-size: 11px; color: #8e8b95; }
 .dark .completion-date { color: #94a3b8; }
 
-/* Modal form — reuses settings-backdrop / schedule-dialog from index.css */
-.learning-form {
-  width: min(760px, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
+/* ── DEDICATED LEARNING MODAL (CENTERED & SCROLL-SAFE) ───────────────────── */
+.learning-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+  background: rgba(10, 13, 20, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  box-sizing: border-box !important;
+}
+
+.learning-modal-dialog {
+  width: min(720px, 100%) !important;
+  max-height: calc(100vh - 48px) !important;
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  margin: auto !important;
+  position: relative !important;
+  animation: learningModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+:root.dark .learning-modal-dialog,
+.dark .learning-modal-dialog {
+  background: #1e1c2e !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+}
+
+.learning-modal-header {
+  padding: 20px 24px 16px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  flex-shrink: 0 !important;
+}
+
+:root.dark .learning-modal-header,
+.dark .learning-modal-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.learning-modal-header h2 {
+  margin: 0 !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  color: #0f172a !important;
+}
+
+:root.dark .learning-modal-header h2,
+.dark .learning-modal-header h2 {
+  color: #f8fafc !important;
+}
+
+.learning-modal-header p {
+  margin: 4px 0 0 !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+:root.dark .learning-modal-header p,
+.dark .learning-modal-header p {
+  color: #94a3b8 !important;
+}
+
+.learning-modal-close-btn {
+  background: none !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  cursor: pointer !important;
+  padding: 6px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.learning-modal-close-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+:root.dark .learning-modal-close-btn:hover,
+.dark .learning-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.learning-modal-body {
+  padding: 20px 24px !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.learning-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.learning-fields label {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
 }
-.learning-form .learning-fields { flex: 1 1 auto; }
-/* Hide the scrollbar visually but keep the modal scrollable */
-.learning-form { scrollbar-width: none; -ms-overflow-style: none; }
-.learning-form::-webkit-scrollbar { width: 0; height: 0; display: none; }
-.learning-form .module-actions {
-  position: sticky;
-  bottom: 0;
-  background: #fff;
-  padding: 14px 0 0;
-  margin-top: 18px;
-  border-top: 1px solid #eceaf3;
-  z-index: 1;
+
+:root.dark .learning-fields label,
+.dark .learning-fields label {
+  color: #cbd5e1;
 }
-.dark .learning-form .module-actions { background: #242428; border-top-color: #3c3b42; }
-.learning-modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.learning-modal-head h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.02em; }
-.learning-modal-head p { margin: 0; color: #817e88; font-size: 11px; }
-.learning-modal-head button { background: none; border: none; font-size: 22px; cursor: pointer; color: #6c6972; }
-.learning-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.learning-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 10px; font-weight: 600; color: #5d5964; }
-.learning-fields label.full { grid-column: 1 / -1; }
-.learning-fields input, .learning-fields select, .learning-fields textarea {
-  padding: 9px 10px; border: 1px solid #dfdce6; border-radius: 8px; font-size: 12px; background: #fbfbff; color: inherit;
+
+.learning-fields label.full {
+  grid-column: 1 / -1;
 }
-.dark .learning-fields input, .dark .learning-fields select, .dark .learning-fields textarea { background: #2d2d32; border-color: #4a4950; color: #eee; }
-.learning-fields textarea { min-height: 70px; resize: vertical; }
-.learning-competencies-block > b { font-size: 10px; color: #5d5964; }
+
+.learning-fields input,
+.learning-fields select,
+.learning-fields textarea {
+  padding: 10px 12px;
+  border: 1px solid #dcd8f5;
+  border-radius: 10px;
+  font-size: 13px;
+  background: #f8fafc;
+  color: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+:root.dark .learning-fields input,
+:root.dark .learning-fields select,
+:root.dark .learning-fields textarea,
+.dark .learning-fields input,
+.dark .learning-fields select,
+.dark .learning-fields textarea {
+  background: #1b1928;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+}
+
+.learning-fields input:focus,
+.learning-fields select:focus,
+.learning-fields textarea:focus {
+  border-color: #513AB3;
+  box-shadow: 0 0 0 3px rgba(81, 58, 179, 0.18);
+}
+
+.learning-fields textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.learning-competencies-block > b {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  display: block;
+  margin-bottom: 8px;
+}
+
+:root.dark .learning-competencies-block > b,
+.dark .learning-competencies-block > b {
+  color: #cbd5e1;
+}
+
+.learning-modal-footer {
+  padding: 16px 24px !important;
+  border-top: 1px solid #f1f5f9 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+  background: #ffffff !important;
+}
+
+:root.dark .learning-modal-footer,
+.dark .learning-modal-footer {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  background: #1e1c2e !important;
+}
+
+@keyframes learningModalPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
 .comp-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .comp-picker label {
   flex-direction: row; align-items: center; gap: 6px; font-weight: 500;

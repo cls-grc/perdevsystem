@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import WorkflowPage from '../components/WorkflowPage'
+import ModuleAIInsights from '../components/ModuleAIInsights'
 import {
   Heart,
   ThumbsUp,
@@ -17,6 +17,11 @@ import {
   Sparkles,
   CheckCircle2,
   Building2,
+  Clock,
+  Check,
+  X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import '../recognitionWall.css'
 
@@ -40,13 +45,16 @@ const AWARD_BADGES = [
 ]
 
 export default function SocialRecognition() {
-  const [activeTab, setActiveTab] = useState('wall') // 'wall' | 'workflows'
   const [feed, setFeed] = useState([])
+  const [pendingNominations, setPendingNominations] = useState([])
+  const [pendingCounts, setPendingCounts] = useState({ awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 })
   const [leaderboard, setLeaderboard] = useState({ topStaff: [], topDepartments: [], coreValues: [] })
   const [loading, setLoading] = useState(true)
   const [selectedTag, setSelectedTag] = useState('ALL')
   const [commentOpen, setCommentOpen] = useState({})
   const [commentDrafts, setCommentDrafts] = useState({})
+  const [showAIInsights, setShowAIInsights] = useState(false)
+  const [showPendingQueue, setShowPendingQueue] = useState(true)
 
   // Inline composer state
   const [staffList, setStaffList] = useState([])
@@ -54,32 +62,47 @@ export default function SocialRecognition() {
   const [selectedBadge, setSelectedBadge] = useState(AWARD_BADGES[0].name)
   const [customMessage, setCustomMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [processingId, setProcessingId] = useState(null)
   const [statusNotice, setStatusNotice] = useState('')
 
-  useEffect(() => {
-    let active = true
-    async function init() {
-      try {
-        const [feedRes, lbRes, staffRes] = await Promise.all([
-          api.recognitionFeed().catch(() => ({ feed: [] })),
-          api.recognitionLeaderboard().catch(() => ({ topStaff: [], topDepartments: [], coreValues: [] })),
-          api.workflowSubjects().catch(() => ({ employees: [] })),
-        ])
-        if (!active) return
-        setFeed(feedRes.feed || [])
-        setLeaderboard(lbRes || { topStaff: [], topDepartments: [], coreValues: [] })
-        setStaffList(staffRes.employees || [])
-        if (staffRes.employees?.length > 0) {
-          setSelectedStaffId(staffRes.employees[0].id)
-        }
-      } catch {
-        // Fallback
-      } finally {
-        if (active) setLoading(false)
-      }
+  // User role and RBAC
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('pds-user') || '{}')
+    } catch {
+      return {}
     }
-    init()
-    return () => { active = false }
+  })()
+  const userRole = currentUser.role || 'employee'
+  const isHr = userRole === 'hr' || userRole === 'operations_manager'
+  const isSupervisor = userRole === 'supervisor'
+  const isUpperUp = isHr || isSupervisor || userRole === 'management'
+
+  const loadData = async () => {
+    try {
+      const [feedRes, lbRes, staffRes, pendingRes] = await Promise.all([
+        api.recognitionFeed().catch(() => ({ feed: [] })),
+        api.recognitionLeaderboard().catch(() => ({ topStaff: [], topDepartments: [], coreValues: [] })),
+        api.workflowSubjects().catch(() => ({ employees: [] })),
+        api.recognitionPending().catch(() => ({ pending: [], counts: { awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 } })),
+      ])
+      setFeed(feedRes.feed || [])
+      setLeaderboard(lbRes || { topStaff: [], topDepartments: [], coreValues: [] })
+      setStaffList(staffRes.employees || [])
+      setPendingNominations(pendingRes.pending || [])
+      setPendingCounts(pendingRes.counts || { awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 })
+      if (staffRes.employees?.length > 0 && !selectedStaffId) {
+        setSelectedStaffId(staffRes.employees[0].id)
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
   }, [])
 
   // Reaction toggling (NO EMOJIS - pure icons)
@@ -132,7 +155,7 @@ export default function SocialRecognition() {
     }
   }
 
-  // Submit Give Recognition
+  // Submit Give Recognition / Nomination
   const handleSubmitRecognition = async (e) => {
     e.preventDefault()
     if (!selectedStaffId || !customMessage.trim()) return
@@ -152,18 +175,68 @@ export default function SocialRecognition() {
         coreValue: badgeConfig.value,
         tag: badgeConfig.tag,
         message: customMessage.trim(),
+        isOfficialAward: isUpperUp,
       })
 
-      if (res.post) {
-        setFeed((prev) => [res.post, ...prev])
-      }
       setCustomMessage('')
-      setStatusNotice(`Recognition published for ${targetEmployee.full_name}!`)
-      setTimeout(() => setStatusNotice(''), 4000)
+      if (res.status === 'approved') {
+        setStatusNotice(`Official award published on the Merit Wall for ${targetEmployee.full_name}!`)
+      } else if (res.status === 'awaiting_hr') {
+        setStatusNotice(`Nomination validated! Forwarded to HR Admin for final approval.`)
+      } else {
+        setStatusNotice(`Nomination submitted for ${targetEmployee.full_name}! It will be posted to the Merit Wall once validated by their supervisor and approved by HR.`)
+      }
+      await loadData()
+      setTimeout(() => setStatusNotice(''), 5000)
     } catch {
-      setStatusNotice('Unable to post recognition. Please try again.')
+      setStatusNotice('Unable to submit recognition. Please try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Supervisor validates nomination (Step 2 -> Step 3)
+  const handleValidateNomination = async (id) => {
+    setProcessingId(id)
+    try {
+      const res = await api.validateRecognition(id)
+      setStatusNotice(res.message || 'Nomination validated and sent to HR for approval!')
+      await loadData()
+      setTimeout(() => setStatusNotice(''), 4000)
+    } catch {
+      setStatusNotice('Validation failed. Please try again.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // HR reviews and gives final approval to post onto the Merit Wall! (Step 3 -> Published)
+  const handleApproveNomination = async (id) => {
+    setProcessingId(id)
+    try {
+      const res = await api.approveRecognition(id)
+      setStatusNotice(res.message || 'Nomination approved and published on the Merit Wall!')
+      await loadData()
+      setTimeout(() => setStatusNotice(''), 4000)
+    } catch {
+      setStatusNotice('Approval failed. Please try again.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // Reject / decline nomination
+  const handleRejectNomination = async (id) => {
+    setProcessingId(id)
+    try {
+      const res = await api.rejectRecognition(id)
+      setStatusNotice(res.message || 'Nomination declined.')
+      await loadData()
+      setTimeout(() => setStatusNotice(''), 4000)
+    } catch {
+      setStatusNotice('Decline action failed.')
+    } finally {
+      setProcessingId(null)
     }
   }
 
@@ -172,55 +245,24 @@ export default function SocialRecognition() {
     return item.tag === selectedTag || item.coreValue === selectedTag
   })
 
-  const tabsNav = (
-    <div className="recognition-tabs-nav">
-      <button
-        type="button"
-        className={`recognition-tab-btn ${activeTab === 'wall' ? 'active' : ''}`}
-        onClick={() => setActiveTab('wall')}
-      >
-        <Heart size={14} />
-        <span>Recognition Wall</span>
-      </button>
-      <button
-        type="button"
-        className={`recognition-tab-btn ${activeTab === 'workflows' ? 'active' : ''}`}
-        onClick={() => setActiveTab('workflows')}
-      >
-        <Award size={14} />
-        <span>Nomination Workflows</span>
-      </button>
-    </div>
-  )
-
-  if (activeTab === 'workflows') {
-    return (
-      <WorkflowPage
-        module="recognition"
-        title="Social Recognition Nominations"
-        description="Complete the recognition actions assigned to your role. Once HR approves a nomination, the system automatically issues the badge and updates the leaderboard."
-        action={{
-          employee: 'Submit nomination',
-          supervisor: 'Validate nomination',
-          hr: 'Review nomination',
-          operations_manager: 'Review nomination',
-        }}
-        itemLabel="Recognition nomination"
-        itemIsEmployee
-        extraHeaderAction={tabsNav}
-      />
-    )
-  }
-
   return (
     <div className="recognition-page-wrapper">
-      {/* ── HEADER & NAVIGATION ────────────────────────────────────────────── */}
+      {/* ── HEADER & MODULE ACTIONS ────────────────────────────────────────── */}
       <div className="recognition-header-bar">
         <div className="recognition-title-area">
           <h1>Social Recognition & Merit Wall</h1>
-          <p>Celebrate team achievements, peer commendations, and core hospitality values across the hotel.</p>
+          <p>Peer commendations, supervisor validations, and official HR awards celebrated across the hotel.</p>
         </div>
-        {tabsNav}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="ai-insights-toggle-btn"
+            onClick={() => setShowAIInsights(!showAIInsights)}
+          >
+            <Sparkles size={14} />
+            <span>{showAIInsights ? 'Hide AI Insights' : 'Generate AI Insights'}</span>
+          </button>
+        </div>
       </div>
 
       {statusNotice && (
@@ -243,300 +285,460 @@ export default function SocialRecognition() {
         </div>
       )}
 
-      {/* ── TAB 1: SOCIAL RECOGNITION WALL ─────────────────────────────────── */}
-      <div className="recognition-wall-layout">
-          {/* Left Column: Feed Stream */}
-          <div>
-            {/* ── INLINE RECOGNITION COMPOSER CARD ────────────────────────── */}
-            <div className="recognition-composer-card">
-              <div className="composer-header">
-                <Heart size={16} color="#513AB3" />
-                <span>Give Recognition</span>
-              </div>
-              <form onSubmit={handleSubmitRecognition}>
-                <div className="composer-row">
-                  <div>
-                    <label className="recog-field-label" style={{ display: 'block', marginBottom: 5 }}>Colleague</label>
-                    <select
-                      className="recog-select"
-                      value={selectedStaffId}
-                      onChange={(e) => setSelectedStaffId(e.target.value)}
-                      required
-                    >
-                      {staffList.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.full_name} — {s.job_title} ({s.department})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="recog-field-label" style={{ display: 'block', marginBottom: 5 }}>Award Badge</label>
-                    <select
-                      className="recog-select"
-                      value={selectedBadge}
-                      onChange={(e) => setSelectedBadge(e.target.value)}
-                    >
-                      {AWARD_BADGES.map((b) => (
-                        <option key={b.name} value={b.name}>{b.name} ({b.tag})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <textarea
-                  className="composer-textarea"
-                  placeholder="Share specific examples of how this colleague went above and beyond…"
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  required
-                />
-                <div className="composer-footer">
-                  <button
-                    type="submit"
-                    className="org-drawer-action-btn"
-                    disabled={submitting || !customMessage.trim()}
-                  >
-                    <Send size={14} />
-                    <span>{submitting ? 'Publishing…' : 'Publish Recognition'}</span>
-                  </button>
-                </div>
-              </form>
-            </div>
+      {/* ── MODULE AI INSIGHTS PANEL (When activated) ────────────────────── */}
+      {showAIInsights && (
+        <div style={{ marginBottom: 20 }}>
+          <ModuleAIInsights module="recognition" stage="Recognition Overview" />
+        </div>
+      )}
 
-            {/* Value Filter Pills */}
-            <div className="recognition-values-bar">
-              {CORE_VALUE_TAGS.map((val) => {
-                const Icon = val.icon
-                const isActive = selectedTag === val.tag
+      {/* ── NOMINATION APPROVAL PIPELINE (Supervisor Validation & HR Review) ── */}
+      {pendingNominations.length > 0 && (
+        <div className="recognition-pending-section">
+          <div className="pending-section-head">
+            <div className="pending-section-title">
+              <Clock size={18} color="#513AB3" />
+              <span>
+                {isHr
+                  ? 'Nominations Awaiting HR Approval & Publishing'
+                  : isSupervisor
+                  ? 'Nominations Awaiting Supervisor Validation'
+                  : 'My Submitted Nominations Status'}
+              </span>
+              <span className="pending-count-badge">
+                {pendingNominations.length} Pending
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPendingQueue(!showPendingQueue)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700 }}
+            >
+              <span>{showPendingQueue ? 'Collapse' : 'Expand'}</span>
+              {showPendingQueue ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+
+          {showPendingQueue && (
+            <div className="pending-nominations-grid">
+              {pendingNominations.map((nom) => {
+                const isAwaitingSupervisor = nom.status === 'awaiting_supervisor'
+                const isAwaitingHr = nom.status === 'awaiting_hr'
+
                 return (
-                  <button
-                    key={val.id}
-                    type="button"
-                    className={`value-filter-pill ${isActive ? 'active' : ''}`}
-                    onClick={() => setSelectedTag(val.tag)}
-                  >
-                    <Icon size={13} />
-                    <span>{val.label}</span>
-                  </button>
+                  <div key={nom.id} className="pending-nomination-card">
+                    <div className="pending-card-head">
+                      <div className="pending-nominee-info">
+                        <b>{nom.recipientName}</b>
+                        <small>{nom.recipientJobTitle} • {nom.recipientDepartment}</small>
+                      </div>
+                      <span className="post-badge-chip" style={{ fontSize: 10, padding: '2px 8px' }}>
+                        <Award size={11} /> {nom.badge}
+                      </span>
+                    </div>
+
+                    {/* Step Flow Tracker */}
+                    <div className="pending-step-flow">
+                      <span className="step-pill completed">1. Submitted ({nom.senderName})</span>
+                      <span className={`step-pill ${isAwaitingSupervisor ? 'current' : 'completed'}`}>
+                        2. Supervisor {isAwaitingSupervisor ? '⏳ Pending' : '✓ Validated'}
+                      </span>
+                      <span className={`step-pill ${isAwaitingHr ? 'current' : ''}`}>
+                        3. HR Approval {isAwaitingHr ? '⏳ Reviewing' : ''}
+                      </span>
+                    </div>
+
+                    <p className="pending-message-quote">"{nom.message}"</p>
+
+                    {/* Action buttons based on role */}
+                    <div className="pending-card-actions">
+                      {isSupervisor && isAwaitingSupervisor && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-validate"
+                            disabled={processingId === nom.id}
+                            onClick={() => handleValidateNomination(nom.id)}
+                          >
+                            <Check size={13} />
+                            <span>{processingId === nom.id ? 'Validating…' : 'Validate & Forward to HR'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-decline"
+                            disabled={processingId === nom.id}
+                            onClick={() => handleRejectNomination(nom.id)}
+                          >
+                            <X size={13} /> Decline
+                          </button>
+                        </>
+                      )}
+
+                      {isHr && isAwaitingHr && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-approve-post"
+                            disabled={processingId === nom.id}
+                            onClick={() => handleApproveNomination(nom.id)}
+                          >
+                            <Sparkles size={13} />
+                            <span>{processingId === nom.id ? 'Publishing…' : 'Approve & Post to Merit Wall'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-decline"
+                            disabled={processingId === nom.id}
+                            onClick={() => handleRejectNomination(nom.id)}
+                          >
+                            <X size={13} /> Decline
+                          </button>
+                        </>
+                      )}
+
+                      {isHr && isAwaitingSupervisor && (
+                        <div style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={12} /> Awaiting department supervisor validation before HR publishing.
+                        </div>
+                      )}
+
+                      {!isHr && !isSupervisor && (
+                        <div style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={12} />
+                          {isAwaitingSupervisor
+                            ? 'Awaiting supervisor validation.'
+                            : 'Validated by supervisor; undergoing final HR approval.'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )
               })}
             </div>
+          )}
+        </div>
+      )}
 
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 300, justifyContent: 'center', gap: 10 }}>
-                <div className="skeleton-bar" style={{ width: 140, height: 14, borderRadius: 6 }} />
-                <div style={{ fontSize: 13, color: '#64748b' }}>Loading Social Recognition Feed…</div>
+      {/* ── MAIN SOCIAL RECOGNITION WALL ──────────────────────────────────── */}
+      <div className="recognition-wall-layout">
+        {/* Left Column: Composer + Live Stream */}
+        <div>
+          {/* Inline Recognition Composer */}
+          <div className="recognition-composer-card">
+            <div className="composer-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Heart size={16} color="#513AB3" />
+                <span>
+                  {isUpperUp
+                    ? (isHr ? 'Issue Official HR Recognition' : 'Nominate / Recognize Team Member')
+                    : 'Submit Public Recognition Nomination'}
+                </span>
               </div>
-            ) : filteredFeed.length === 0 ? (
-              <div style={{ padding: 48, background: '#ffffff', borderRadius: 20, textAlign: 'center', border: '1px solid #e2e8f0', color: '#64748b' }}>
-                <Sparkles size={36} color="#94a3b8" style={{ margin: '0 auto 10px' }} />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>No recognition posts found</div>
-                <div style={{ fontSize: 13, marginTop: 4 }}>Be the first to recognize a colleague for their outstanding work!</div>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                background: isUpperUp ? 'rgba(81, 58, 179, 0.12)' : 'rgba(100, 116, 139, 0.12)',
+                color: isUpperUp ? '#513AB3' : '#64748b',
+                padding: '3px 10px',
+                borderRadius: 20
+              }}>
+                {isHr ? 'Official HR Award' : isSupervisor ? 'Supervisor Nomination' : 'Peer Nomination'}
+              </span>
+            </div>
+            <form onSubmit={handleSubmitRecognition}>
+              <div className="composer-row">
+                <div>
+                  <label className="recog-field-label" style={{ display: 'block', marginBottom: 5 }}>Colleague</label>
+                  <select
+                    className="recog-select"
+                    value={selectedStaffId}
+                    onChange={(e) => setSelectedStaffId(e.target.value)}
+                    required
+                  >
+                    {staffList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.full_name} — {s.job_title} ({s.department})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="recog-field-label" style={{ display: 'block', marginBottom: 5 }}>Award Badge</label>
+                  <select
+                    className="recog-select"
+                    value={selectedBadge}
+                    onChange={(e) => setSelectedBadge(e.target.value)}
+                  >
+                    {AWARD_BADGES.map((b) => (
+                      <option key={b.name} value={b.name}>{b.name} ({b.tag})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            ) : (
-              <div className="recognition-feed-stream">
-                {filteredFeed.map((post) => {
-                  const initials = post.recipientName
-                    ? post.recipientName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-                    : 'EM'
-                  const comments = post.comments || []
-                  const isCommentsOpen = commentOpen[post.id]
-
-                  return (
-                    <div key={post.id} className="recognition-post-card">
-                      {post.isOfficialAward && (
-                        <div className="post-official-ribbon">
-                          <CheckCircle2 size={12} />
-                          <span>Official HR Award</span>
-                        </div>
-                      )}
-
-                      {/* Header */}
-                      <div className="post-header">
-                        <div className="post-avatar">{initials}</div>
-                        <div className="post-meta-wrap">
-                          <div className="post-title-line">
-                            {post.recipientName}
-                            <span style={{ fontWeight: 400, color: '#64748b', fontSize: 13 }}> was recognized by </span>
-                            {post.senderName}
-                          </div>
-                          <div className="post-subtitle-line">
-                            {post.recipientJobTitle} • {post.recipientDepartment}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge and Tag */}
-                      <div className="post-badge-strip">
-                        <span className="post-badge-chip">
-                          <Award size={13} />
-                          <span>{post.badge}</span>
-                        </span>
-                        <span className="post-hashtag-chip">
-                          <span>{post.tag}</span>
-                        </span>
-                      </div>
-
-                      {/* Message */}
-                      <div className="post-message-body">{post.message}</div>
-
-                      {/* Icon Reaction Bar (STRICTLY ICONS, NO EMOJIS) */}
-                      <div className="post-reaction-bar">
-                        {/* 1. Heart */}
-                        <button
-                          type="button"
-                          className={`reaction-icon-btn ${post.userReactions?.includes('heart') ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'heart')}
-                          title="Appreciate"
-                        >
-                          <Heart size={14} />
-                          <span>{post.reactions?.heart || 0}</span>
-                        </button>
-
-                        {/* 2. Thumbs Up */}
-                        <button
-                          type="button"
-                          className={`reaction-icon-btn ${post.userReactions?.includes('thumbsUp') ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'thumbsUp')}
-                          title="Great Job"
-                        >
-                          <ThumbsUp size={14} />
-                          <span>{post.reactions?.thumbsUp || 0}</span>
-                        </button>
-
-                        {/* 3. Trophy */}
-                        <button
-                          type="button"
-                          className={`reaction-icon-btn ${post.userReactions?.includes('trophy') ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'trophy')}
-                          title="Top Performance"
-                        >
-                          <Trophy size={14} />
-                          <span>{post.reactions?.trophy || 0}</span>
-                        </button>
-
-                        {/* 4. Star */}
-                        <button
-                          type="button"
-                          className={`reaction-icon-btn ${post.userReactions?.includes('star') ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'star')}
-                          title="Excellence"
-                        >
-                          <Star size={14} />
-                          <span>{post.reactions?.star || 0}</span>
-                        </button>
-
-                        {/* 5. Flame */}
-                        <button
-                          type="button"
-                          className={`reaction-icon-btn ${post.userReactions?.includes('flame') ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'flame')}
-                          title="On Fire"
-                        >
-                          <Flame size={14} />
-                          <span>{post.reactions?.flame || 0}</span>
-                        </button>
-
-                        {/* Comments Count Toggle */}
-                        <button
-                          type="button"
-                          className="post-comments-toggle"
-                          onClick={() =>
-                            setCommentOpen((prev) => ({ ...prev, [post.id]: !prev[post.id] }))
-                          }
-                        >
-                          <MessageSquare size={14} />
-                          <span>{comments.length} Comments</span>
-                        </button>
-                      </div>
-
-                      {/* Comments Panel */}
-                      {isCommentsOpen && (
-                        <div className="post-comments-panel">
-                          {comments.map((c) => (
-                            <div key={c.id} className="comment-row">
-                              <div className="comment-author">{c.userName} ({c.userRole})</div>
-                              <div>{c.text}</div>
-                            </div>
-                          ))}
-
-                          <div className="comment-input-row">
-                            <input
-                              type="text"
-                              placeholder="Write a congratulatory comment…"
-                              value={commentDrafts[post.id] || ''}
-                              onChange={(e) =>
-                                setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleAddComment(post.id)
-                              }}
-                            />
-                            <button
-                              type="button"
-                              className="comment-send-btn"
-                              onClick={() => handleAddComment(post.id)}
-                            >
-                              <Send size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+              <textarea
+                className="composer-textarea"
+                placeholder="Share specific examples of how this colleague went above and beyond…"
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                required
+              />
+              <div className="composer-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <small style={{ color: '#64748b', fontSize: 11 }}>
+                  {isHr
+                    ? 'HR awards publish directly to the live Merit Wall.'
+                    : 'Nominations are validated by the supervisor, approved by HR, then posted.'}
+                </small>
+                <button
+                  type="submit"
+                  className="org-drawer-action-btn"
+                  disabled={submitting || !customMessage.trim()}
+                >
+                  <Send size={14} />
+                  <span>{submitting ? 'Submitting…' : (isHr ? 'Publish Official HR Award' : 'Submit for Review & Publishing')}</span>
+                </button>
               </div>
-            )}
+            </form>
           </div>
 
-          {/* Right Column: Leaderboard & Stats */}
-          <div className="recognition-sidebar-column">
-            {/* Top Recognized Staff */}
-            <div className="recognition-leaderboard-card">
-              <div className="leaderboard-title">
-                <Trophy size={18} color="#513AB3" />
-                <span>Monthly Staff Spotlight</span>
-              </div>
-              <div className="leaderboard-list">
-                {leaderboard.topStaff?.map((staff, idx) => (
-                  <div key={staff.name} className="leaderboard-item">
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <span className="rank-badge">{idx + 1}</span>
-                      <div>
-                        <div className="leaderboard-item-name">{staff.name}</div>
-                        <div className="leaderboard-item-sub">{staff.department}</div>
+          {/* Value Filter Pills */}
+          <div className="recognition-values-bar">
+            {CORE_VALUE_TAGS.map((val) => {
+              const Icon = val.icon
+              const isActive = selectedTag === val.tag
+              return (
+                <button
+                  key={val.id}
+                  type="button"
+                  className={`value-filter-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => setSelectedTag(val.tag)}
+                >
+                  <Icon size={13} />
+                  <span>{val.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 300, justifyContent: 'center', gap: 10 }}>
+              <div className="skeleton-bar" style={{ width: 140, height: 14, borderRadius: 6 }} />
+              <div style={{ fontSize: 13, color: '#64748b' }}>Loading Social Recognition Feed…</div>
+            </div>
+          ) : filteredFeed.length === 0 ? (
+            <div style={{ padding: 48, background: '#ffffff', borderRadius: 20, textAlign: 'center', border: '1px solid #e2e8f0', color: '#64748b' }}>
+              <Sparkles size={36} color="#94a3b8" style={{ margin: '0 auto 10px' }} />
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>No approved recognition posts found</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>Be the first to recognize a colleague for their outstanding work!</div>
+            </div>
+          ) : (
+            <div className="recognition-feed-stream">
+              {filteredFeed.map((post) => {
+                const initials = post.recipientName
+                  ? post.recipientName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                  : 'EM'
+                const comments = post.comments || []
+                const isCommentsOpen = commentOpen[post.id]
+
+                return (
+                  <div key={post.id} className="recognition-post-card">
+                    {post.isOfficialAward && (
+                      <div className="post-official-ribbon">
+                        <CheckCircle2 size={12} />
+                        <span>
+                          {post.senderRole === 'hr' || (!post.senderRole && post.senderName?.toLowerCase().includes('hr'))
+                            ? 'Official HR Award'
+                            : 'Official Management Award'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Header */}
+                    <div className="post-header">
+                      <div className="post-avatar">{initials}</div>
+                      <div className="post-meta-wrap">
+                        <div className="post-title-line">
+                          {post.recipientName}
+                          <span style={{ fontWeight: 400, color: '#64748b', fontSize: 13 }}> was recognized by </span>
+                          {post.senderName}
+                        </div>
+                        <div className="post-subtitle-line">
+                          {post.recipientJobTitle} • {post.recipientDepartment}
+                        </div>
                       </div>
                     </div>
-                    <div className="leaderboard-item-count">
-                      <Award size={13} />
-                      <span>{staff.count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Department Kudos Leaderboard */}
-            <div className="recognition-leaderboard-card">
-              <div className="leaderboard-title">
-                <Building2 size={18} color="#513AB3" />
-                <span>Department Kudos</span>
-              </div>
-              <div className="leaderboard-list">
-                {leaderboard.topDepartments?.map((dept) => (
-                  <div key={dept.department} className="leaderboard-item">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Users size={15} />
-                      <span className="leaderboard-item-name">{dept.department}</span>
+                    {/* Badge and Tag */}
+                    <div className="post-badge-strip">
+                      <span className="post-badge-chip">
+                        <Award size={13} />
+                        <span>{post.badge}</span>
+                      </span>
+                      <span className="post-hashtag-chip">
+                        <span>{post.tag}</span>
+                      </span>
                     </div>
-                    <span style={{ fontWeight: 800, color: '#059669' }}>{dept.totalKudos} kudos</span>
+
+                    {/* Message */}
+                    <div className="post-message-body">{post.message}</div>
+
+                    {/* Icon Reaction Bar (STRICTLY ICONS, NO EMOJIS) */}
+                    <div className="post-reaction-bar">
+                      {/* 1. Heart */}
+                      <button
+                        type="button"
+                        className={`reaction-icon-btn ${post.userReactions?.includes('heart') ? 'reacted' : ''}`}
+                        onClick={() => handleReaction(post.id, 'heart')}
+                        title="Appreciate"
+                      >
+                        <Heart size={14} />
+                        <span>{post.reactions?.heart || 0}</span>
+                      </button>
+
+                      {/* 2. Thumbs Up */}
+                      <button
+                        type="button"
+                        className={`reaction-icon-btn ${post.userReactions?.includes('thumbsUp') ? 'reacted' : ''}`}
+                        onClick={() => handleReaction(post.id, 'thumbsUp')}
+                        title="Great Job"
+                      >
+                        <ThumbsUp size={14} />
+                        <span>{post.reactions?.thumbsUp || 0}</span>
+                      </button>
+
+                      {/* 3. Trophy */}
+                      <button
+                        type="button"
+                        className={`reaction-icon-btn ${post.userReactions?.includes('trophy') ? 'reacted' : ''}`}
+                        onClick={() => handleReaction(post.id, 'trophy')}
+                        title="Top Performance"
+                      >
+                        <Trophy size={14} />
+                        <span>{post.reactions?.trophy || 0}</span>
+                      </button>
+
+                      {/* 4. Star */}
+                      <button
+                        type="button"
+                        className={`reaction-icon-btn ${post.userReactions?.includes('star') ? 'reacted' : ''}`}
+                        onClick={() => handleReaction(post.id, 'star')}
+                        title="Excellence"
+                      >
+                        <Star size={14} />
+                        <span>{post.reactions?.star || 0}</span>
+                      </button>
+
+                      {/* 5. Flame */}
+                      <button
+                        type="button"
+                        className={`reaction-icon-btn ${post.userReactions?.includes('flame') ? 'reacted' : ''}`}
+                        onClick={() => handleReaction(post.id, 'flame')}
+                        title="On Fire"
+                      >
+                        <Flame size={14} />
+                        <span>{post.reactions?.flame || 0}</span>
+                      </button>
+
+                      {/* Comments Count Toggle */}
+                      <button
+                        type="button"
+                        className="post-comments-toggle"
+                        onClick={() =>
+                          setCommentOpen((prev) => ({ ...prev, [post.id]: !prev[post.id] }))
+                        }
+                      >
+                        <MessageSquare size={14} />
+                        <span>{comments.length} Comments</span>
+                      </button>
+                    </div>
+
+                    {/* Comments Panel */}
+                    {isCommentsOpen && (
+                      <div className="post-comments-panel">
+                        {comments.map((c) => (
+                          <div key={c.id} className="comment-row">
+                            <div className="comment-author">{c.userName} ({c.userRole})</div>
+                            <div>{c.text}</div>
+                          </div>
+                        ))}
+
+                        <div className="comment-input-row">
+                          <input
+                            type="text"
+                            placeholder="Write a congratulatory comment…"
+                            value={commentDrafts[post.id] || ''}
+                            onChange={(e) =>
+                              setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddComment(post.id)
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="comment-send-btn"
+                            onClick={() => handleAddComment(post.id)}
+                          >
+                            <Send size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Leaderboard & Department Kudos */}
+        <div className="recognition-sidebar-column">
+          {/* Top Recognized Staff */}
+          <div className="recognition-leaderboard-card">
+            <div className="leaderboard-title">
+              <Trophy size={18} color="#513AB3" />
+              <span>Monthly Staff Spotlight</span>
+            </div>
+            <div className="leaderboard-list">
+              {leaderboard.topStaff?.map((staff, idx) => (
+                <div key={staff.name} className="leaderboard-item">
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="rank-badge">{idx + 1}</span>
+                    <div>
+                      <div className="leaderboard-item-name">{staff.name}</div>
+                      <div className="leaderboard-item-sub">{staff.department}</div>
+                    </div>
+                  </div>
+                  <div className="leaderboard-item-count">
+                    <Award size={13} />
+                    <span>{staff.count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Department Kudos Leaderboard */}
+          <div className="recognition-leaderboard-card">
+            <div className="leaderboard-title">
+              <Building2 size={18} color="#513AB3" />
+              <span>Department Kudos</span>
+            </div>
+            <div className="leaderboard-list">
+              {leaderboard.topDepartments?.map((dept) => (
+                <div key={dept.department} className="leaderboard-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Users size={15} />
+                    <span className="leaderboard-item-name">{dept.department}</span>
+                  </div>
+                  <span style={{ fontWeight: 800, color: '#059669' }}>{dept.totalKudos} kudos</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
+      </div>
     </div>
   )
 }
+
 

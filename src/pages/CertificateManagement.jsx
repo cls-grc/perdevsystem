@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import QRCodeImage from '../components/QRCodeImage'
-import { CheckCircle, AlertTriangle, Pencil, Trash2 } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Pencil, Trash2, X } from 'lucide-react'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
 const date = value => value ? new Date(value).toLocaleDateString() : '—'
@@ -657,41 +658,46 @@ export default function CertificateManagement({ embedded = false }) {
         {gallery}
       </section>
 
-      {/* Create / Edit Template Modal */}
-      {showForm && (
-        <div className="certificate-modal">
-          <form onSubmit={save} ref={modalRef}>
-            <div className="modal-head">
+      {/* Create / Edit Template Modal — portalled to document.body so position:fixed always hits the viewport */}
+      {showForm && createPortal(
+        <div className="cert-modal-backdrop" onClick={() => { setShowForm(false); setError('') }}>
+          <form onSubmit={save} ref={modalRef} className="cert-modal-dialog" onClick={e => e.stopPropagation()}>
+            <div className="cert-modal-header">
               <div>
                 <h2>{editingTemplate ? 'Edit certificate template' : 'Create certificate template'}</h2>
                 <p>Customize the final printed certificate.</p>
               </div>
-              <button type="button" onClick={() => { setShowForm(false); setError('') }}>×</button>
+              <button type="button" className="cert-modal-close-btn" onClick={() => { setShowForm(false); setError('') }} aria-label="Close">
+                <X size={20} />
+              </button>
             </div>
-            <div className="template-form">
-              {[['name','Template name'],['certificateTitle','Certificate title'],['subtitle','Subtitle'],['organizationName','Organization name'],['signatoryName','Authorized signatory'],['signatoryPosition','Signatory position'],['validityDays','Validity in days (optional)']].map(([field, label]) => (
-                <label key={field}>{label}
-                  <input type={field === 'validityDays' ? 'number' : 'text'} value={form[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })}/>
+            <div className="cert-modal-body">
+              <div className="template-form">
+                {[['name','Template name'],['certificateTitle','Certificate title'],['subtitle','Subtitle'],['organizationName','Organization name'],['signatoryName','Authorized signatory'],['signatoryPosition','Signatory position'],['validityDays','Validity in days (optional)']].map(([field, label]) => (
+                  <label key={field}>{label}
+                    <input type={field === 'validityDays' ? 'number' : 'text'} value={form[field] || ''} onChange={e => setForm({ ...form, [field]: e.target.value })}/>
+                  </label>
+                ))}
+                <label className="full">Certificate body text
+                  <textarea value={form.bodyText} onChange={e => setForm({ ...form, bodyText: e.target.value })}/>
                 </label>
-              ))}
-              <label className="full">Certificate body text
-                <textarea value={form.bodyText} onChange={e => setForm({ ...form, bodyText: e.target.value })}/>
-              </label>
-              <label>Organization logo
-                <input type="file" accept="image/*" onChange={e => upload('logoUrl', e.target.files?.[0])}/>
-                <small>{form.logoUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
-              </label>
-              <label>Authorized signature
-                <input type="file" accept="image/*" onChange={e => upload('signatureUrl', e.target.files?.[0])}/>
-                <small>{form.signatureUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
-              </label>
+                <label>Organization logo
+                  <input type="file" accept="image/*" onChange={e => upload('logoUrl', e.target.files?.[0])}/>
+                  <small>{form.logoUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
+                </label>
+                <label>Authorized signature
+                  <input type="file" accept="image/*" onChange={e => upload('signatureUrl', e.target.files?.[0])}/>
+                  <small>{form.signatureUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
+                </label>
+              </div>
             </div>
-            <div className="modal-actions">
-              <button type="button" onClick={() => { setShowForm(false); setError('') }}>Cancel</button>
-              <button className="certificate-primary" disabled={saving}>{saving ? 'Saving…' : 'Save template'}</button>
+            <div className="cert-modal-footer">
+              <button type="button" className="cert-cancel-btn" onClick={() => { setShowForm(false); setError('') }}>Cancel</button>
+              <button type="submit" className="certificate-primary" disabled={saving}>{saving ? 'Saving…' : 'Save template'}</button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </Container>
   )
