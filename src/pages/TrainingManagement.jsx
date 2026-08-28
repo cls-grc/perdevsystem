@@ -10,7 +10,8 @@ import '../trainingCalendar.css'
 const CATEGORIES = ['Customer Service', 'Food Safety', 'Leadership', 'Compliance', 'Kitchen Operations', 'Technical Skills']
 
 export default function TrainingManagement() {
-  const [activeTab, setActiveTab] = useState('calendar') // 'calendar', 'sessions', 'workflows'
+  const [activeTab, setActiveTab] = useState('active') // 'active', 'archived', 'overview'
+  const [viewMode, setViewMode] = useState('calendar') // 'calendar' | 'cards'
   const [sessions, setSessions] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,8 +19,6 @@ export default function TrainingManagement() {
   const [notice, setNotice] = useState('')
   const [overviewStats, setOverviewStats] = useState(null)
   const [loadingStats, setLoadingStats] = useState(false)
-  const [moduleInsight, setModuleInsight] = useState(null)
-  const [generatingInsight, setGeneratingInsight] = useState(false)
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -126,19 +125,6 @@ export default function TrainingManagement() {
       if (res) setOverviewStats(res)
     } catch (_) {}
     finally { setLoadingStats(false) }
-  }
-
-  const handleGenerateInsight = async () => {
-    setGeneratingInsight(true)
-    setModuleInsight(null)
-    try {
-      const res = await api.generateModuleInsights('training', 'Training Overview analysis')
-      setModuleInsight(res)
-    } catch (err) {
-      setModuleInsight({ error: err.message || 'Failed to generate insights.' })
-    } finally {
-      setGeneratingInsight(false)
-    }
   }
 
   useEffect(() => {
@@ -527,16 +513,10 @@ export default function TrainingManagement() {
       {/* Navigation Tabs */}
       <nav className="learning-tabs training-nav-tabs" aria-label="Training views" style={{ marginBottom: 20 }}>
         <button
-          className={activeTab === 'calendar' ? 'active' : ''}
-          onClick={() => setActiveTab('calendar')}
+          className={activeTab === 'active' ? 'active' : ''}
+          onClick={() => setActiveTab('active')}
         >
-          Real-Time Training Calendar ({activeSessions.length})
-        </button>
-        <button
-          className={activeTab === 'sessions' ? 'active' : ''}
-          onClick={() => setActiveTab('sessions')}
-        >
-          Active Sessions ({activeSessions.length})
+          Training Calendar & Sessions ({activeSessions.length})
         </button>
         <button
           className={activeTab === 'archived' ? 'active' : ''}
@@ -545,178 +525,220 @@ export default function TrainingManagement() {
           Archived Sessions ({archivedSessions.length})
         </button>
         <button
-          className={activeTab === 'workflows' ? 'active' : ''}
-          onClick={() => setActiveTab('workflows')}
+          className={activeTab === 'overview' ? 'active' : ''}
+          onClick={() => setActiveTab('overview')}
         >
-          Training Overview
+          Training Analytics & Overview
         </button>
       </nav>
 
-      {/* TAB 1: CALENDAR VIEW (Active / Scheduled Only) */}
-      {activeTab === 'calendar' && (
-        <div className="calendar-view-card">
-          <div className="calendar-header-nav">
-            <h3 className="calendar-month-title">{monthYearLabel}</h3>
-            <div className="month-nav-btns">
-              <button className="month-nav-btn" onClick={handlePrevMonth}>← Prev Month</button>
-              <button className="month-nav-btn" onClick={() => setCurrentDate(new Date())}>Today</button>
-              <button className="month-nav-btn" onClick={handleNextMonth}>Next Month →</button>
+      {/* TAB 1: UNIFIED ACTIVE CALENDAR & SESSIONS VIEW */}
+      {activeTab === 'active' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'inline-flex', background: 'rgba(99, 102, 241, 0.08)', padding: 3, borderRadius: 8, gap: 4 }}>
+              <button
+                type="button"
+                className={`view-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: viewMode === 'calendar' ? '#ffffff' : 'transparent',
+                  color: viewMode === 'calendar' ? '#5a45c2' : '#64748b',
+                  boxShadow: viewMode === 'calendar' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}
+              >
+                Calendar View
+              </button>
+              <button
+                type="button"
+                className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
+                onClick={() => setViewMode('cards')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: viewMode === 'cards' ? '#ffffff' : 'transparent',
+                  color: viewMode === 'cards' ? '#5a45c2' : '#64748b',
+                  boxShadow: viewMode === 'cards' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}
+              >
+                Card Grid View ({activeSessions.length})
+              </button>
             </div>
           </div>
 
-          <div className="calendar-grid-header">
-            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-          </div>
-
-          <div className="calendar-grid-body">
-            {calendarDays.map((day, idx) => {
-              const daySessions = activeSessions.filter(s => String(s.start_date).slice(0, 10) === day.dateStr)
-              return (
-                <div
-                  key={idx}
-                  className={`calendar-day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${day.isToday ? 'today' : ''}`}
-                >
-                  <span className="day-number">{day.dayNum}</span>
-                  <div className="calendar-events-list">
-                    {daySessions.map(sess => (
-                      <div
-                        key={sess.id}
-                        className={`calendar-event-chip ${sess.category.toLowerCase().replace(/\s+/g, '-')}`}
-                        title={`${sess.title} @ ${sess.venue} (${sess.registered_count || 0}/${sess.capacity})`}
-                        onClick={() => openSessionDetailModal(sess)}
-                      >
-                        {sess.title} ({sess.registered_count || 0}/{sess.capacity})
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {activeSessions.length === 0 && !loading && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-              <p style={{ fontSize: 16, fontWeight: 600 }}>No upcoming active training sessions scheduled.</p>
-              <p style={{ fontSize: 13 }}>Completed sessions are stored in the <b>Archived Sessions</b> tab.</p>
-              {canManageSessions && (
-                <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
-                  + Create Training Session
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: ACTIVE SESSIONS VIEW */}
-      {activeTab === 'sessions' && (
-        <div className="training-sessions-grid">
-          {activeSessions.map(session => {
-            const regCount = Number(session.registered_count || 0)
-            const pct = Math.round((regCount / session.capacity) * 100)
-            return (
-              <div key={session.id} className="session-card">
-                <div>
-                  <div className="session-card-head">
-                    <span className="session-category-tag">{session.category}</span>
-                    <span className={`session-status-badge ${session.status}`}>
-                      {session.status.toUpperCase()}
-                    </span>
-                  </div>
-                  <h3 className="session-title">{session.title}</h3>
-                  <div className="session-meta-list">
-                    <div className="session-meta-item">
-                      <span>Venue:</span> <b>{session.venue}</b>
-                    </div>
-                    <div className="session-meta-item">
-                      <span>Date:</span> <b>{String(session.start_date).slice(0, 10)} ({session.start_time})</b>
-                    </div>
-                    <div className="session-meta-item">
-                      <span>Trainer:</span> <span>{session.trainer || 'HR Specialist'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="session-progress-bar">
-                    <div className="session-progress-text">
-                      <span>Capacity Utilization</span>
-                      <b>{regCount} / {session.capacity} ({pct}%)</b>
-                    </div>
-                    <div className="session-bar-track">
-                      <div className="session-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
-                    </div>
-                  </div>
-
-                  {/* Attendance Breakdown Pills */}
-                  <div className="session-attendance-breakdown" style={{ display: 'flex', gap: 6, margin: '10px 0 14px 0', flexWrap: 'wrap' }}>
-                    <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
-                      Present: {session.present_count || 0}
-                    </span>
-                    <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
-                      Absent: {session.absent_count || 0}
-                    </span>
-                    <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
-                      Late: {session.late_count || 0}
-                    </span>
-                  </div>
-
-                  <div className="session-card-actions">
-                    <button className="session-action-btn primary" onClick={() => openSessionDetailModal(session)}>
-                      Manage Session
-                    </button>
-                    {canRecordAttendance && session.status !== 'cancelled' && (
-                      <button
-                        type="button"
-                        className="session-action-btn"
-                        style={{ background: 'rgba(99, 102, 241, 0.08)', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                        onClick={() => {
-                          setQrSessionTarget(session)
-                          setShowQRModal(true)
-                        }}
-                      >
-                        <QrCode size={13} className="inline mr-1" /> QR Scanner
-                      </button>
-                    )}
-                    {!canRecordAttendance && session.status !== 'cancelled' && (
-                      <button
-                        type="button"
-                        className="session-action-btn"
-                        style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-                        onClick={() => {
-                          setEmployeeQRInitialTab('scan_session')
-                          setShowEmployeeQRModal(true)
-                        }}
-                      >
-                        <Camera size={13} className="inline mr-1" /> Check In
-                      </button>
-                    )}
-                    <button className="session-action-btn" onClick={() => handleViewAnalytics(session)}>
-                      Analytics & AI
-                    </button>
-                  </div>
+          {viewMode === 'calendar' ? (
+            <div className="calendar-view-card">
+              <div className="calendar-header-nav">
+                <h3 className="calendar-month-title">{monthYearLabel}</h3>
+                <div className="month-nav-btns">
+                  <button className="month-nav-btn" onClick={handlePrevMonth}>← Prev Month</button>
+                  <button className="month-nav-btn" onClick={() => setCurrentDate(new Date())}>Today</button>
+                  <button className="month-nav-btn" onClick={handleNextMonth}>Next Month →</button>
                 </div>
               </div>
-            )
-          })}
-          {activeSessions.length === 0 && !loading && (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-              <p style={{ fontSize: 16, fontWeight: 600 }}>No active training sessions.</p>
-              <p style={{ fontSize: 13 }}>All completed sessions are safely stored in the <b>Archived Sessions</b> tab.</p>
-              {canManageSessions && (
-                <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
-                  + Schedule Training Session
-                </button>
+
+              <div className="calendar-grid-header">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+              </div>
+
+              <div className="calendar-grid-body">
+                {calendarDays.map((day, idx) => {
+                  const daySessions = activeSessions.filter(s => String(s.start_date).slice(0, 10) === day.dateStr)
+                  return (
+                    <div
+                      key={idx}
+                      className={`calendar-day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${day.isToday ? 'today' : ''}`}
+                    >
+                      <span className="day-number">{day.dayNum}</span>
+                      <div className="calendar-events-list">
+                        {daySessions.map(sess => (
+                          <div
+                            key={sess.id}
+                            className={`calendar-event-chip ${sess.category.toLowerCase().replace(/\s+/g, '-')}`}
+                            title={`${sess.title} @ ${sess.venue} (${sess.registered_count || 0}/${sess.capacity})`}
+                            onClick={() => openSessionDetailModal(sess)}
+                          >
+                            {sess.title} ({sess.registered_count || 0}/{sess.capacity})
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {activeSessions.length === 0 && !loading && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                  <p style={{ fontSize: 16, fontWeight: 600 }}>No upcoming active training sessions scheduled.</p>
+                  <p style={{ fontSize: 13 }}>Completed sessions are stored in the <b>Archived Sessions</b> tab.</p>
+                  {canManageSessions && (
+                    <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
+                      + Create Training Session
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="training-sessions-grid">
+              {activeSessions.map(session => {
+                const regCount = Number(session.registered_count || 0)
+                const pct = Math.round((regCount / session.capacity) * 100)
+                return (
+                  <div key={session.id} className="session-card">
+                    <div>
+                      <div className="session-card-head">
+                        <span className="session-category-tag">{session.category}</span>
+                        <span className={`session-status-badge ${session.status}`}>
+                          {session.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <h3 className="session-title">{session.title}</h3>
+                      <div className="session-meta-list">
+                        <div className="session-meta-item">
+                          <span>Venue:</span> <b>{session.venue}</b>
+                        </div>
+                        <div className="session-meta-item">
+                          <span>Date:</span> <b>{String(session.start_date).slice(0, 10)} ({session.start_time})</b>
+                        </div>
+                        <div className="session-meta-item">
+                          <span>Trainer:</span> <span>{session.trainer || 'HR Specialist'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="session-progress-bar">
+                        <div className="session-progress-text">
+                          <span>Capacity Utilization</span>
+                          <b>{regCount} / {session.capacity} ({pct}%)</b>
+                        </div>
+                        <div className="session-bar-track">
+                          <div className="session-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Attendance Breakdown Pills */}
+                      <div className="session-attendance-breakdown" style={{ display: 'flex', gap: 6, margin: '10px 0 14px 0', flexWrap: 'wrap' }}>
+                        <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+                          Present: {session.present_count || 0}
+                        </span>
+                        <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
+                          Absent: {session.absent_count || 0}
+                        </span>
+                        <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+                          Late: {session.late_count || 0}
+                        </span>
+                      </div>
+
+                      <div className="session-card-actions">
+                        <button className="session-action-btn primary" onClick={() => openSessionDetailModal(session)}>
+                          Manage Session
+                        </button>
+                        {canRecordAttendance && session.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            className="session-action-btn"
+                            style={{ background: 'rgba(99, 102, 241, 0.08)', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                            onClick={() => {
+                              setQrSessionTarget(session)
+                              setShowQRModal(true)
+                            }}
+                          >
+                            <QrCode size={13} className="inline mr-1" /> QR Scanner
+                          </button>
+                        )}
+                        {!canRecordAttendance && session.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            className="session-action-btn"
+                            style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+                            onClick={() => {
+                              setEmployeeQRInitialTab('scan_session')
+                              setShowEmployeeQRModal(true)
+                            }}
+                          >
+                            <Camera size={13} className="inline mr-1" /> Check In
+                          </button>
+                        )}
+                        <button className="session-action-btn" onClick={() => handleViewAnalytics(session)}>
+                          Analytics & AI
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {activeSessions.length === 0 && !loading && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                  <p style={{ fontSize: 16, fontWeight: 600 }}>No active training sessions.</p>
+                  <p style={{ fontSize: 13 }}>All completed sessions are safely stored in the <b>Archived Sessions</b> tab.</p>
+                  {canManageSessions && (
+                    <button className="schedule-new-btn" style={{ marginTop: 12 }} onClick={() => setShowScheduleModal(true)}>
+                      + Schedule Training Session
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* TAB 3: ARCHIVED SESSIONS VIEW (Completed & Cancelled) */}
+      {/* TAB 2: ARCHIVED SESSIONS VIEW (Completed & Cancelled) */}
       {activeTab === 'archived' && (
         <div className="training-sessions-grid">
           {archivedSessions.map(session => {
@@ -800,8 +822,8 @@ export default function TrainingManagement() {
         </div>
       )}
 
-      {/* TAB 4: TRAINING OVERVIEW DASHBOARD */}
-      {activeTab === 'workflows' && (
+      {/* TAB 3: TRAINING OVERVIEW DASHBOARD */}
+      {activeTab === 'overview' && (
         <div className="training-overview-dashboard">
 
           {/* KPI STAT CARDS */}

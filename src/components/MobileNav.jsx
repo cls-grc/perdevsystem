@@ -1,4 +1,3 @@
-import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Icon } from './Sidebar'
 
@@ -9,6 +8,7 @@ const sectionsByRole = {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
         { to: '/certificates', label: 'Certificates', icon: 'award' },
       ],
     },
@@ -25,14 +25,20 @@ const sectionsByRole = {
       links: [
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
-        { to: '/succession', label: 'Succession', icon: 'users' },
+        { to: '/succession', label: 'Succession', icon: 'crown' },
         { to: '/audit', label: 'Audit Trail', icon: 'settings' },
       ],
     },
   ],
   supervisor: [
     { title: 'Overview', links: [{ to: '/', label: 'Dashboard', icon: 'grid' }] },
-    { title: 'Administration', links: [{ to: '/employees', label: 'Employee Records', icon: 'users' }] },
+    {
+      title: 'Administration',
+      links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
+      ],
+    },
     {
       title: 'Operations',
       links: [
@@ -47,7 +53,7 @@ const sectionsByRole = {
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
         { to: '/certificates', label: 'Certificates', icon: 'award' },
-        { to: '/succession', label: 'Succession', icon: 'users' },
+        { to: '/succession', label: 'Succession', icon: 'crown' },
       ],
     },
   ],
@@ -56,7 +62,8 @@ const sectionsByRole = {
     {
       title: 'Operations',
       links: [
-        { to: '/succession', label: 'Succession', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
+        { to: '/succession', label: 'Succession', icon: 'crown' },
         { to: '/recognition', label: 'Recognition', icon: 'heart' },
       ],
     },
@@ -64,7 +71,14 @@ const sectionsByRole = {
   ],
   operations_manager: [
     { title: 'Overview', links: [{ to: '/', label: 'Analytics', icon: 'grid' }] },
-    { title: 'Administration', links: [{ to: '/employees', label: 'Employee Records', icon: 'users' }, { to: '/certificates', label: 'Certificates', icon: 'award' }] },
+    {
+      title: 'Administration',
+      links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' },
+      ],
+    },
     {
       title: 'Operations',
       links: [
@@ -78,7 +92,7 @@ const sectionsByRole = {
       links: [
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
-        { to: '/succession', label: 'Succession', icon: 'users' },
+        { to: '/succession', label: 'Succession', icon: 'crown' },
         { to: '/audit', label: 'Audit Trail', icon: 'settings' },
       ],
     },
@@ -88,6 +102,7 @@ const sectionsByRole = {
     {
       title: 'Operations',
       links: [
+        { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
         { to: '/performance', label: 'Performance', icon: 'trend' },
         { to: '/competency', label: 'Development', icon: 'award' },
         { to: '/recognition', label: 'Recognition', icon: 'heart' },

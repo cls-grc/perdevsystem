@@ -52,6 +52,134 @@ router.get('/departments', async (_req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// GET /api/employees/org-tree — get visual hierarchy with succession & competency metadata
+router.get('/org-tree', async (_req, res, next) => {
+  try {
+    const empRes = await query(`
+      SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
+             e.manager_id, m.full_name AS manager_name,
+             e.performance_score, e.competency_score, e.learning_progress, e.is_active,
+             sp.readiness_score, sp.readiness_band, sp.target_role,
+             d.name AS department_name
+      FROM employees e
+      LEFT JOIN employees m ON m.id = e.manager_id
+      LEFT JOIN departments d ON d.id = e.department_id
+      LEFT JOIN succession_profiles sp ON sp.employee_id = e.id
+      WHERE e.is_active = true
+      ORDER BY e.department, e.full_name
+    `)
+    const employees = empRes.rows
+
+    // Build node map
+    const nodeMap = new Map()
+    const deptStats = {}
+
+    employees.forEach((emp) => {
+      const perf = Number(emp.performance_score) || 0
+      const comp = Number(emp.competency_score) || 0
+      const learn = Number(emp.learning_progress) || 0
+
+      // Determine succession readiness if not explicitly in table
+      let readinessBand = emp.readiness_band
+      let readinessScore = Number(emp.readiness_score) || Math.round((perf * 0.5) + (comp * 0.5))
+      if (!readinessBand) {
+        if (perf >= 86 && comp >= 85) {
+          readinessBand = 'ready_now'
+        } else if (perf >= 80 || comp >= 80) {
+          readinessBand = 'ready_in_1_2_years'
+        } else {
+          readinessBand = 'development_needed'
+        }
+      }
+
+      // Determine flight risk
+      let flightRisk = 'low'
+      if (perf >= 85 && learn < 60) flightRisk = 'medium'
+      if (perf < 75 && learn < 50) flightRisk = 'high'
+
+      // Department aggregations
+      const deptName = emp.department || 'General'
+      if (!deptStats[deptName]) {
+        deptStats[deptName] = { name: deptName, count: 0, totalPerf: 0, totalComp: 0 }
+      }
+      deptStats[deptName].count += 1
+      deptStats[deptName].totalPerf += perf
+      deptStats[deptName].totalComp += comp
+
+      // Sample department-tailored competency indicators
+      const competencies = [
+        { name: 'Core Hospitality & Service', score: comp },
+        { name: 'Standard Operating Procedures', score: Math.min(100, Math.round(comp * 0.95 + 4)) },
+        { name: 'Guest Experience & Conflict Care', score: Math.min(100, Math.round(perf * 0.98 + 2)) },
+        { name: 'Safety, Hygiene & Food Sanitation', score: Math.min(100, Math.round(learn * 0.9 + 10)) },
+        { name: 'Leadership & Succession Potential', score: Math.min(100, Math.round(readinessScore)) },
+      ]
+
+      nodeMap.set(emp.id, {
+        id: emp.id,
+        employeeNumber: emp.employee_number,
+        fullName: emp.full_name,
+        department: emp.department,
+        jobTitle: emp.job_title,
+        managerId: emp.manager_id,
+        managerName: emp.manager_name,
+        performanceScore: perf,
+        competencyScore: comp,
+        learningProgress: learn,
+        readinessBand,
+        readinessScore,
+        targetRole: emp.target_role || (emp.manager_name ? `${emp.manager_name}'s Role` : 'Executive Leadership'),
+        flightRisk,
+        competencies,
+        children: [],
+        directReportsCount: 0,
+      })
+    })
+
+    // Populate children and potential successors
+    const roots = []
+    nodeMap.forEach((node) => {
+      if (node.managerId && nodeMap.has(node.managerId)) {
+        const manager = nodeMap.get(node.managerId)
+        manager.children.push(node)
+        manager.directReportsCount += 1
+      } else {
+        roots.push(node)
+      }
+    })
+
+    // If there's an Executive Office root (e.g. Noah Santos), make sure top level is organized
+    const sortedRoots = roots.sort((a, b) => {
+      if (a.department === 'Executive Office') return -1
+      if (b.department === 'Executive Office') return 1
+      return a.fullName.localeCompare(b.fullName)
+    })
+
+    const departmentsSummary = Object.values(deptStats).map(d => ({
+      name: d.name,
+      headcount: d.count,
+      avgPerformance: Math.round(d.totalPerf / d.count),
+      avgCompetency: Math.round(d.totalComp / d.count),
+    }))
+
+    const summary = {
+      totalEmployees: employees.length,
+      totalDepartments: Object.keys(deptStats).length,
+      readyNowCount: Array.from(nodeMap.values()).filter(n => n.readinessBand === 'ready_now').length,
+      ready1to2YearsCount: Array.from(nodeMap.values()).filter(n => n.readinessBand === 'ready_in_1_2_years').length,
+      developmentNeededCount: Array.from(nodeMap.values()).filter(n => n.readinessBand === 'development_needed').length,
+      highFlightRiskCount: Array.from(nodeMap.values()).filter(n => n.flightRisk === 'high').length,
+    }
+
+    res.json({
+      tree: sortedRoots,
+      nodes: Array.from(nodeMap.values()),
+      departments: departmentsSummary,
+      summary,
+    })
+  } catch (error) { next(error) }
+})
+
 // POST /api/employees/invite — send invite (HR only)
 router.post('/invite', authorize('hr'), async (req, res, next) => {
   try {

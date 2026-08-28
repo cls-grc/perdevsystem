@@ -50,14 +50,57 @@ export const SUCCESSION_READINESS = ['Ready Now', 'Ready in 1-2 Years', 'Potenti
 // KPI library — selecting one auto-fills name, description, weight, target,
 // measurement. HR only adjusts the weight/target values.
 export const KPI_LIBRARY = [
-  { name: 'Customer Satisfaction', description: 'Overall satisfaction as measured by post-service surveys.', weight: 25, target: '90', measurement: 'Survey score (%)' },
-  { name: 'Attendance', description: 'Consistent attendance and punctuality across the period.', weight: 15, target: '95', measurement: 'Attendance rate (%)' },
-  { name: 'Food Quality', description: 'Consistency and quality of food output against standards.', weight: 20, target: '90', measurement: 'Quality audit score (%)' },
-  { name: 'Service Speed', description: 'Speed of service delivery from order to completion.', weight: 15, target: '85', measurement: 'Avg service time (min)' },
-  { name: 'Revenue Target', description: 'Contribution to revenue targets for the period.', weight: 15, target: '100', measurement: 'Revenue achievement (%)' },
-  { name: 'Inventory Accuracy', description: 'Accuracy of inventory records and stock levels.', weight: 10, target: '95', measurement: 'Accuracy rate (%)' },
-  { name: 'Teamwork', description: 'Collaboration and contribution to team objectives.', weight: 10, target: '90', measurement: 'Peer review score (%)' },
+  // ── General / Cross-department ──────────────────────────────────────────
+  { name: 'Customer Satisfaction', department: 'All', description: 'Overall guest satisfaction measured by post-service surveys and online review scores.', weight: 25, target: '90', measurement: 'Survey score (%)' },
+  { name: 'Attendance & Punctuality', department: 'All', description: 'Consistent on-time arrival and reliable attendance across the review period.', weight: 15, target: '95', measurement: 'Attendance rate (%)' },
+  { name: 'Teamwork & Collaboration', department: 'All', description: 'Constructive cooperation and contribution to team objectives.', weight: 10, target: '90', measurement: 'Peer review score (%)' },
+  { name: 'Communication Skills', department: 'All', description: 'Clarity, professionalism, and effectiveness of verbal and written communication.', weight: 10, target: '85', measurement: 'Supervisor assessment (%)' },
+  { name: 'Revenue Target Achievement', department: 'All', description: 'Personal or departmental contribution toward revenue targets.', weight: 15, target: '100', measurement: 'Revenue achievement (%)' },
+  { name: 'Grooming & Uniform Compliance', department: 'All', description: 'Adherence to hotel grooming standards and proper uniform at all times.', weight: 10, target: '100', measurement: 'Compliance rate (%)' },
+  { name: 'Upselling Conversion', department: 'All', description: 'Success rate in converting upsell opportunities for amenities, upgrades, and add-ons.', weight: 15, target: '30', measurement: 'Upsell conversion rate (%)' },
+
+  // ── Food & Beverage ──────────────────────────────────────────────────────
+  { name: 'F&B Revenue per Cover', department: 'Food & Beverage', description: 'Average revenue generated per guest cover in the restaurant or banquet.', weight: 20, target: '850', measurement: 'Revenue per cover (PHP)' },
+  { name: 'Table Turnover Rate', department: 'Food & Beverage', description: 'Number of times a table is occupied and cleared per service period, maximizing revenue.', weight: 15, target: '3', measurement: 'Turns per service period' },
+  { name: 'Order Accuracy', department: 'Food & Beverage', description: 'Percentage of guest orders delivered correctly without modification or complaint.', weight: 20, target: '98', measurement: 'Order accuracy rate (%)' },
+  { name: 'Service Speed (F&B)', department: 'Food & Beverage', description: 'Average time from order placement to food delivery.', weight: 15, target: '15', measurement: 'Minutes per order' },
+  { name: 'Beverage Cost Control', department: 'Food & Beverage', description: 'Actual beverage cost as a percentage of beverage revenue, within budget.', weight: 15, target: '28', measurement: 'Beverage cost % of revenue' },
+  { name: 'Guest Complaint Resolution (F&B)', department: 'Food & Beverage', description: 'Percentage of F&B guest complaints resolved satisfactorily on first contact.', weight: 15, target: '95', measurement: 'Resolution rate (%)' },
+  { name: 'Menu Knowledge Score', department: 'Food & Beverage', description: 'Demonstrated knowledge of menu items, allergens, preparation methods, and pairings.', weight: 10, target: '90', measurement: 'Assessment score (%)' },
+  { name: 'Banquet Setup Timeliness', department: 'Food & Beverage', description: 'Percentage of banquet events set up fully within the client-specified lead time.', weight: 20, target: '100', measurement: 'On-time setup rate (%)' },
+  { name: 'Daily Cover Count', department: 'Food & Beverage', description: 'Total number of guests served per day against daily forecasted covers.', weight: 15, target: '95', measurement: 'Covers vs. forecast (%)' },
+  { name: 'Bar Variance / Wastage', department: 'Food & Beverage', description: 'Discrepancy between recorded bar pours and actual inventory used.', weight: 10, target: '2', measurement: 'Variance % (lower is better)' },
+
+  // ── Kitchen / Culinary ───────────────────────────────────────────────────
+  { name: 'Food Cost Percentage', department: 'Kitchen', description: 'Total food cost as a percentage of food revenue, reflecting waste control and portioning discipline.', weight: 25, target: '30', measurement: 'Food cost % of revenue' },
+  { name: 'Food Quality Audit Score', department: 'Kitchen', description: 'Consistency, presentation, and quality of all food output against hotel standards.', weight: 25, target: '92', measurement: 'Quality audit score (%)' },
+  { name: 'HACCP Compliance Rate', department: 'Kitchen', description: 'Adherence to Hazard Analysis and Critical Control Points protocols during food preparation.', weight: 20, target: '100', measurement: 'HACCP audit pass rate (%)' },
+  { name: 'Prep Time Efficiency', department: 'Kitchen', description: 'Ability to complete mise en place preparation within standard time benchmarks.', weight: 15, target: '90', measurement: 'On-time prep completion (%)' },
+  { name: 'Kitchen Cleanliness Score', department: 'Kitchen', description: 'Condition and cleanliness of kitchen workstation, equipment, and storage areas.', weight: 15, target: '95', measurement: 'Sanitation audit score (%)' },
+  { name: 'Recipe Adherence', department: 'Kitchen', description: 'Consistency of dish output against standardized recipes and plating guides.', weight: 20, target: '95', measurement: 'Recipe adherence rate (%)' },
+  { name: 'Inventory / Wastage Control', department: 'Kitchen', description: 'Minimization of food spoilage and over-production relative to inventory used.', weight: 15, target: '5', measurement: 'Wastage % of inventory (lower is better)' },
+  { name: 'Cross-Contamination Incidents', department: 'Kitchen', description: 'Number of cross-contamination incidents or unsafe food-handling events reported.', weight: 20, target: '0', measurement: 'Incidents (lower is better)' },
+  { name: 'Kitchen Output Speed', department: 'Kitchen', description: 'Average time from kitchen ticket receipt to dish delivery to pass.', weight: 15, target: '12', measurement: 'Minutes per ticket' },
+  { name: 'Cold Chain Compliance', department: 'Kitchen', description: 'Consistency of proper cold storage temperatures monitored and recorded per shift.', weight: 15, target: '100', measurement: 'Temperature log compliance (%)' },
+
+  // ── Housekeeping ─────────────────────────────────────────────────────────
+  { name: 'Room Cleanliness Score', department: 'Housekeeping', description: 'Overall cleanliness and presentation quality of guest rooms as measured by inspection audits.', weight: 30, target: '95', measurement: 'Room inspection score (%)' },
+  { name: 'Room Turnover Time', department: 'Housekeeping', description: 'Average time to fully clean and prepare a standard guest room between stays.', weight: 20, target: '25', measurement: 'Minutes per room' },
+  { name: 'Amenity Replenishment Accuracy', department: 'Housekeeping', description: 'Accuracy and completeness of in-room amenity replenishment per standard setup sheet.', weight: 15, target: '99', measurement: 'Accuracy rate (%)' },
+  { name: 'Guest Satisfaction - Housekeeping', department: 'Housekeeping', description: 'Guest satisfaction scores specifically attributed to room cleanliness and housekeeping service.', weight: 25, target: '90', measurement: 'Guest survey score (%)' },
+  { name: 'Linen & Laundry Turnaround', department: 'Housekeeping', description: 'Time from soiled linen collection to clean linen return and room restocking.', weight: 15, target: '4', measurement: 'Hours turnaround time' },
+  { name: 'Minibar Accuracy', department: 'Housekeeping', description: 'Accuracy of minibar check and restock relative to guest consumption billing records.', weight: 10, target: '98', measurement: 'Accuracy rate (%)' },
+  { name: 'Maintenance Request Reporting', department: 'Housekeeping', description: 'Timely identification and reporting of room maintenance defects discovered during cleaning.', weight: 15, target: '100', measurement: 'Defects reported within 1 shift (%)' },
+  { name: 'Chemical Usage Compliance', department: 'Housekeeping', description: 'Correct use of approved cleaning chemicals in proper dilutions per safety and brand standards.', weight: 10, target: '100', measurement: 'Compliance rate (%)' },
+  { name: 'Public Area Cleanliness', department: 'Housekeeping', description: 'Cleanliness, tidiness, and presentation of hotel public spaces, corridors, and lobbies.', weight: 20, target: '95', measurement: 'Public area inspection score (%)' },
+  { name: 'DND & Guest Privacy Compliance', department: 'Housekeeping', description: 'Adherence to Do Not Disturb protocols and guest privacy policies.', weight: 10, target: '100', measurement: 'Compliance incidents (0 = perfect)' },
+
+  // ── Front Office ─────────────────────────────────────────────────────────
+  { name: 'Check-in/Out Efficiency', department: 'Front Office', description: 'Average time to complete a guest check-in or check-out transaction.', weight: 20, target: '5', measurement: 'Minutes per transaction' },
+  { name: 'Reservation Accuracy', department: 'Front Office', description: 'Percentage of reservations handled without discrepancy, error, or duplicate booking.', weight: 20, target: '98', measurement: 'Accuracy rate (%)' },
+  { name: 'Inventory Accuracy', department: 'Front Office', description: 'Accuracy of room inventory records and stock levels.', weight: 10, target: '95', measurement: 'Accuracy rate (%)' },
 ]
+
 
 // Learning template library — selecting one auto-fills title, description,
 // objectives, duration, category. Users only edit if needed.

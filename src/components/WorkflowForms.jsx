@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users } from 'lucide-react'
 import {
   KPI_LIBRARY, LEARNING_TEMPLATES, COMPETENCY_TEMPLATES, GOAL_TEMPLATES,
@@ -276,11 +276,21 @@ function KpiLibraryBuilder({ value = [], onChange }) {
             e.target.value = ''
           }}>
             <option value="">Choose a KPI…</option>
-            {KPI_LIBRARY.map(k => (
-              <option key={k.name} value={k.name} disabled={value.some(r => r.name === k.name)}>{k.name} ({k.weight}% · {k.measurement})</option>
-            ))}
+            {['All', 'Food & Beverage', 'Kitchen', 'Housekeeping', 'Front Office'].map(dept => {
+              const deptKpis = KPI_LIBRARY.filter(k => (k.department || 'All') === dept)
+              if (!deptKpis.length) return null
+              return (
+                <optgroup key={dept} label={dept === 'All' ? 'General (All Departments)' : dept}>
+                  {deptKpis.map(k => (
+                    <option key={k.name} value={k.name} disabled={value.some(r => r.name === k.name)}>
+                      {k.name} · {k.measurement}
+                    </option>
+                  ))}
+                </optgroup>
+              )
+            })}
           </select>
-          <small>Pick a KPI from the list to add it, then adjust its weight and target if needed.</small>
+          <small>Pick a KPI from the list (grouped by department) to add it, then adjust its weight and target if needed.</small>
         </label>
       </div>
       {value.length > 0 && (
@@ -1317,25 +1327,158 @@ function CompetencyRequirementBuilder({ value = [], onChange }) {
   )
 }
 
-// ------------------------- Builder: Resources ------------------------------
+// ------------------------- Builder: Resources (from Learning Management) ---
 
 function ResourcesBuilder({ value = [], onChange }) {
-  const set = (index, patch) => onChange(value.map((row, i) => i === index ? { ...row, ...patch } : row))
-  const add = () => onChange([...value, { type: 'link', name: '', url: '' }])
-  const remove = index => onChange(value.filter((_, i) => i !== index))
+  const [lmResources, setLmResources] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchQ, setSearchQ] = useState('')
+  const [catFilter, setCatFilter] = useState('')
+  const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let active = true
+    api.learningResources().then(res => {
+      if (active) {
+        setLmResources(res.resources || [])
+        setLoading(false)
+      }
+    }).catch(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+
+  const linkedIds = new Set(value.map(r => r.id))
+  const categories = [...new Set(lmResources.map(r => r.category).filter(Boolean))]
+
+  const filtered = lmResources.filter(r => {
+    const q = searchQ.toLowerCase()
+    const matchQ = !q || r.title?.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q)
+    const matchCat = !catFilter || r.category === catFilter
+    return matchQ && matchCat
+  })
+
+  const link = (resource) => {
+    if (linkedIds.has(resource.id)) return
+    onChange([...value, {
+      id: resource.id,
+      name: resource.title,
+      type: resource.provider_type === 'video' ? 'Video' : resource.provider_type === 'pdf' ? 'PDF' : 'Link',
+      url: resource.url || '',
+      category: resource.category,
+      duration: resource.duration_hours,
+      description: resource.description,
+    }])
+    setNotice(`"${resource.title}" linked to this competency plan.`)
+    setTimeout(() => setNotice(''), 3000)
+  }
+
+  const unlink = (id) => onChange(value.filter(r => r.id !== id))
+
   return (
-    <div className="builder resources-builder">
-      {value.map((row, index) => (
-        <div className="builder-row" key={index}>
-          <div className="builder-grid">
-            <label>Type<select value={row.type} onChange={e => set(index, { type: e.target.value })}><option>PDF</option><option>Video</option><option>Link</option><option>Document</option></select></label>
-            <label>Name<input value={row.name} onChange={e => set(index, { name: e.target.value })} placeholder="e.g. HACCP Guide" /></label>
-            <label>URL / Note<input value={row.url} onChange={e => set(index, { url: e.target.value })} placeholder="https://… or note" /></label>
-            <button type="button" className="builder-remove" onClick={() => remove(index)} aria-label="Delete">×</button>
+    <div className="builder resources-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Linked Resources Summary */}
+      {value.length > 0 && (
+        <div style={{ background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.18)', borderRadius: 10, padding: '12px 14px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5', marginBottom: 8 }}>
+            ✓ {value.length} Learning Resource{value.length !== 1 ? 's' : ''} Linked
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {value.map((r, i) => (
+              <span key={r.id || i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', border: '1px solid #e0e7ff', borderRadius: 20, padding: '3px 10px', fontSize: 11.5, fontWeight: 600, color: '#3730a3' }}>
+                {r.name}
+                <button type="button" onClick={() => unlink(r.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 13, lineHeight: 1, padding: 0 }} aria-label="Unlink">×</button>
+              </span>
+            ))}
           </div>
         </div>
-      ))}
-      <button type="button" className="builder-add" onClick={add}>+ Add resource</button>
+      )}
+
+      {notice && <div style={{ padding: '8px 12px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#065f46', fontSize: 12, fontWeight: 600 }}>{notice}</div>}
+
+      {/* Filter Bar */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '1 1 200px' }}>
+          <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="Search learning resources…"
+            style={{ width: '100%', paddingLeft: 28, paddingRight: 8, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, boxSizing: 'border-box' }}
+          />
+        </div>
+        <select
+          value={catFilter}
+          onChange={e => setCatFilter(e.target.value)}
+          style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#374151', minWidth: 140 }}
+        >
+          <option value="">All categories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Resource Cards from Learning Management */}
+      {loading ? (
+        <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>Loading learning resources…</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No resources found. Add resources in Learning Management first.</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', paddingRight: 2 }}>
+          {filtered.map(resource => {
+            const isLinked = linkedIds.has(resource.id)
+            return (
+              <div
+                key={resource.id}
+                style={{
+                  border: `1px solid ${isLinked ? '#a5b4fc' : '#e2e8f0'}`,
+                  borderRadius: 10,
+                  padding: '11px 12px',
+                  background: isLinked ? '#f5f3ff' : '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  transition: 'box-shadow 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                  <span style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', borderRadius: 12, padding: '2px 8px', fontSize: 10.5, fontWeight: 700 }}>
+                    {resource.category || 'General'}
+                  </span>
+                  {resource.duration_hours && (
+                    <span style={{ fontSize: 10.5, color: '#64748b', display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Clock size={11} /> {resource.duration_hours}h
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>{resource.title}</div>
+                {resource.description && (
+                  <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {resource.description}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={isLinked}
+                  onClick={() => link(resource)}
+                  style={{
+                    marginTop: 4,
+                    padding: '5px 10px',
+                    borderRadius: 7,
+                    border: 'none',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: isLinked ? 'default' : 'pointer',
+                    background: isLinked ? '#e0e7ff' : '#4f46e5',
+                    color: isLinked ? '#4f46e5' : '#fff',
+                  }}
+                >
+                  {isLinked ? '✓ Linked' : '+ Link to Plan'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

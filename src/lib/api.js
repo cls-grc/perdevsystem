@@ -198,6 +198,16 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   employeeTrainingSessions: (employeeId) => request(`/api/training/sessions?employeeId=${employeeId}`),
   trainingStats: () => request('/api/training/stats'),
 
+  // Visual Org Chart
+  orgTree: () => request('/api/employees/org-tree'),
+
+  // Social Recognition Wall & Feed
+  recognitionFeed: () => request('/api/recognition/feed'),
+  postRecognition: (data) => request('/api/recognition/post', { method: 'POST', body: JSON.stringify(data) }),
+  reactRecognition: (id, reaction) => request(`/api/recognition/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction }) }),
+  commentRecognition: (id, text) => request(`/api/recognition/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) }),
+  recognitionLeaderboard: () => request('/api/recognition/leaderboard'),
+
   // CSV exports (client-side from fetched data — no extra endpoint needed)
   exportEmployeesCsv: async () => {
     const result = await request('/api/employees/all')

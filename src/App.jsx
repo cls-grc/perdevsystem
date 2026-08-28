@@ -1,8 +1,7 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import Header from './components/Header'
-import Dashboard from './components/Dashboard'
 import LiveToast from './components/LiveToast'
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { api } from './lib/api'
@@ -21,6 +20,7 @@ import './learningLibrary.css'
 import './responsive.css'
 import './animations.css'
 import './darkModeFixes.css'
+import './interactiveWorkflow.css'
 
 // Lazy-load other page components so each is only downloaded when first visited
 const AIAnalytics = lazy(() => import('./pages/AIAnalytics'))
@@ -33,6 +33,7 @@ const SocialRecognition = lazy(() => import('./pages/SocialRecognition'))
 const CertificateManagement = lazy(() => import('./pages/CertificateManagement'))
 const CertificateVerification = lazy(() => import('./pages/CertificateVerification'))
 const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'))
+const OrgChart = lazy(() => import('./pages/OrgChart'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const Register = lazy(() => import('./pages/Register'))
 const RoleHome = lazy(() => import('./pages/RoleHome'))
@@ -103,6 +104,7 @@ function ModuleRoutes({ user }) {
       import('./pages/TrainingManagement')
       import('./pages/SuccessionPlanning')
       import('./pages/SocialRecognition')
+      import('./pages/OrgChart')
       import('./pages/CertificateManagement')
       import('./pages/EmployeeManagement')
       import('./pages/AuditLogs')
@@ -140,6 +142,7 @@ function ModuleRoutes({ user }) {
             }
           />
           <Route path="/recognition" element={<SocialRecognition key={`recog-${user.id}`} />} />
+          <Route path="/orgchart" element={<OrgChart key={`org-${user.id}`} />} />
           <Route
             path="/certificates"
             element={
@@ -184,7 +187,7 @@ function App() {
   const [dark, setDark] = useState(() => {
     try {
       return localStorage.getItem('pds-theme') === 'dark'
-    } catch (e) {
+    } catch {
       return false
     }
   })
@@ -201,7 +204,7 @@ function App() {
     }
     try {
       localStorage.setItem('pds-theme', dark ? 'dark' : 'light')
-    } catch (e) {}
+    } catch (err) { void err }
   }, [dark])
 
   const handleLogout = (reason = '') => {
@@ -222,7 +225,7 @@ function App() {
 
     // Store session notice across the reload if one was provided
     if (noticeMsg) {
-      try { sessionStorage.setItem('pds-session-notice', noticeMsg) } catch {}
+      try { sessionStorage.setItem('pds-session-notice', noticeMsg) } catch (err) { void err }
     }
 
     // Hard-navigate to root so Login always mounts fresh with no stale app shell

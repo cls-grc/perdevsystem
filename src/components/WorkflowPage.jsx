@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Component } from 'react'
+import { createPortal } from 'react-dom'
 import SearchableSelector from './SearchableSelector'
 import ModuleAIInsights from './ModuleAIInsights'
 import WorkflowForms, { getInitialValue } from './WorkflowForms'
 import WorkflowTimeline from './WorkflowTimeline'
 import ModuleDashboard from './ModuleDashboard'
-import ModuleBusinessView from './ModuleBusinessView'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { usePolling } from '../hooks/usePolling'
 import { api } from '../lib/api'
@@ -180,17 +180,12 @@ const [workflow, setWorkflow] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-const [detailsOpen, setDetailsOpen] = useState(false)
-  const [detailsStage, setDetailsStage] = useState(null)
-const [bizOpen, setBizOpen] = useState(false)
   const [returnOpen, setReturnOpen] = useState(false)
   const [returnTarget, setReturnTarget] = useState('')
   const [returnNote, setReturnNote] = useState('')
-const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
-const [schedule, setSchedule] = useState({ date: '', time: '09:00', venue: 'Hotel Learning Hub' })
-const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmAction, setConfirmAction] = useState(null)
+  const [schedule, setSchedule] = useState({ date: '', time: '09:00', venue: 'Hotel Learning Hub' })
   // Per-step form data
   const [formData, setFormData] = useState({})
   // New workflow composer state (clean slate for each new cycle)
@@ -315,7 +310,7 @@ const canStart = Boolean(normalizedStages[0]?.roles.includes(role))
   const roleCurrentIndex = workflow ? roleStages.findIndex(stage => stage.key === workflow?.current_stage) : -1
   const display = current?.label || normalizedStages[0]?.label || 'Workflow'
   const currentDescription = current?.description || 'Review the current step details and complete when ready.'
-  const detailTarget = detailsStage || current
+  const detailTarget = current
   const canReturn = Boolean(workflow && canAct && roleCurrentIndex > 0)
   const canCancel = Boolean(workflow && (role === 'hr' || userId === workflow.created_by))
   const previousStageOptions = workflow && canAct
@@ -424,8 +419,7 @@ const setFormValue = useCallback((patchOrValue, meta) => {
     if (meta?.submit) {
       // Form submitted — store the data and proceed with completion
       setFormData(prev => ({ ...prev, [key]: patchOrValue }))
-      setConfirmAction(() => complete)
-      setConfirmOpen(true)
+      void complete()
       return
     }
     setFormData(prev => ({ ...prev, [key]: patchOrValue }))
@@ -493,8 +487,6 @@ const showNotice = (msg, type = 'success') => {
     setReturnTarget('')
     setReturnNote('')
     setCancelReason('')
-    setConfirmOpen(false)
-    setConfirmAction(null)
   }
 
   // Core workflow creation. Resets all state first so nothing from the previous
@@ -693,7 +685,6 @@ const complete = async () => {
         data: { selectedItem: selected[0], formData: currentFormValue, ...currentFormValue },
       })
       setNote('')
-      setConfirmOpen(false)
       if (result.completed) {
         if (result.employee) {
           setPeople(prev => prev.map(person => person.id === result.employee.id ? { ...person, ...result.employee } : person))
@@ -818,19 +809,17 @@ const quickAction = action => {
   const quickApprove = () => {
     if (!workflow || !canAct) return
     setNote(quickDecisionNote?.approve || 'Approved')
-    setConfirmAction(() => complete)
-    setConfirmOpen(true)
+    void complete()
   }
   const quickReject = () => {
     if (!workflow || !canAct) return
-    setNote(quickDecisionNote?.reject || 'Returned for revision')
     if (canReturn) {
       setReturnTarget(previousStageOptions[0]?.value || '')
       setReturnNote(quickDecisionNote?.reject || 'Returned for revision')
       setReturnOpen(true)
     } else {
-      setConfirmAction(() => complete)
-      setConfirmOpen(true)
+      setNote(quickDecisionNote?.reject || 'Returned for revision')
+      void complete()
     }
   }
 
@@ -952,11 +941,9 @@ const saveSchedule = async () => {
   }
 
   // Focus management for each dialog.
-  const detailsRef = useDialogFocus(detailsOpen, () => { setDetailsOpen(false); setDetailsStage(null) })
   const scheduleRef = useDialogFocus(scheduleOpen, () => setScheduleOpen(false))
   const returnRef = useDialogFocus(returnOpen, () => { setReturnOpen(false); setReturnTarget(''); setReturnNote('') })
   const cancelRef = useDialogFocus(cancelOpen, () => { setCancelOpen(false); setCancelReason('') })
-  const confirmRef = useDialogFocus(confirmOpen, () => setConfirmOpen(false))
   const bulkRef = useDialogFocus(bulkOpen, () => !bulkSaving && setBulkOpen(false))
 
   if (loading) return <main className="module-workspace"><div className="dashboard-skeleton"><i /><i /><i /><i /></div></main>
@@ -1009,44 +996,32 @@ const saveSchedule = async () => {
       onQuickAction={quickAction}
     />
 
-{/* Module-specific business workspace — distinct identity per module,
-        driven entirely by live analytics + workflow data. Collapsible so the
-        workflow process stays front and center by default. */}
-    <section className="module-biz-collapsible">
-      <button
-        type="button"
-        className={`module-biz-toggle ${bizOpen ? 'open' : ''}`}
-        onClick={() => setBizOpen(o => !o)}
-        aria-expanded={bizOpen}
-      >
-        <span className="module-biz-toggle-icon">{bizOpen ? '▾' : '▸'}</span>
-        <span className="module-biz-toggle-label">Analytics overview</span>
-        <span className="module-biz-toggle-hint">{bizOpen ? 'Hide' : 'Show'}</span>
-      </button>
-      {bizOpen && (
-        <div className="module-biz-panel">
-          <ModuleBusinessView
-            moduleKey={moduleKey}
-            data={analyticsData}
-            workflows={workflows}
-            completedWorkflows={completedWorkflows}
-          />
-        </div>
-      )}
-    </section>
-
-<section className="module-metrics">
-      {stats.map(([label, value], index) => <article key={label}><span>{index + 1}</span><div><small>{label}</small><b>{value}</b><em>Live database value</em></div></article>)}
-    </section>
-
     <section className="module-grid">
       <section className="module-process">
         <div className="module-process-head">
-          <span>{workflow ? (canAct ? 'Action required' : 'Read-only status') : 'Ready to start'}</span>
-          <b>{display}</b>
+          <div>
+            <span>{workflow ? (canAct ? 'Action required' : 'Read-only status') : 'Ready to start'}</span>
+            <b>{display}</b>
+          </div>
+          {workflows.length > 1 && (
+            <div className="workflow-header-picker">
+              <select
+                className="workflow-picker-inline"
+                value={workflow?.id || ''}
+                onChange={event => chooseWorkflow(event.target.value)}
+                aria-label="Switch active workflow"
+              >
+                {workflows.map(entry => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.subject_name ? `${entry.subject_name} — ${entry.title}` : entry.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-{/* Step stepper — richer states: complete / current / upcoming / locked / ai / finalized */}
+        {/* Step stepper — richer states: complete / current / upcoming / locked / ai / finalized */}
         <div className="module-steps">
           {roleStages.map((stage, index) => {
             const isAi = moduleCfg?.stepForms?.[stage.key]?.aiOnly
@@ -1070,10 +1045,7 @@ const saveSchedule = async () => {
               <div
                 key={stage.key}
                 className={`module-step ${stStatus} ${isAi ? 'ai-step' : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => { setDetailsStage(stage); setDetailsOpen(true) }}
-                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailsStage(stage); setDetailsOpen(true) } }}
+                title={`${stage.label}: ${statusLabel}`}
               >
                 <div className="step-marker">{isFinalized ? <Check size={14} /> : stStatus === 'complete' ? <Check size={14} /> : isAi ? <Sparkles size={13} /> : index + 1}</div>
                 <div className="step-copy"><b>{stage.label}</b><small>{statusLabel}</small></div>
@@ -1085,42 +1057,17 @@ const saveSchedule = async () => {
         {/* Step details and form */}
         <div className="module-content">
           <h2>{display}</h2>
-          <p>{workflow ? currentDescription : canStart ? 'Select a record, then start the workflow.' : 'Your role does not have a start action for this workflow.'}</p>
+          <p>{workflow ? currentDescription : canStart ? 'Start a new workflow cycle to begin.' : 'Your role does not have a start action for this workflow.'}</p>
 
-{/* Dynamic subject indicator + unified subject selector.
-              The "Currently evaluating" label updates live as the user picks an
-              employee (composer or this selector), before any workflow exists,
-              and falls back to the active workflow's subject. */}
-<div className="module-subject-bar">
-            <span className="module-current-subject">
-              <strong>Currently evaluating:</strong>{' '}
-              {workflow ? (
+          {/* Dynamic subject indicator when a workflow is active */}
+          {workflow && (
+            <div className="module-subject-bar">
+              <span className="module-current-subject">
+                <strong>Evaluating Subject:</strong>{' '}
                 <em className="subject-fixed">{workflow.subject_name || 'Unassigned'}</em>
-              ) : (
-                evaluatingSubject?.full_name || 'None selected'
-              )}
-            </span>
-            {!workflow && canStart && people.length > 0 && (
-              <div className="module-subject-select">
-                <input
-                  className="module-subject-search"
-                  value={evaluatingSubject ? evaluatingSubject.full_name : ''}
-                  onFocus={event => (event.target.value = '')}
-                  onChange={event => {
-                    const q = event.target.value
-                    const match = people.find(p => p.full_name.toLowerCase() === q.trim().toLowerCase())
-                    setEvaluatingSubject(match || null)
-                  }}
-                  placeholder="Search & select subject to evaluate…"
-                  list="module-subject-list"
-                  aria-label="Select subject to evaluate"
-                />
-                <datalist id="module-subject-list">
-                  {people.map(person => <option key={person.id} value={person.full_name}>{person.job_title} · {person.department}</option>)}
-                </datalist>
-              </div>
-            )}
-          </div>
+              </span>
+            </div>
+          )}
 
 {workflow ? (
             <>
@@ -1223,15 +1170,6 @@ const saveSchedule = async () => {
             </div>
           )}
 
-{workflows.length > 0 && (
-            <div className="workflow-picker-wrap">
-              <label className="workflow-picker-label">Active workflow</label>
-              <select className="workflow-picker" value={workflow?.id || ''} onChange={event => chooseWorkflow(event.target.value)} aria-label="Select active workflow">
-                {workflows.map(entry => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
-              </select>
-            </div>
-          )}
-
 {/* Completed workflow history — RBAC-aware. HR / management / operations_manager
               / supervisor can browse all completed workflows; employees can only see
               the ones where they were the subject (enforced server-side). */}
@@ -1258,57 +1196,23 @@ const saveSchedule = async () => {
       <ModuleAIInsights module={moduleKey} stage={display} workflowId={aiTargetWorkflowId || workflow?.id || lastCompleted?.id} />
     </section>
 
-    {/* Stage details modal */}
-    {detailsOpen && (
-      <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Stage details" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>
-        <section className="settings-dialog workflow-modal" ref={detailsRef} onClick={event => event.stopPropagation()}>
-          <div className="module-process-head">
-            <span>Stage details</span>
-            <b>{detailTarget?.label || 'Current stage'}</b>
-          </div>
-<p>{detailTarget?.description || currentDescription}</p>
-          {(() => {
-            const guide = (STAGE_GUIDES[moduleKey] || {})[detailTarget?.key]
-            if (!guide) return null
-            return (
-              <div className="step-guide-card modal-guide">
-                <div className="step-guide-head"><span>Current task</span><em>~{guide.time}</em></div>
-                <h4>{guide.task}</h4>
-                <p>{guide.action}</p>
-                <ul className="step-guide-checklist">
-                  {guide.checklist.map(item => <li key={item}>· {item}</li>)}
-                </ul>
-              </div>
-            )
-          })()}
-          <div className="module-data">
-            <article><small>Assigned roles</small><b>{detailTarget?.roles?.join(', ') || 'N/A'}</b></article>
-            {workflow?.subject_name && <article><small>Subject</small><b>{workflow.subject_name}</b></article>}
-          </div>
+    {scheduleOpen && createPortal(
+      <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Schedule training" onClick={() => setScheduleOpen(false)}>
+        <section className="schedule-dialog" ref={scheduleRef} onClick={event => event.stopPropagation()}>
+          <div><h2>Schedule training</h2><p>Set session details after HR verifies enrollment.</p></div>
+          <label>Training date<input type="date" value={schedule.date} onChange={event => setSchedule({ ...schedule, date: event.target.value })} /></label>
+          <label>Start time<input type="time" value={schedule.time} onChange={event => setSchedule({ ...schedule, time: event.target.value })} /></label>
+          <label>Venue<input value={schedule.venue} onChange={event => setSchedule({ ...schedule, venue: event.target.value })} /></label>
           <div className="module-actions">
-            <button className="cancel-button" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>Close</button>
-            <button className="module-primary" onClick={() => { setDetailsOpen(false); setDetailsStage(null) }}>Got it</button>
+            <button className="module-secondary" onClick={() => setScheduleOpen(false)}>Cancel</button>
+            <button className="module-primary" disabled={saving} onClick={saveSchedule}>{saving ? 'Saving...' : 'Confirm schedule'}</button>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
 
-    {/* Confirmation dialog */}
-    {confirmOpen && (
-      <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Confirm action" onClick={() => setConfirmOpen(false)}>
-        <section className="schedule-dialog workflow-modal" ref={confirmRef} onClick={event => event.stopPropagation()}>
-          <div><h2>Confirm step completion</h2><p>This will complete the current step and advance the workflow to the next stage.</p></div>
-          <div className="module-actions">
-            <button className="module-secondary" onClick={() => setConfirmOpen(false)}>Cancel</button>
-            <button className="module-primary" disabled={saving} onClick={confirmAction}>{saving ? 'Completing...' : 'Confirm & complete'}</button>
-          </div>
-        </section>
-      </div>
-    )}
-
-    {scheduleOpen && <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Schedule training" onClick={() => setScheduleOpen(false)}><section className="schedule-dialog" ref={scheduleRef} onClick={event => event.stopPropagation()}><div><h2>Schedule training</h2><p>Set session details after HR verifies enrollment.</p></div><label>Training date<input type="date" value={schedule.date} onChange={event => setSchedule({ ...schedule, date: event.target.value })} /></label><label>Start time<input type="time" value={schedule.time} onChange={event => setSchedule({ ...schedule, time: event.target.value })} /></label><label>Venue<input value={schedule.venue} onChange={event => setSchedule({ ...schedule, venue: event.target.value })} /></label><div className="module-actions"><button className="module-secondary" onClick={() => setScheduleOpen(false)}>Cancel</button><button className="module-primary" disabled={saving} onClick={saveSchedule}>{saving ? 'Saving...' : 'Confirm schedule'}</button></div></section></div>}
-
-    {returnOpen && (
+    {returnOpen && createPortal(
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Return step" onClick={() => { setReturnOpen(false); setReturnTarget(''); setReturnNote('') }}>
         <section className="schedule-dialog workflow-modal" ref={returnRef} onClick={event => event.stopPropagation()}>
           <div><h2>Return step</h2><p>Send this workflow back to an earlier stage for revision. The assigned role will be notified.</p></div>
@@ -1326,10 +1230,11 @@ const saveSchedule = async () => {
             <button className="module-primary" disabled={saving} onClick={returnWorkflow}>{saving ? 'Returning...' : 'Return workflow'}</button>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
 
-{cancelOpen && (
+    {cancelOpen && createPortal(
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Cancel workflow" onClick={() => { setCancelOpen(false); setCancelReason('') }}>
         <section className="schedule-dialog workflow-modal" ref={cancelRef} onClick={event => event.stopPropagation()}>
           <div><h2>Cancel workflow</h2><p>This will cancel the entire workflow. The reason is recorded in the audit history.</p></div>
@@ -1341,11 +1246,12 @@ const saveSchedule = async () => {
             <button className="module-primary cancel-confirm" disabled={saving} onClick={cancelWorkflow}>{saving ? 'Cancelling...' : 'Cancel workflow'}</button>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
 
-{/* Completed workflow history modal — RBAC-aware detail view */}
-    {completedView && (
+    {/* Completed workflow history modal — RBAC-aware detail view */}
+    {completedView && createPortal(
       <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Completed workflow history" onClick={closeCompletedView}>
         <section className="settings-dialog workflow-modal" onClick={event => event.stopPropagation()}>
           <div className="module-process-head">
@@ -1362,14 +1268,15 @@ const saveSchedule = async () => {
             <button className="module-primary" onClick={closeCompletedView}>Close</button>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* New Workflow composer — pick a fresh employee, start a brand-new cycle */}
-    {composerOpen && (
+    {composerOpen && createPortal(
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Create new workflow" onClick={() => setComposerOpen(false)}>
         <section className="schedule-dialog workflow-modal composer-modal" onClick={event => event.stopPropagation()}>
-<div className="composer-head">
+          <div className="composer-head">
             <div>
               <h2>{moduleKey === 'training' ? 'Invite Participants to Training' : `Create New ${title}`}</h2>
               <p>{moduleKey === 'training' ? 'Select a scheduled training session and choose participants to invite.' : 'Choose the subject to evaluate, then start a fresh workflow cycle.'}</p>
@@ -1400,7 +1307,7 @@ const saveSchedule = async () => {
                   key={person.id}
                   type="button"
                   className={`composer-employee ${(composerEmployee?.id === person.id || evaluatingSubject?.id === person.id) ? 'selected' : ''}`}
-onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name); setEvaluatingSubject(person) }}
+                  onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name); setEvaluatingSubject(person) }}
                 >
                   <span className="composer-avatar">{(person.full_name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase()}</span>
                   <span className="composer-employee-copy">
@@ -1426,11 +1333,12 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
             </button>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* Bulk Workflow / Review Cycle Launcher Modal */}
-    {bulkOpen && (
+    {bulkOpen && createPortal(
       <div className="schedule-backdrop" role="dialog" aria-modal="true" aria-label="Launch organizational review cycle" onClick={() => !bulkSaving && setBulkOpen(false)}>
         <section className="schedule-dialog bulk-launch-dialog" ref={bulkRef} onClick={event => event.stopPropagation()}>
           <div className="bulk-modal-header">
@@ -1631,7 +1539,8 @@ onClick={() => { setComposerEmployee(person); setComposerQuery(person.full_name)
             )}
           </div>
         </section>
-      </div>
+      </div>,
+      document.body
     )}
   </main>
 }

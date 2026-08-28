@@ -1,4 +1,3 @@
-import React from 'react'
 import { NavLink } from 'react-router-dom'
 
 const sectionsByRole = {
@@ -11,6 +10,7 @@ const sectionsByRole = {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart & Hierarchy', icon: 'sitemap' },
         { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
@@ -40,7 +40,8 @@ const sectionsByRole = {
     {
       title: 'Administration',
       links: [
-        { to: '/employees', label: 'Employee Records', icon: 'users' }
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Team Org Chart', icon: 'sitemap' }
       ]
     },
     {
@@ -69,6 +70,7 @@ const sectionsByRole = {
     {
       title: 'Operations',
       links: [
+        { to: '/orgchart', label: 'Hotel Org Chart', icon: 'sitemap' },
         { to: '/succession', label: 'Succession Approvals', icon: 'crown' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
       ]
@@ -89,6 +91,7 @@ const sectionsByRole = {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/orgchart', label: 'Org Chart & Hierarchy', icon: 'sitemap' },
         { to: '/certificates', label: 'Certificate Management', icon: 'award' }
       ]
     },
@@ -118,6 +121,7 @@ const sectionsByRole = {
     {
       title: 'Operations',
       links: [
+        { to: '/orgchart', label: 'Hotel Org Chart', icon: 'sitemap' },
         { to: '/performance', label: 'My Performance', icon: 'trend' },
         { to: '/competency', label: 'My Development Plan', icon: 'zap' },
         { to: '/recognition', label: 'Recognition', icon: 'heart' }
@@ -205,6 +209,15 @@ export function Icon({ name, size = 20 }) {
         <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
       </>
     ),
+    sitemap: (
+      <>
+        <rect x="9" y="3" width="6" height="5" rx="1" />
+        <rect x="3" y="16" width="5" height="5" rx="1" />
+        <rect x="10" y="16" width="5" height="5" rx="1" />
+        <rect x="17" y="16" width="5" height="5" rx="1" />
+        <path d="M12 8v4M5.5 12h13v4M5.5 16v-4M12.5 16v-4" />
+      </>
+    ),
     chevron: (
       <path d="m9 18 6-6-6-6" />
     )
@@ -227,7 +240,7 @@ export function Icon({ name, size = 20 }) {
   )
 }
 
-export default function Sidebar({ user, onLogout, onOpenAiChat }) {
+export default function Sidebar({ user, onLogout }) {
   const roleLabel =
     {
       hr: 'HR Administrator',

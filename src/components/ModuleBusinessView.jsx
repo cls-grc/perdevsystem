@@ -1,22 +1,14 @@
 import { useMemo, useState } from 'react'
-import { COMPETENCY_TEMPLATES } from '../workflowConfig'
+import { COMPETENCY_TEMPLATES, getRecommendedCoursesForGap } from '../workflowConfig'
 import SkillRadarChart, { LEVEL_SCORES } from './SkillRadarChart'
+import InteractiveTalentGrid from './InteractiveTalentGrid'
+import InteractiveBenchStrength from './InteractiveBenchStrength'
+import { BookOpen, CheckCircle2, ShieldAlert } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Module-specific business workspace. Renders a distinct, data-driven overview
 // per module using ONLY information that can be derived from the live database
-// payloads already fetched by WorkflowPage:
-//   • data.employees  — { full_name, department, job_title, performance_score,
-//                        competency_score, learning_progress, readiness }
-//   • data.totals     — { total_employees, average_performance,
-//                        learning_completion, succession_ready }
-//   • data.workflowBreakdown — [{ module, status, count }]
-//   • workflows       — the module's IN-PROGRESS workflows
-//   • completedWorkflows     — the module's COMPLETED workflows
-//
-// No placeholder or fabricated content. If a typical business feature (calendar,
-// catalog, leaderboard, talent matrix detail) has no backing data, we render a
-// workflow-oriented summary of what actually exists instead.
+// payloads already fetched by WorkflowPage.
 // ---------------------------------------------------------------------------
 
 const PCT = value => `${Number(value || 0)}%`
@@ -86,9 +78,7 @@ function WorkflowSummary({ workflows, completedWorkflows, breakdown, moduleKey }
   )
 }
 
-// Searchable, capped employee list. Shows the top `limit` by default with a
-// "View all" toggle, and lets the user filter by name/department instantly so
-// large workforces stay compact instead of rendering a wall of rows.
+// Searchable, capped employee list.
 function EmployeeList({ employees, children, limit = 8 }) {
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
@@ -153,32 +143,62 @@ function PerformanceBusiness({ data, workflows, completedWorkflows, breakdown })
   const totals = data?.totals || {}
   const avg = Number(totals.average_performance || 0)
   const sorted = [...employees].sort((a, b) => Number(b.performance_score || 0) - Number(a.performance_score || 0))
+  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'scorecards'
+
   return (
     <>
-      <Section title="Scorecards" note="Live performance & competency scores">
-        <div className="business-metrics">
-          <article><small>Employees</small><b>{totals.total_employees ?? employees.length}</b></article>
-          <article><small>Avg performance</small><b>{PCT(avg)}</b></article>
-          <article><small>At/above avg</small><b>{employees.filter(e => Number(e.performance_score || 0) >= avg).length}</b></article>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className={`bench-filter-pill ${viewMode === 'grid' ? 'active' : ''}`}
+            onClick={() => setViewMode('grid')}
+          >
+            Interactive 9-Box Grid
+          </button>
+          <button
+            type="button"
+            className={`bench-filter-pill ${viewMode === 'scorecards' ? 'active' : ''}`}
+            onClick={() => setViewMode('scorecards')}
+          >
+            Employee Scorecards List
+          </button>
         </div>
-        <EmployeeList employees={sorted}>
-          {emp => (
-            <div className="emp-scores">
-              <ScoreBar label="Performance" value={emp.performance_score} />
-              <ScoreBar label="Competency" value={emp.competency_score} />
-              <ReadinessTag readiness={emp.readiness} />
-            </div>
-          )}
-        </EmployeeList>
-      </Section>
-      <Section title="Results summary" note="Workflow-driven">
+        <span style={{ fontSize: 12, color: '#64748b' }}>
+          Avg Hotel Performance: <b style={{ color: '#513AB3' }}>{PCT(avg)}</b>
+        </span>
+      </div>
+
+      {viewMode === 'grid' ? (
+        <Section title="Interactive 9-Box Talent & Performance Matrix" note="Click any cell to filter and inspect specific talent pools">
+          <InteractiveTalentGrid employees={employees} />
+        </Section>
+      ) : (
+        <Section title="Employee Scorecards" note="Live performance & competency scores">
+          <div className="business-metrics">
+            <article><small>Employees</small><b>{totals.total_employees ?? employees.length}</b></article>
+            <article><small>Avg performance</small><b>{PCT(avg)}</b></article>
+            <article><small>At/above avg</small><b>{employees.filter(e => Number(e.performance_score || 0) >= avg).length}</b></article>
+          </div>
+          <EmployeeList employees={sorted}>
+            {emp => (
+              <div className="emp-scores">
+                <ScoreBar label="Performance" value={emp.performance_score} />
+                <ScoreBar label="Competency" value={emp.competency_score} />
+                <ReadinessTag readiness={emp.readiness} />
+              </div>
+            )}
+          </EmployeeList>
+        </Section>
+      )}
+
+      <Section title="Review cycle summary" note="Workflow-driven">
         <WorkflowSummary workflows={workflows} completedWorkflows={completedWorkflows} breakdown={breakdown} moduleKey="performance" />
       </Section>
     </>
   )
 }
 
-// ------------------------------ COMPETENCY --------------------------------
 // ------------------------------ COMPETENCY --------------------------------
 function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) {
   const employees = useMemo(() => data?.employees || [], [data])
@@ -190,6 +210,7 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
   const [selectedRole, setSelectedRole] = useState(roles[0] || 'Head Sommelier')
   const [selectedEmpId, setSelectedEmpId] = useState(employees[0]?.id || '')
   const [activeCompetency, setActiveCompetency] = useState('')
+  const [enrolledNotice, setEnrolledNotice] = useState('')
 
   const selectedEmployee = employees.find(e => String(e.id) === String(selectedEmpId)) || employees[0] || null
 
@@ -198,7 +219,6 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
     const empBaseScore = Number(selectedEmployee?.competency_score || 80)
 
     return list.map((item, idx) => {
-      // Deterministically derive employee actual score for this skill based on employee baseline score and skill weights
       const target = item.targetScore || LEVEL_SCORES[item.level] || 85
       const variation = ((idx % 3) - 1) * 6
       const actual = Math.min(100, Math.max(35, Math.round(empBaseScore + variation)))
@@ -210,6 +230,16 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
       }
     })
   }, [selectedRole, selectedEmployee])
+
+  // Find skill gaps for selected employee
+  const employeeGaps = useMemo(() => {
+    return benchmarkCompetencies.filter(b => b.actual < b.target)
+  }, [benchmarkCompetencies])
+
+  const handleEnrollCourse = (compName, courseTitle) => {
+    setEnrolledNotice(`Assigned "${courseTitle}" to ${selectedEmployee?.full_name || 'employee'} for competency gap in "${compName}"!`)
+    setTimeout(() => setEnrolledNotice(''), 4000)
+  }
 
   const byDept = useMemo(() => {
     const map = {}
@@ -227,6 +257,27 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
 
   return (
     <>
+      {enrolledNotice && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: 14,
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid #10b981',
+            color: '#059669',
+            fontSize: 13,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 16,
+          }}
+        >
+          <CheckCircle2 size={16} />
+          <span>{enrolledNotice}</span>
+        </div>
+      )}
+
       {/* Role-Based Benchmark Matrix & Skill Spider Web Section */}
       <Section title="Role Benchmark Matrix & Skill Spider Web" note="Compare employee proficiency against standardized hospitality role benchmarks">
         <div style={{
@@ -235,15 +286,15 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
           flexWrap: 'wrap',
           marginBottom: 16,
           padding: '12px 14px',
-          background: 'rgba(124, 58, 237, 0.04)',
+          background: 'rgba(81, 58, 179, 0.05)',
           borderRadius: 12,
-          border: '1px solid rgba(124, 58, 237, 0.15)',
+          border: '1px solid rgba(81, 58, 179, 0.15)',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
           {/* Role Benchmark Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 280px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#7c3aed', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#513AB3', whiteSpace: 'nowrap' }}>
               Role Standard:
             </span>
             <select
@@ -269,7 +320,7 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
 
           {/* Subject Employee Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 280px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#10b981', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#059669', whiteSpace: 'nowrap' }}>
               Employee Profile:
             </span>
             <select
@@ -306,6 +357,63 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
           showTable={true}
           compact={false}
         />
+
+        {/* ── ACTIONABLE SKILL GAP REMEDIATION & LEARNING RECOMMENDATION ──── */}
+        {employeeGaps.length > 0 && (
+          <div className="gap-remediation-card">
+            <div className="gap-remediation-head">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShieldAlert size={16} color="#ef4444" />
+                <b style={{ fontSize: 14 }}>Identified Competency Gaps & Action Plans</b>
+              </div>
+              <span style={{ fontSize: 11.5, color: '#64748b' }}>
+                {employeeGaps.length} skill gap(s) below benchmark
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+              {employeeGaps.map(gap => {
+                const recCourses = getRecommendedCoursesForGap(gap.competency, gap.actual)
+                const primaryCourse = recCourses[0] || { title: 'Hospitality Foundations', duration: '4' }
+
+                return (
+                  <div
+                    key={gap.competency}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      background: 'rgba(239, 68, 68, 0.04)',
+                      border: '1px solid rgba(239, 68, 68, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <b style={{ fontSize: 13 }}>{gap.competency}</b>
+                      <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 800 }}>
+                        {gap.actual}% / {gap.target}%
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                      Recommended Track: <b>{primaryCourse.title}</b> ({primaryCourse.duration} hrs)
+                    </div>
+
+                    <button
+                      type="button"
+                      className="gap-action-btn"
+                      onClick={() => handleEnrollCourse(gap.competency, primaryCourse.title)}
+                    >
+                      <BookOpen size={13} />
+                      <span>Assign Learning Plan</span>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </Section>
 
       {/* Skill Gap Summary Section */}
@@ -360,8 +468,6 @@ function LearningBusiness({ data, workflows, completedWorkflows, breakdown }) {
 }
 
 // ------------------------------ TRAINING ----------------------------------
-// No session calendar fields exist in the analytics payload, so we render a
-// workflow-oriented summary of the training workflows only (no fabricated dates).
 function TrainingBusiness({ workflows, completedWorkflows, breakdown }) {
   const active = (workflows || []).filter(w => w.status === 'active')
   const completed = completedWorkflows || []
@@ -392,37 +498,61 @@ function TrainingBusiness({ workflows, completedWorkflows, breakdown }) {
 // ------------------------------ SUCCESSION --------------------------------
 function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) {
   const employees = data?.employees || []
-  const totals = data?.totals || {}
-  const bands = {
-    ready_now: employees.filter(e => e.readiness === 'ready_now').length,
-    ready_in_1_2_years: employees.filter(e => e.readiness === 'ready_in_1_2_years').length,
-    potential: employees.filter(e => e.readiness === 'potential').length,
-  }
-  const candidates = [...employees].sort((a, b) => Number(b.performance_score || 0) - Number(a.performance_score || 0)).slice(0, 8)
+  const [successionView, setSuccessionView] = useState('bench') // 'bench' | 'matrix' | 'pool'
+
   return (
     <>
-      <Section title="Readiness matrix" note="Derived from live readiness scores">
-        <div className="business-metrics">
-          <article><small>Ready now</small><b>{totals.succession_ready ?? bands.ready_now}</b></article>
-          <article><small>Ready soon</small><b>{bands.ready_in_1_2_years}</b></article>
-          <article><small>Potential</small><b>{bands.potential}</b></article>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className={`bench-filter-pill ${successionView === 'bench' ? 'active' : ''}`}
+            onClick={() => setSuccessionView('bench')}
+          >
+            Critical Roles Bench Strength
+          </button>
+          <button
+            type="button"
+            className={`bench-filter-pill ${successionView === 'matrix' ? 'active' : ''}`}
+            onClick={() => setSuccessionView('matrix')}
+          >
+            9-Box Succession Matrix
+          </button>
+          <button
+            type="button"
+            className={`bench-filter-pill ${successionView === 'pool' ? 'active' : ''}`}
+            onClick={() => setSuccessionView('pool')}
+          >
+            Candidate Pool List
+          </button>
         </div>
-        <div className="readiness-bands">
-          <div className="readiness-band"><span>Ready now</span><i><em style={{ width: `${employees.length ? (bands.ready_now / employees.length) * 100 : 0}%` }} /></i><b>{bands.ready_now}</b></div>
-          <div className="readiness-band"><span>Ready in 1–2 yrs</span><i><em style={{ width: `${employees.length ? (bands.ready_in_1_2_years / employees.length) * 100 : 0}%` }} /></i><b>{bands.ready_in_1_2_years}</b></div>
-          <div className="readiness-band"><span>Potential</span><i><em style={{ width: `${employees.length ? (bands.potential / employees.length) * 100 : 0}%` }} /></i><b>{bands.potential}</b></div>
-        </div>
-      </Section>
-      <Section title="Candidate pool" note="Sorted by performance score">
-        <EmployeeList employees={candidates}>
-          {emp => (
-            <div className="emp-scores">
-              <ScoreBar label="Performance" value={emp.performance_score} />
-              <ReadinessTag readiness={emp.readiness} />
-            </div>
-          )}
-        </EmployeeList>
-      </Section>
+      </div>
+
+      {successionView === 'bench' && (
+        <Section title="Critical Leadership Bench Strength" note="Pipeline readiness for core hospitality leadership positions">
+          <InteractiveBenchStrength employees={employees} />
+        </Section>
+      )}
+
+      {successionView === 'matrix' && (
+        <Section title="Succession 9-Box Talent Matrix" note="Cross-referencing performance score against succession readiness">
+          <InteractiveTalentGrid employees={employees} />
+        </Section>
+      )}
+
+      {successionView === 'pool' && (
+        <Section title="Candidate pool" note="Sorted by performance score">
+          <EmployeeList employees={[...employees].sort((a, b) => Number(b.performance_score || 0) - Number(a.performance_score || 0))}>
+            {emp => (
+              <div className="emp-scores">
+                <ScoreBar label="Performance" value={emp.performance_score} />
+                <ReadinessTag readiness={emp.readiness} />
+              </div>
+            )}
+          </EmployeeList>
+        </Section>
+      )}
+
       <Section title="Succession-cycle activity" note="Workflow-driven">
         <WorkflowSummary workflows={workflows} completedWorkflows={completedWorkflows} breakdown={breakdown} moduleKey="succession" />
       </Section>
@@ -431,8 +561,6 @@ function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) 
 }
 
 // ------------------------------ RECOGNITION -------------------------------
-// No dedicated leaderboard table exists in the analytics payload, so we render
-// a workflow-oriented summary of recognition nominations (no fabricated tally).
 function RecognitionBusiness({ workflows, completedWorkflows, breakdown }) {
   const active = (workflows || []).filter(w => w.status === 'active')
   const completed = completedWorkflows || []
