@@ -177,11 +177,8 @@ export default function Login({ onLogin, notice }) {
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
 
-      // Trigger Cinematic Hotel Portal Entrance Animation
-      setIsLoggingInSuccess(true)
-      setTimeout(() => {
-        onLogin(result.user)
-      }, 1500)
+      // Instantly transition to dashboard
+      onLogin(result.user)
     } catch (requestError) {
       const errMsg = requestError.message || ''
       setError(errMsg)
@@ -210,10 +207,7 @@ export default function Login({ onLogin, notice }) {
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
 
-      setIsLoggingInSuccess(true)
-      setTimeout(() => {
-        onLogin(result.user)
-      }, 1400)
+      onLogin(result.user)
     } catch (requestError) {
       setError(requestError.message)
     } finally {

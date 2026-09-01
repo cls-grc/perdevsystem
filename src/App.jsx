@@ -21,9 +21,10 @@ import './responsive.css'
 import './animations.css'
 import './darkModeFixes.css'
 import './interactiveWorkflow.css'
+import AIAnalytics from './pages/AIAnalytics'
+import RoleHome from './pages/RoleHome'
 
-// Lazy-load other page components so each is only downloaded when first visited
-const AIAnalytics = lazy(() => import('./pages/AIAnalytics'))
+// Lazy-load secondary module pages so each is downloaded on-demand
 const PerformanceManagement = lazy(() => import('./pages/PerformanceManagement'))
 const CompetencyManagement = lazy(() => import('./pages/CompetencyManagement'))
 const LearningManagement = lazy(() => import('./pages/LearningManagement'))
@@ -36,7 +37,6 @@ const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'))
 const OrgChart = lazy(() => import('./pages/OrgChart'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const Register = lazy(() => import('./pages/Register'))
-const RoleHome = lazy(() => import('./pages/RoleHome'))
 const AIChatDrawer = lazy(() => import('./components/AIChatDrawer'))
 
 // Dimension-locked page skeleton matching rendered module geometry
@@ -96,8 +96,6 @@ function ModuleRoutes({ user }) {
   // so every sidebar navigation is instant (chunks already in browser cache)
   useEffect(() => {
     const t = setTimeout(() => {
-      import('./pages/AIAnalytics')
-      import('./pages/RoleHome')
       import('./pages/PerformanceManagement')
       import('./pages/CompetencyManagement')
       import('./pages/LearningManagement')
