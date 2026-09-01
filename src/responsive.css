@@ -355,8 +355,8 @@ button { touch-action: manipulation; }
   .kpi-assessment-header { flex-direction: column; gap: 8px; }
   .builder-score-summary { flex-direction: column; gap: 8px; align-items: flex-start; }
   .calibration-summary-grid { grid-template-columns: 1fr; }
-  .module-steps { flex-direction: column; }
-  .module-step { flex: 1 1 auto; min-width: 0; }
+  .module-steps { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .module-step { flex: 0 0 auto; min-width: 120px; max-width: 160px; }
 
   /* Smaller text for dense tables */
   .er-table { font-size: 11px; }

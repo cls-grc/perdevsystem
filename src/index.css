@@ -800,21 +800,23 @@ button, input { font: inherit; } button { cursor: pointer; }
 /* 2. Process Stepper Connector Lines & Pulse Animation */
 .module-steps {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
   margin: 16px 0 22px;
   padding: 4px 0;
   width: 100%;
+  overflow: hidden;
 }
 .module-step {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: 1 1 0;
   min-width: 0;
-  padding: 10px 14px;
+  padding: 9px 10px;
   border: 1px solid #ecebf0;
   border-radius: 12px;
   background: #ffffff;
@@ -824,12 +826,12 @@ button, input { font: inherit; } button { cursor: pointer; }
   box-sizing: border-box;
 }
 .module-step .step-marker {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #64748b;
   background: #f1eff5;
@@ -843,20 +845,20 @@ button, input { font: inherit; } button { cursor: pointer; }
 }
 .module-step .step-copy b {
   display: block;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.2;
   color: #1e1b4b;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .module-step .step-copy small {
   display: block;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: #64748b;
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

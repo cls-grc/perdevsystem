@@ -369,13 +369,13 @@
    ============================================================ */
 
 /* Enriched step states (complete / active / pending / locked / ai / finalized) */
-.module-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:14px 0;width:100%}
-.module-step{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #eeecf2;border-radius:12px;background:#fbfaff;cursor:pointer;transition:all .16s ease;min-width:0;overflow:hidden;box-sizing:border-box}
+.module-steps{display:flex;flex-wrap:nowrap;gap:8px;margin:14px 0;width:100%;overflow:hidden}
+.module-step{display:flex;align-items:center;gap:8px;flex:1 1 0;min-width:0;padding:9px 10px;border:1px solid #eeecf2;border-radius:12px;background:#fbfaff;cursor:pointer;transition:all .16s ease;overflow:hidden;box-sizing:border-box}
 .module-step:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(42,35,76,.07)}
-.module-step .step-marker{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#96939c;background:#f1eff5;border:1px solid #e6e3ec;flex-shrink:0}
+.module-step .step-marker{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#96939c;background:#f1eff5;border:1px solid #e6e3ec;flex-shrink:0}
 .module-step .step-copy{min-width:0;flex:1;overflow:hidden}
-.module-step .step-copy b{display:block;font-size:11.5px;font-weight:700;color:#3d3750;white-space:normal;line-height:1.3;word-break:break-word;overflow-wrap:break-word}
-.module-step .step-copy small{display:block;font-size:10px;color:#96939c;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.module-step .step-copy b{display:block;font-size:10.5px;font-weight:700;color:#3d3750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.module-step .step-copy small{display:block;font-size:9px;color:#96939c;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .module-step.complete{border-color:#cdeedd;background:#f2fbf5}
 .module-step.complete .step-marker{background:#31965b;color:#fff;border-color:#31965b}
 .module-step.complete .step-copy b{color:#2b7a4e}
