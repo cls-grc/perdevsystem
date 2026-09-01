@@ -360,25 +360,6 @@ router.post('/:id/advance', async (req, res, next) => {
       const { rows } = await client.query('SELECT * FROM workflows WHERE id=$1 FOR UPDATE', [req.params.id]); const workflow = rows[0]
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
-      if (workflow.module === 'performance' && workflow.current_stage === 'configure_kpi') {
-        const formData = input.data?.formData || input.data || {}
-        const kpis = Array.isArray(formData) ? formData : (formData.kpis || formData.kpiRatings || [])
-        if (!kpis.length) {
-          throw Object.assign(new Error('At least one KPI must be configured before proceeding.'), { status: 400 })
-        }
-        const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
-        if (Math.abs(totalWeight - 100) > 0.5) {
-          throw Object.assign(new Error(`Total KPI weights must equal 100% (currently ${totalWeight}%). Please adjust weights before proceeding.`), { status: 400 })
-        }
-        for (const k of kpis) {
-          if (!k.name || !String(k.name).trim()) {
-            throw Object.assign(new Error('Every KPI must have a name.'), { status: 400 })
-          }
-          if (!(Number(k.weight) > 0)) {
-            throw Object.assign(new Error(`KPI "${k.name}" must have a weight greater than 0%.`), { status: 400 })
-          }
-        }
-      }
       const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
         const eventResult = await client.query('SELECT * FROM workflow_events WHERE workflow_id=$1 ORDER BY created_at ASC', [workflow.id])
@@ -408,7 +389,9 @@ router.post('/:id/advance', async (req, res, next) => {
         }
       }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
-      await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, destination.key, 'advanced', req.user.sub, input.note || null, input.data])
+      // Store the event under workflow.current_stage (the stage being completed/submitted)
+      // so that CalibrationBuilder can find self_assessment data by searching stage='self_assessment'
+      await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'advanced', req.user.sub, input.note || null, input.data])
       await notifyNextOwners(client, workflow, destination)
       return { workflow: update.rows[0], nextAction: destination.label }
     })

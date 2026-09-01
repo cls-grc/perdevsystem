@@ -212,16 +212,43 @@ function AIGenerateButton({ field, value, onChange }) {
 
 function KpiBuilder({ value = [], onChange }) {
   const set = (index, patch) => onChange(value.map((row, i) => i === index ? { ...row, ...patch } : row))
-  const add = () => onChange([...value, { name: '', weight: '', description: '', target: '' }])
+  const add = () => onChange([...value, { name: '', weight: 25, description: '', target: '90%' }])
   const remove = index => onChange(value.filter((_, i) => i !== index))
+
+  const autoDistribute = () => {
+    if (!value.length) return
+    const count = value.length
+    const base = Math.floor(100 / count)
+    const remainder = 100 - (base * count)
+    const updated = value.map((kpi, index) => ({
+      ...kpi,
+      weight: index < remainder ? base + 1 : base,
+      target: kpi.target || '90%'
+    }))
+    onChange(updated)
+  }
+
+  const totalWeight = value.reduce((s, r) => s + Number(r.weight || 0), 0)
+  const isWeightValid = Math.abs(totalWeight - 100) <= 0.5
+
   return (
     <div className="builder kpi-builder">
+      <div className="builder-top-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span className={`weight-total ${isWeightValid ? 'ok' : 'error'}`} style={{ fontSize: 12, fontWeight: 700 }}>
+          {isWeightValid ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Total Weight: 100%</> : `Total Weight: ${totalWeight}% (Must be 100%)`}
+        </span>
+        {value.length > 0 && (
+          <button type="button" className="btn-auto-distribute" onClick={autoDistribute} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
+            <Sparkles size={12} /> Auto-Distribute 100% Evenly
+          </button>
+        )}
+      </div>
       {value.map((row, index) => (
         <div className="builder-row" key={index}>
           <div className="builder-grid">
             <label>KPI name<input value={row.name} onChange={e => set(index, { name: e.target.value })} placeholder="e.g. Guest satisfaction" /></label>
-            <label>Weight %<input type="number" value={row.weight} onChange={e => set(index, { weight: e.target.value })} min={0} max={100} /></label>
-            <label>Target value<input value={row.target} onChange={e => set(index, { target: e.target.value })} placeholder="e.g. 95" /></label>
+            <label>Weight %<input type="number" value={row.weight} onChange={e => set(index, { weight: e.target.value === '' ? '' : Number(e.target.value) })} min={0} max={100} /></label>
+            <label>Target value<input value={row.target} onChange={e => set(index, { target: e.target.value })} placeholder="e.g. 90%" /></label>
             <button type="button" className="builder-remove" onClick={() => remove(index)} aria-label="Delete KPI">×</button>
           </div>
           <label>Description<textarea value={row.description} onChange={e => set(index, { description: e.target.value })} rows={2} placeholder="Describe what this KPI measures" /></label>
@@ -232,38 +259,39 @@ function KpiBuilder({ value = [], onChange }) {
   )
 }
 
-// --------------------- Builder: KPI library (selection-first) --------------
-
-function parseNumericTarget(target, defaultVal = 100) {
-  if (typeof target === 'number' && Number.isFinite(target) && target > 0) return target
-  if (typeof target === 'string') {
-    const matched = target.match(/(\d+(\.\d+)?)/)
-    if (matched) {
-      const num = parseFloat(matched[1])
-      if (num > 0) return num
-    }
-  }
-  return defaultVal
-}
-
-function calculateKpiContribution(score, target, weight) {
-  const s = Number(score) || 0
-  const t = parseNumericTarget(target, 100)
-  const w = Number(weight) || 0
-  const achievement = t > 0 ? s / t : s / 100
-  const contribution = achievement * w
-  return Math.round(contribution * 100) / 100
-}
-
 function KpiLibraryBuilder({ value = [], onChange }) {
   const add = kpi => {
     if (!kpi || value.some(r => r.name === kpi.name)) return
-    onChange([...value, { name: kpi.name, weight: kpi.weight, description: kpi.description, target: kpi.target, measurement: kpi.measurement }])
+    const count = value.length + 1
+    const baseWeight = Math.floor(100 / count)
+    const newKpis = [...value, { 
+      name: kpi.name, 
+      weight: baseWeight || 25, 
+      description: kpi.description, 
+      target: kpi.target || '90%', 
+      measurement: kpi.measurement 
+    }]
+    onChange(newKpis)
   }
+
   const set = (index, patch) => onChange(value.map((row, i) => i === index ? { ...row, ...patch } : row))
   const remove = index => onChange(value.filter((_, i) => i !== index))
+
+  const autoDistribute = () => {
+    if (!value.length) return
+    const count = value.length
+    const base = Math.floor(100 / count)
+    const remainder = 100 - (base * count)
+    const updated = value.map((kpi, index) => ({
+      ...kpi,
+      weight: index < remainder ? base + 1 : base,
+      target: kpi.target || '90%'
+    }))
+    onChange(updated)
+  }
+
   const totalWeight = value.reduce((s, r) => s + Number(r.weight || 0), 0)
-  const isWeightValid = Math.abs(totalWeight - 100) <= 0.01
+  const isWeightValid = Math.abs(totalWeight - 100) <= 0.5
 
   return (
     <div className="builder competency-template-builder">
@@ -298,11 +326,21 @@ function KpiLibraryBuilder({ value = [], onChange }) {
           <div className="competency-loaded-head">
             <div>
               <b>Configured KPIs ({value.length})</b>
-              <small>Total weight must equal exactly 100% to proceed</small>
+              <small>Total weight must equal 100% to proceed</small>
             </div>
-            <span className={`weight-total ${isWeightValid ? 'ok' : 'error'}`}>
-              {isWeightValid ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Total 100%</> : `Total ${totalWeight}% (Must be 100%)`}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button 
+                type="button" 
+                className="btn-auto-distribute" 
+                onClick={autoDistribute}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}
+              >
+                <Sparkles size={12} /> Auto-Distribute 100% Evenly
+              </button>
+              <span className={`weight-total ${isWeightValid ? 'ok' : 'error'}`}>
+                {isWeightValid ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Total 100%</> : `Total ${totalWeight}% (Must be 100%)`}
+              </span>
+            </div>
           </div>
           <div className="competency-table">
             {value.map((row, index) => (
@@ -314,7 +352,7 @@ function KpiLibraryBuilder({ value = [], onChange }) {
                 </div>
                 <div className="kpi-table-target">
                   <label><small>Target Score</small>
-                    <input value={row.target} onChange={e => set(index, { target: e.target.value })} placeholder="e.g. 90" />
+                    <input value={row.target || '90%'} onChange={e => set(index, { target: e.target.value })} placeholder="e.g. 90%" />
                   </label>
                 </div>
                 <div className="competency-table-weight">
@@ -333,35 +371,211 @@ function KpiLibraryBuilder({ value = [], onChange }) {
   )
 }
 
-// ------------------------- Builder: Assessment -----------------------------
+// ------------------------- Builder: Hotel & Restaurant Evaluation -----------------------------
 
-const DEFAULT_KPIS = [
-  { name: 'Customer Service', target: '90', weight: 25, description: 'Guest satisfaction and service quality standards' },
-  { name: 'Attendance & Punctuality', target: '95', weight: 20, description: 'Punctuality and attendance reliability' },
-  { name: 'Teamwork & Collaboration', target: '90', weight: 25, description: 'Collaboration and team support' },
-  { name: 'Problem Solving', target: '85', weight: 30, description: 'Initiative and problem resolution skills' },
-]
+export const DEPARTMENT_EVALUATION_CRITERIA = {
+  'Food & Beverage': [
+    { id: 'fb_1', name: 'Order Accuracy & Table Service', description: 'Accuracy in taking food/beverage orders, correct dish delivery, and sequence of table service.', weight: 10 },
+    { id: 'fb_2', name: 'Menu & Beverage Knowledge', description: 'Deep understanding of menu ingredients, allergen awareness, daily specials, and beverage pairings.', weight: 10 },
+    { id: 'fb_3', name: 'Punctuality & Shift Readiness', description: 'Reliability in reporting on time, uniform grooming standards, and station readiness before service.', weight: 10 },
+    { id: 'fb_4', name: 'Food Safety, Sanitation & Hygiene', description: 'Strict compliance with food safety protocols, table sanitization, clean glassware, and hygiene rules.', weight: 10 },
+    { id: 'fb_5', name: 'Customer Service & Guest Hospitality', description: 'Warm greeting, attentive table maintenance, courteous communication, and guest satisfaction.', weight: 10 },
+    { id: 'fb_6', name: 'Kitchen & Service Communication', description: 'Clear communication with culinary kitchen line, POS system proficiency, and fast order transmission.', weight: 10 },
+    { id: 'fb_7', name: 'Teamwork & Cross-Section Support', description: 'Supporting fellow servers, busing tables during rushes, and cooperating across F&B sections.', weight: 10 },
+    { id: 'fb_8', name: 'Availability & Peak Hour Flexibility', description: 'Willingness to support during high-volume dinner rushes, banquet events, and shift extensions.', weight: 5 },
+    { id: 'fb_9', name: 'Station Prep & Independence', description: 'Self-sufficient side station restocking, cutlery polishing, and working with minimal intervention.', weight: 5 },
+    { id: 'fb_10', name: 'Initiative & Proactive Service', description: 'Anticipating guest water refills, clearing finished plates promptly, and identifying service gaps.', weight: 5 },
+    { id: 'fb_11', name: 'Service Recovery & Complaint Handling', description: 'Calm resolution of customer food complaints, billing queries, and graceful dispute management.', weight: 5 },
+    { id: 'fb_12', name: 'Composure Under Dining Rush', description: 'Maintaining emotional composure, steady pacing, and courteous demeanor during heavy covers.', weight: 5 },
+    { id: 'fb_13', name: 'Shift Leadership & Mentorship', description: 'Guiding apprentice waitstaff, station handover quality, and promoting team harmony.', weight: 2.5 },
+    { id: 'fb_14', name: 'Suggestive Selling & Upselling', description: 'Effective promotion of appetizers, premium wine pairings, desserts, and tasting specials.', weight: 2.5 },
+  ],
 
-function extractConfiguredKpis(events) {
-  const event = (events || []).find(ev => ev.stage === 'configure_kpi' && ev.details)
-  if (!event) return null
-  const details = event.details || {}
-  const form = details.formData !== undefined ? details.formData : details
-  if (Array.isArray(form) && form.length > 0) return form
-  if (Array.isArray(form.kpis) && form.kpis.length > 0) return form.kpis
-  const numericValues = Object.keys(form)
-    .filter(k => /^\d+$/.test(k))
-    .map(k => form[k])
-    .filter(k => k && (k.name || k.title))
-  if (numericValues.length > 0) return numericValues
-  return null
+  'Kitchen': [
+    { id: 'kit_1', name: 'Food Quality & Recipe Consistency', description: 'Precision in taste, portioning, cooking temperatures, and presentation according to standard recipes.', weight: 10 },
+    { id: 'kit_2', name: 'Culinary Knowledge & Knife Skills', description: 'Mastery of knife techniques, cooking methods, butchery, sauces, and culinary workstation tools.', weight: 10 },
+    { id: 'kit_3', name: 'Punctuality & Shift Attendance', description: 'Dependability on reporting on time for kitchen prep shifts, line stations, and banquet setups.', weight: 10 },
+    { id: 'kit_4', name: 'Food Safety, Hygiene & HACCP', description: 'Strict compliance with temperature logs, cross-contamination prevention, dating/labeling, and sanitizing.', weight: 10 },
+    { id: 'kit_5', name: 'Ticket Timing & Speed of Execution', description: 'Consistent ticket turnaround times, synchronized plating with waitstaff, and line speed.', weight: 10 },
+    { id: 'kit_6', name: 'Line Calling & Station Communication', description: 'Clear auditory communication with the Head Chef, Sous Chef, expediter, and fellow line cooks.', weight: 10 },
+    { id: 'kit_7', name: 'Kitchen Teamwork & Line Support', description: 'Assisting adjacent stations during heavy dockets, backing up dishwashing, and team collaboration.', weight: 10 },
+    { id: 'kit_8', name: 'Availability & Banquet Flexibility', description: 'Willingness to take on early prep shifts, late cleanups, and banquet event catering production.', weight: 5 },
+    { id: 'kit_9', name: 'Mise en Place & Station Independence', description: 'Organized, independent station setup with all ingredients prepped and stocked prior to rush.', weight: 5 },
+    { id: 'kit_10', name: 'Portion Control & Waste Reduction', description: 'Minimizing ingredient trim waste, proper storage of leftovers, and respecting food cost targets.', weight: 5 },
+    { id: 'kit_11', name: 'Special Dietary & Allergen Handling', description: 'Careful execution of gluten-free, vegan, and severe allergy dockets without cross-contact.', weight: 5 },
+    { id: 'kit_12', name: 'Peak Rush Composure & Stamina', description: 'Maintaining focus, precision, and a calm professional attitude in a hot, high-pressure kitchen.', weight: 5 },
+    { id: 'kit_13', name: 'Station Leadership & Mentorship', description: 'Mentoring commis chefs/apprentices, maintaining station equipment, and cleanliness leadership.', weight: 2.5 },
+    { id: 'kit_14', name: 'Creative Contribution & Efficiency', description: 'Suggesting prep improvements, daily special ideas, and creative kitchen process optimizations.', weight: 2.5 },
+  ],
+
+  'Housekeeping': [
+    { id: 'hk_1', name: 'Room Cleaning & Sanitization Standards', description: 'Thoroughness in dusting, vacuuming, bed making, bathroom disinfection, and immaculate cleanliness.', weight: 10 },
+    { id: 'hk_2', name: 'Cleaning SOPs & Chemical Knowledge', description: 'Correct usage of housekeeping chemicals, PPE, cleaning machinery, and color-coded cloths.', weight: 10 },
+    { id: 'hk_3', name: 'Shift Punctuality & Attendance', description: 'Timely morning briefing attendance, prompt start on floor assignments, and shift dependability.', weight: 10 },
+    { id: 'hk_4', name: 'Room Turnaround Time & Productivity', description: 'Meeting daily room inspection quotas (stayover and checkout turnarounds) within allotted time.', weight: 10 },
+    { id: 'hk_5', name: 'Guest Courtesy & Privacy Protocol', description: 'Polite guest greetings, respecting "Do Not Disturb" signs, and upholding guest privacy and security.', weight: 10 },
+    { id: 'hk_6', name: 'Radio & Discrepancy Communication', description: 'Prompt status updates to Front Office via radio/PMS when rooms are clean, inspected, or out of order.', weight: 10 },
+    { id: 'hk_7', name: 'Teamwork & Linen Room Collaboration', description: 'Cooperating with laundry attendants, housemen, and floor partners during high-occupancy days.', weight: 10 },
+    { id: 'hk_8', name: 'Peak Occupancy & Weekend Flexibility', description: 'Availability to work during hotel peak seasons, weekend turnovers, and holiday shifts.', weight: 5 },
+    { id: 'hk_9', name: 'Trolley Organization & Autonomy', description: 'Keeping housekeeping carts neatly stocked, organized, and working independently with minimal oversight.', weight: 5 },
+    { id: 'hk_10', name: 'Defect Reporting & Preventive Care', description: 'Proactively identifying and reporting maintenance issues (leaks, blown bulbs, carpet stains).', weight: 5 },
+    { id: 'hk_11', name: 'Lost & Found Compliance', description: 'Immediate, accurate logging and handover of guest forgotten items according to hotel security SOPs.', weight: 5 },
+    { id: 'hk_12', name: 'Composure During Mass Turnovers', description: 'Maintaining rigorous quality standards and calm focus during heavy back-to-back check-in rushes.', weight: 5 },
+    { id: 'hk_13', name: 'Floor Inspection Leadership', description: 'Assisting supervisors with spot checks, training new room attendants, and VIP room setups.', weight: 2.5 },
+    { id: 'hk_14', name: 'Amenities Conservation & Asset Care', description: 'Preventing linen damage, controlled usage of guest amenities, and reducing laundry chemical waste.', weight: 2.5 },
+  ],
+
+  'Front Office': [
+    { id: 'fo_1', name: 'Check-in & Check-out Speed & Precision', description: 'Flawless execution of check-in/out procedures, key card issuance, and guest identity verification.', weight: 10 },
+    { id: 'fo_2', name: 'PMS System & Hotel SOP Knowledge', description: 'Proficiency in Property Management Systems (Opera/Cloud PMS), room rates, and hotel policies.', weight: 10 },
+    { id: 'fo_3', name: 'Shift Punctuality & Handover Reliability', description: 'Reliability in reporting for shift briefings, cash float counting, and detailed shift handover notes.', weight: 10 },
+    { id: 'fo_4', name: 'Billing, Payment & Cash Handling Accuracy', description: 'Zero discrepancies in guest folios, credit card processing, currency exchange, and ledger audits.', weight: 10 },
+    { id: 'fo_5', name: 'Warm Hospitality & Guest Welcoming', description: 'First impression excellence, genuine hospitality demeanor, eye contact, and professional grooming.', weight: 10 },
+    { id: 'fo_6', name: 'Telephone & Concierge Etiquette', description: 'Professional phone manner within 3 rings, accurate local recommendations, and message delivery.', weight: 10 },
+    { id: 'fo_7', name: 'Cross-Departmental Coordination', description: 'Seamless coordination with Housekeeping (room readiness), Bell desk, and Maintenance teams.', weight: 10 },
+    { id: 'fo_8', name: 'Night Shift & Peak Hour Availability', description: 'Flexibility to cover night audit shifts, early departures, and large group arrival surges.', weight: 5 },
+    { id: 'fo_9', name: 'Lobby Presence & Front Desk Autonomy', description: 'Independent lobby management, proactive queue management, and self-sufficient problem handling.', weight: 5 },
+    { id: 'fo_10', name: 'VIP & Loyalty Guest Recognition', description: 'Accurate recognition of frequent guests, loyalty program perks, and personalized welcome amenities.', weight: 5 },
+    { id: 'fo_11', name: 'Service Recovery & De-escalation', description: 'Effective handling of guest complaints, room change requests, and resolving billing disputes calmly.', weight: 5 },
+    { id: 'fo_12', name: 'Composure Under High-Volume Check-ins', description: 'Remaining calm, poised, and courteous when managing long queues during major flight/tour arrivals.', weight: 5 },
+    { id: 'fo_13', name: 'Shift Leadership & Duty Handover', description: 'Leading desk operations during supervisor absence, mentoring trainees, and audit integrity.', weight: 2.5 },
+    { id: 'fo_14', name: 'Room Upselling & Revenue Enhancement', description: 'Active promotion of suite upgrades, late checkouts, breakfast packages, and spa bookings.', weight: 2.5 },
+  ],
+
+  'Engineering': [
+    { id: 'eng_1', name: 'Preventive Maintenance Quality', description: 'Execution of scheduled preventive maintenance tasks across HVAC, plumbing, boilers, and plant rooms.', weight: 10 },
+    { id: 'eng_2', name: 'Technical & Systems Knowledge', description: 'Comprehensive understanding of electrical circuits, HVAC chillers, pumps, BMS, and guestroom fixtures.', weight: 10 },
+    { id: 'eng_3', name: 'Emergency Response & Punctuality', description: 'Fast response times to emergency engineering calls, shift timeliness, and on-call readiness.', weight: 10 },
+    { id: 'eng_4', name: 'OSHA, Safety & Fire Code Compliance', description: 'Strict adherence to lockout/tagout (LOTO), fire alarm testing, safety PPE, and chemical handling.', weight: 10 },
+    { id: 'eng_5', name: 'Guestroom Work Order Resolution Speed', description: 'Prompt and discreet resolution of in-room guest maintenance requests (AC, TV, plumbing, safe).', weight: 10 },
+    { id: 'eng_6', name: 'Technical Log & Inter-dept Communication', description: 'Accurate work order logging in engineering software and clear updates to Front Desk/Housekeeping.', weight: 10 },
+    { id: 'eng_7', name: 'Teamwork & Multi-Craft Collaboration', description: 'Collaborating across electrical, carpentry, painting, and mechanical maintenance projects.', weight: 10 },
+    { id: 'eng_8', name: 'Emergency & Weekend Availability', description: 'Willingness to report for urgent night breakdowns, storm preparedness, and holiday coverage.', weight: 5 },
+    { id: 'eng_9', name: 'Independent Troubleshooting', description: 'Ability to diagnose complex technical faults and execute repairs with minimal guidance.', weight: 5 },
+    { id: 'eng_10', name: 'Energy Management & Sustainability', description: 'Monitoring energy consumption, identifying utility leaks, and supporting green hotel initiatives.', weight: 5 },
+    { id: 'eng_11', name: 'Root Cause Repair & Recurrence Prevention', description: 'Solving underlying mechanical/electrical issues rather than applying temporary surface fixes.', weight: 5 },
+    { id: 'eng_12', name: 'Composure During Critical Outages', description: 'Calm and methodical execution during power outages, elevator stoppages, or water line failures.', weight: 5 },
+    { id: 'eng_13', name: 'Workshop Leadership & Tool Ownership', description: 'Maintaining organized workshop tools, machinery maintenance, and mentoring junior technicians.', weight: 2.5 },
+    { id: 'eng_14', name: 'Spare Parts Inventory & Cost Efficiency', description: 'Accurate tracking of replacement parts, vendor coordination, and minimizing repair expenses.', weight: 2.5 },
+  ],
+
+  'Human Resources': [
+    { id: 'hr_1', name: 'HR Operations & Filing Accuracy', description: 'Precision in 201 filing, contract preparation, government compliance, and HR records management.', weight: 10 },
+    { id: 'hr_2', name: 'Labor Law & Hotel Policy Knowledge', description: 'Solid understanding of labor codes, company code of discipline, benefits, and standard procedures.', weight: 10 },
+    { id: 'hr_3', name: 'Punctuality & HR Desk Reliability', description: 'Dependability in attending HR meetings, keeping office hours, and prompt attendance tracking.', weight: 10 },
+    { id: 'hr_4', name: 'Confidentiality & Data Privacy Compliance', description: 'Strict protection of employee personal data, medical records, compensation, and disciplinary files.', weight: 10 },
+    { id: 'hr_5', name: 'Employee Relations & Service Mindset', description: 'Approachable, empathetic, and professional support for employee inquiries, benefits, and welfare.', weight: 10 },
+    { id: 'hr_6', name: 'Clear Communication & Advisory Skills', description: 'Effective written memos, employee briefings, and clear communication with department managers.', weight: 10 },
+    { id: 'hr_7', name: 'Collaboration with Department Heads', description: 'Proactive partnership with hotel line managers on staffing needs, performance reviews, and training.', weight: 10 },
+    { id: 'hr_8', name: 'Event & Recruitment Drive Availability', description: 'Flexibility to support job fairs, mass hiring, town halls, and employee recognition events.', weight: 5 },
+    { id: 'hr_9', name: 'Case Management & Task Autonomy', description: 'Managing onboarding, exit clearances, and employee claims independently without constant direction.', weight: 5 },
+    { id: 'hr_10', name: 'Employee Engagement & Wellness Initiative', description: 'Proactive organization of team-building activities, health programs, and employee engagement programs.', weight: 5 },
+    { id: 'hr_11', name: 'Grievance Handling & Conflict Mediation', description: 'Fair, unbiased facilitation of employee conflicts and smooth resolution of workplace grievances.', weight: 5 },
+    { id: 'hr_12', name: 'Composure During Sensitive Situations', description: 'Maintaining professional composure, objectivity, and discretion during disciplinary investigations.', weight: 5 },
+    { id: 'hr_13', name: 'HR Project Leadership & Mentorship', description: 'Leading HR initiatives (e.g. system digitization, policy updates) and mentoring junior HR staff.', weight: 2.5 },
+    { id: 'hr_14', name: 'Talent Retention & Sourcing Efficiency', description: 'Optimizing recruitment turnaround times, reducing recruitment costs, and improving staff retention.', weight: 2.5 },
+  ],
+
+  'Security': [
+    { id: 'sec_1', name: 'Patrol Thoroughness & Vigilance', description: 'Rigorous inspection of hotel perimeters, emergency exits, guest corridors, and back-of-house areas.', weight: 10 },
+    { id: 'sec_2', name: 'Security SOPs & Emergency Protocol Knowledge', description: 'Mastery of emergency response protocols (fire, medical, bomb threat, evacuation, trespasser).', weight: 10 },
+    { id: 'sec_3', name: 'Punctuality & Guard Post Reliability', description: 'Punctual attendance at post handovers, alert post posture, and dependable shift attendance.', weight: 10 },
+    { id: 'sec_4', name: 'CCTV Monitoring & Incident Log Accuracy', description: 'Meticulous logging of security incidents, visitor logs, key issuance, and active CCTV surveillance.', weight: 10 },
+    { id: 'sec_5', name: 'Courteous & Firm Guest/Visitor Interaction', description: 'Balancing approachable hospitality with firm security enforcement at hotel entry points.', weight: 10 },
+    { id: 'sec_6', name: 'Radio Etiquette & Incident Reporting', description: 'Crisp, professional two-way radio protocol and detailed, factual incident documentation.', weight: 10 },
+    { id: 'sec_7', name: 'Teamwork with Duty Managers & Night Staff', description: 'Seamless cooperation with Night Managers, Front Desk, and Engineering during night shifts.', weight: 10 },
+    { id: 'sec_8', name: 'VIP Event & Night Shift Availability', description: 'Willingness to cover high-security VIP banquets, night duty, and emergency standby.', weight: 5 },
+    { id: 'sec_9', name: 'Guard Post Autonomy & Situational Awareness', description: 'Self-sufficient management of access control points, bag checks, and vehicle screening.', weight: 5 },
+    { id: 'sec_10', name: 'Proactive Hazard Identification', description: 'Early detection of fire hazards, blocked stairwells, suspicious items, and safety risks.', weight: 5 },
+    { id: 'sec_11', name: 'De-escalation & Conflict Management', description: 'Defusing intoxicated guests or aggressive individuals peacefully without escalating disruption.', weight: 5 },
+    { id: 'sec_12', name: 'Composure Under Crisis & Emergencies', description: 'Poise, rapid decision-making, and disciplined execution during medical or safety emergencies.', weight: 5 },
+    { id: 'sec_13', name: 'Security Post Leadership & Inspection', description: 'Conducting guard briefings, drill inspections, and mentoring newly deployed security personnel.', weight: 2.5 },
+    { id: 'sec_14', name: 'Loss Prevention & Asset Protection', description: 'Preventing pilferage of hotel property, vendor delivery audits, and contractor compliance.', weight: 2.5 },
+  ],
+
+  'Sales & Marketing': [
+    { id: 'sm_1', name: 'Revenue & Sales Target Achievement', description: 'Performance against monthly room nights, banquet revenue, and corporate sales volume targets.', weight: 10 },
+    { id: 'sm_2', name: 'Product, Rate & Banquet Knowledge', description: 'Expertise in room categories, meeting package pricing, F&B banquet menus, and seasonal rate structures.', weight: 10 },
+    { id: 'sm_3', name: 'Client Meeting & Proposal Punctuality', description: 'Reliability in meeting clients, prompt delivery of contracts/proposals, and follow-up timeliness.', weight: 10 },
+    { id: 'sm_4', name: 'Contracting & Revenue Policy Compliance', description: 'Strict compliance with hotel credit policies, deposit requirements, cancellation terms, and contracts.', weight: 10 },
+    { id: 'sm_5', name: 'Client Relationship Management & Hospitality', description: 'Building high-trust, long-term relationships with corporate bookers, event planners, and travel agents.', weight: 10 },
+    { id: 'sm_6', name: 'Inter-departmental Banquet Coordination', description: 'Clear Event Order (BEO) handovers to F&B, Kitchen, and Front Desk to ensure flawless event execution.', weight: 10 },
+    { id: 'sm_7', name: 'Sales Team Collaboration & Cross-Selling', description: 'Working constructively with peers on large bids, joint site inspections, and cross-segment leads.', weight: 10 },
+    { id: 'sm_8', name: 'Event Coverage & Client Entertaining Availability', description: 'Flexibility to attend evening networking events, weekend site inspections, and client dinners.', weight: 5 },
+    { id: 'sm_9', name: 'Lead Pipeline Management & Autonomy', description: 'Self-driven prospecting, CRM pipeline updating, lead qualification, and account management.', weight: 5 },
+    { id: 'sm_10', name: 'Market Intelligence & Competitor Tracking', description: 'Proactively gathering competitor pricing insights, market trends, and new business opportunities.', weight: 5 },
+    { id: 'sm_11', name: 'Negotiation & Contract Closing', description: 'Overcoming client objections, commercial win-win negotiations, and closing event contracts.', weight: 5 },
+    { id: 'sm_12', name: 'Composure Under Tight Pitch Deadlines', description: 'Maintaining high proposal quality and positive attitude when preparing urgent, high-value bids.', weight: 5 },
+    { id: 'sm_13', name: 'Account Strategy Leadership & Mentorship', description: 'Developing key account growth strategies, mentoring sales coordinators, and pitch leadership.', weight: 2.5 },
+    { id: 'sm_14', name: 'Package Upselling & High-Margin Booking', description: 'Upselling premium banquet beverage packages, audio-visual enhancements, and multi-day bookings.', weight: 2.5 },
+  ],
+
+  'Finance': [
+    { id: 'fin_1', name: 'Accounting Precision & Reconciliation', description: 'Zero error tolerance in ledger entries, bank reconciliations, tax filings, and balance sheet accounts.', weight: 10 },
+    { id: 'fin_2', name: 'USALI & Hospitality Accounting Knowledge', description: 'Mastery of Uniform System of Accounts for the Lodging Industry (USALI), revenue audits, and tax laws.', weight: 10 },
+    { id: 'fin_3', name: 'Deadline Reliability & Punctuality', description: 'Consistent on-time delivery of daily income audits, payroll runs, vendor payments, and month-end closes.', weight: 10 },
+    { id: 'fin_4', name: 'Internal Controls & Audit Compliance', description: 'Rigorous enforcement of purchasing authorization, petty cash audits, and anti-fraud protocols.', weight: 10 },
+    { id: 'fin_5', name: 'Internal Customer Service & Support', description: 'Prompt and courteous support to department managers regarding budget queries, invoices, and payroll.', weight: 10 },
+    { id: 'fin_6', name: 'Financial Reporting & Communication', description: 'Clear presentation of financial variances, departmental P&L statements, and cash flow reports.', weight: 10 },
+    { id: 'fin_7', name: 'Audit Team Collaboration', description: 'Constructive teamwork within the finance office and smooth cooperation with external auditors.', weight: 10 },
+    { id: 'fin_8', name: 'Month-End & Year-End Close Availability', description: 'Flexibility to commit additional hours during fiscal closes, physical inventory counts, and audits.', weight: 5 },
+    { id: 'fin_9', name: 'Reconciliation Autonomy & Workflow', description: 'Independent resolution of ledger clearing accounts, credit card settlements, and supplier statements.', weight: 5 },
+    { id: 'fin_10', name: 'Cost Leakage Identification & Initiative', description: 'Proactive detection of billing leakages, supplier overcharges, and operational cost savings.', weight: 5 },
+    { id: 'fin_11', name: 'Variance Analysis & Dispute Resolution', description: 'Investigating department cost variances and resolving complex billing disputes with corporate accounts.', weight: 5 },
+    { id: 'fin_12', name: 'Composure During Strict Fiscal Deadlines', description: 'Maintaining accuracy, precision, and focus under tight month-end reporting schedules.', weight: 5 },
+    { id: 'fin_13', name: 'Financial Systems & Audit Leadership', description: 'Assisting in financial system upgrades, policy implementation, and training junior accountants.', weight: 2.5 },
+    { id: 'fin_14', name: 'Budget Optimization & Cost Enforcement', description: 'Guiding department heads in optimizing OPEX budgets, renegotiating supplier terms, and efficiency.', weight: 2.5 },
+  ]
 }
+
+export function getDepartmentCriteria(departmentName) {
+  if (!departmentName) return DEPARTMENT_EVALUATION_CRITERIA['Food & Beverage']
+  const dept = String(departmentName).toLowerCase()
+  if (dept.includes('kitchen') || dept.includes('culinary') || dept.includes('cook') || dept.includes('chef')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Kitchen']
+  }
+  if (dept.includes('food') || dept.includes('beverage') || dept.includes('f&b') || dept.includes('restaurant') || dept.includes('bar') || dept.includes('dining')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Food & Beverage']
+  }
+  if (dept.includes('housekeeping') || dept.includes('laundry') || dept.includes('clean')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Housekeeping']
+  }
+  if (dept.includes('front') || dept.includes('reception') || dept.includes('concierge') || dept.includes('lobby')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Front Office']
+  }
+  if (dept.includes('engineer') || dept.includes('maintenance') || dept.includes('facility')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Engineering']
+  }
+  if (dept.includes('human') || dept.includes('hr') || dept.includes('personnel')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Human Resources']
+  }
+  if (dept.includes('security') || dept.includes('safety') || dept.includes('guard')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Security']
+  }
+  if (dept.includes('sales') || dept.includes('market')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Sales & Marketing']
+  }
+  if (dept.includes('finance') || dept.includes('account') || dept.includes('audit')) {
+    return DEPARTMENT_EVALUATION_CRITERIA['Finance']
+  }
+  return DEPARTMENT_EVALUATION_CRITERIA['Food & Beverage']
+}
+
+export const HOSPITALITY_EVALUATION_CRITERIA = DEPARTMENT_EVALUATION_CRITERIA['Food & Beverage']
+
+const RATING_SCALE_LEGEND = [
+  { rating: 1, label: 'Poor', desc: 'Unsatisfactory / Needs critical improvement' },
+  { rating: 2, label: 'Fair', desc: 'Inconsistent / Below standard' },
+  { rating: 3, label: 'Satisfactory', desc: 'Meets core hospitality standards' },
+  { rating: 4, label: 'Good', desc: 'Exceeds standards / Highly reliable' },
+  { rating: 5, label: 'Excellent', desc: 'Outstanding role model' },
+]
 
 function calculateWeightedKpiAverage(kpis = []) {
   const rows = (kpis || [])
     .map(kpi => ({
-      score: Number(kpi?.score),
-      weight: Number(kpi?.weight) || 0,
+      score: Number(kpi?.score ?? (Number(kpi?.rating || 0) * 20)),
+      weight: Number(kpi?.weight) || (100 / (kpis.length || 14)),
       target: kpi?.target
     }))
     .filter(kpi => Number.isFinite(kpi.score))
@@ -369,236 +583,435 @@ function calculateWeightedKpiAverage(kpis = []) {
   const totalWeight = rows.reduce((sum, kpi) => sum + (kpi.weight > 0 ? kpi.weight : 0), 0)
   if (totalWeight > 0) {
     const totalWeightedScore = rows.reduce((sum, kpi) => {
-      const contribution = calculateKpiContribution(kpi.score, kpi.target, kpi.weight)
-      return sum + contribution
+      const achievement = kpi.score / 100
+      return sum + (achievement * kpi.weight)
     }, 0)
     const normalized = (totalWeightedScore / totalWeight) * 100
-    return Math.min(100, Math.max(0, Math.round(normalized * 100) / 100))
+    return Math.min(100, Math.max(0, Math.round(normalized * 10) / 10))
   }
-  return Math.round(rows.reduce((sum, kpi) => sum + kpi.score, 0) / rows.length)
+  return Math.round((rows.reduce((sum, kpi) => sum + kpi.score, 0) / rows.length) * 10) / 10
 }
 
 function extractKpiData(events, stageKey) {
-  const event = (events || []).find(ev => ev.stage === stageKey && ev.details)
-  const form = event?.details?.formData || event?.details || {}
-  if (Array.isArray(form.kpiRatings) && form.kpiRatings.length > 0) {
-    const overall = calculateWeightedKpiAverage(form.kpiRatings)
-    return { kpis: form.kpiRatings, overall }
+  // Search all events for the stage — prefer the most recent one with kpiRatings
+  const matchingEvents = (events || []).filter(ev => ev.stage === stageKey && ev.details)
+  
+  for (const event of [...matchingEvents].reverse()) {
+    const details = event.details || {}
+    // Support both nested formData and flat top-level kpiRatings
+    const form = (details.formData && typeof details.formData === 'object') ? details.formData : details
+
+    if (Array.isArray(form.kpiRatings) && form.kpiRatings.length > 0) {
+      const overall = form.overall ?? calculateWeightedKpiAverage(form.kpiRatings)
+      return {
+        kpis: form.kpiRatings,
+        overall,
+        averageRating: form.averageRating,
+        strengths: form.strengths || '',
+        improvements: form.improvements || '',
+        comments: form.comments || ''
+      }
+    }
+    if (Array.isArray(form.questions) && form.questions.length > 0) {
+      const kpis = form.questions.map(q => ({
+        name: q.question,
+        rating: Number(q.rating || 4),
+        score: Math.round((Number(q.rating || 4) / 5) * 100),
+        comment: q.comment || ''
+      }))
+      const overall = calculateWeightedKpiAverage(kpis)
+      return { kpis, overall, strengths: form.strengths || '', improvements: form.improvements || '', comments: form.comments || '' }
+    }
   }
-  if (Array.isArray(form.questions) && form.questions.length > 0) {
-    const kpis = form.questions.map(q => ({
-      name: q.question,
-      score: Math.round((Number(q.rating || 0) / 5) * 100),
-      comment: q.comment || ''
-    }))
-    const overall = calculateWeightedKpiAverage(kpis)
-    return { kpis, overall }
-  }
-  return { kpis: [], overall: 0 }
+  return { kpis: [], overall: 0, strengths: '', improvements: '', comments: '' }
 }
 
-function AssessmentBuilder({ value = {}, onChange, role, events = [] }) {
-  const configuredKpis = useMemo(() => extractConfiguredKpis(events), [events])
+function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [], subject, workflow }) {
   const empSelfData = useMemo(() => extractKpiData(events, 'self_assessment'), [events])
 
-  const initialKpis = useMemo(() => {
-    if (configuredKpis && configuredKpis.length > 0) {
-      return configuredKpis.map(k => ({
-        name: k.name || k.title,
-        target: k.target || '90',
-        weight: Number(k.weight) || 25,
-        description: k.description || '',
-      }))
+  // Extract review context details from events or workflow
+  const reviewCreationEvent = useMemo(() => (events || []).find(e => e.stage === 'create_review' || e.event_type === 'created'), [events])
+  const createDetails = reviewCreationEvent?.details?.formData || reviewCreationEvent?.details || workflow?.metadata || {}
+  
+  const employeeInfo = useMemo(() => {
+    // 1. Resolve employee object and name
+    const targetId = subject?.id || workflow?.subject_employee_id || createDetails?.employee?.id || (typeof createDetails?.employee === 'string' && !createDetails?.employee.includes(' ') ? createDetails?.employee : null)
+    const targetName = subject?.full_name || subject?.name || workflow?.subject_name || createDetails?.employee?.full_name || createDetails?.employee?.name || (typeof createDetails?.employee === 'string' ? createDetails?.employee : '') || createDetails?.employeeName || ''
+
+    const matchedPerson = (people || []).find(p => 
+      (targetId && (p.id === targetId || p.employee_id === targetId)) || 
+      (targetName && (
+        p.full_name?.toLowerCase() === targetName.toLowerCase() || 
+        p.name?.toLowerCase() === targetName.toLowerCase()
+      ))
+    ) || {}
+
+    const resolvedName = targetName || matchedPerson.full_name || matchedPerson.name || 'Staff Member'
+    const resolvedPosition = matchedPerson.job_title || matchedPerson.position || subject?.position || subject?.job_title || subject?.role || createDetails?.position || 'Hospitality Associate'
+    const resolvedDept = (createDetails?.department && createDetails.department !== 'All' ? createDetails.department : '') ||
+      (workflow?.metadata?.department && workflow.metadata.department !== 'All' ? workflow.metadata.department : '') ||
+      matchedPerson.department || subject?.department || 'Food & Beverage'
+
+    // 2. Resolve Review Period (e.g. Q1, Q2, Q3, Q4, Annual)
+    let rawPeriod = createDetails?.reviewPeriod || createDetails?.period || ''
+    if (!rawPeriod) {
+      // Check all events for reviewPeriod
+      const evWithPeriod = (events || []).find(e => e.details?.reviewPeriod || e.details?.formData?.reviewPeriod)
+      rawPeriod = evWithPeriod?.details?.reviewPeriod || evWithPeriod?.details?.formData?.reviewPeriod || ''
     }
-    return DEFAULT_KPIS
-  }, [configuredKpis])
+    if (!rawPeriod && workflow?.title) {
+      const match = workflow.title.match(/(Q[1-4]|Annual|Quarterly)/i)
+      if (match) rawPeriod = match[0].toUpperCase()
+    }
+    
+    let displayPeriod = rawPeriod || 'Q1'
+    if (displayPeriod === 'Q1') displayPeriod = 'Quarterly (Q1)'
+    else if (displayPeriod === 'Q2') displayPeriod = 'Quarterly (Q2)'
+    else if (displayPeriod === 'Q3') displayPeriod = 'Quarterly (Q3)'
+    else if (displayPeriod === 'Q4') displayPeriod = 'Quarterly (Q4)'
+    else if (displayPeriod === 'Annual') displayPeriod = 'Annual Review'
+
+    return {
+      name: resolvedName,
+      position: resolvedPosition,
+      department: resolvedDept,
+      period: displayPeriod,
+      evalDate: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    }
+  }, [subject, createDetails, people, events, workflow])
+
+  // Get department-specific 14 criteria matrix
+  const baseCriteria = useMemo(() => {
+    return getDepartmentCriteria(employeeInfo.department)
+  }, [employeeInfo.department])
 
   const kpis = value.kpiRatings || []
+  // Only treat as matching if length AND first id match (department check)
+  const savedFirstId = kpis.length > 0 ? (kpis[0]?.id || kpis[0]?.name) : null
+  const baseFirstId = baseCriteria.length > 0 ? (baseCriteria[0]?.id || baseCriteria[0]?.name) : null
+  const isMatchingDept = kpis.length > 0 && savedFirstId === baseFirstId
+  const activeRatings = isMatchingDept ? kpis : baseCriteria.map(c => ({ ...c, rating: 4, score: 80, comment: '' }))
 
-  // Ensure state initialization
+  // Only initialize when there is truly no saved data for this department.
+  // NEVER overwrite kpiRatings that are already saved (submitted scores).
   useEffect(() => {
-    if (!value.kpiRatings || value.kpiRatings.length === 0) {
-      const initialRatings = initialKpis.map(k => {
-        const empMatch = empSelfData.kpis.find(e => e.name === k.name)
-        const defaultScore = role === 'employee' ? 85 : (empMatch ? empMatch.score : 80)
-        const contribution = calculateKpiContribution(defaultScore, k.target, k.weight)
-        return {
-          name: k.name,
-          target: k.target,
-          weight: k.weight,
-          score: defaultScore,
-          contribution,
-          comment: '',
-        }
-      })
-      const overall = calculateWeightedKpiAverage(initialRatings)
-      onChange({ ...value, kpiRatings: initialRatings, overall })
+    if (kpis.length > 0 && isMatchingDept) return  // Already has correct saved data — do not touch
+    if (kpis.length > 0 && !isMatchingDept) {
+      // Department changed — reset for new department
+    } else if (kpis.length === 0) {
+      // No data yet — seed defaults
+    } else {
+      return
     }
-  }, [initialKpis])
 
-  const updateKpiScore = (index, patch) => {
-    const currentList = value.kpiRatings || initialKpis.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: 80, contribution: 0, comment: '' }))
-    const updated = currentList.map((k, i) => {
-      if (i !== index) return k
-      const merged = { ...k, ...patch }
-      merged.contribution = calculateKpiContribution(merged.score, merged.target, merged.weight)
-      return merged
+    const defaultRating = 4
+    const initialRatings = baseCriteria.map(c => ({
+      id: c.id || c.name,
+      name: c.name,
+      description: c.description,
+      target: c.target || '90%',
+      weight: c.weight,
+      rating: defaultRating,
+      score: Math.round((defaultRating / 5) * 100),
+      comment: ''
+    }))
+    const avgRating = (initialRatings.reduce((sum, k) => sum + k.rating, 0) / initialRatings.length).toFixed(2)
+    const overall = calculateWeightedKpiAverage(initialRatings)
+    onChange({ 
+      ...value, 
+      kpiRatings: initialRatings, 
+      averageRating: Number(avgRating), 
+      overall,
+      strengths: value.strengths || '',
+      improvements: value.improvements || '',
+      comments: value.comments || '',
+      role: role || '' 
     })
+  }, [baseCriteria, employeeInfo.department])
+
+  const handleRatingSelect = (index, ratingNum) => {
+    const currentList = activeRatings
+    const updated = currentList.map((row, i) => {
+      if (i !== index) return row
+      const score = Math.round((ratingNum / 5) * 100)
+      return { ...row, rating: ratingNum, score }
+    })
+    const avgRating = (updated.reduce((sum, k) => sum + Number(k.rating || 0), 0) / updated.length).toFixed(2)
     const overall = calculateWeightedKpiAverage(updated)
-    onChange({ ...value, kpiRatings: updated, overall })
+    onChange({ 
+      ...value, 
+      kpiRatings: updated, 
+      averageRating: Number(avgRating), 
+      overall 
+    })
   }
 
-  const isSupervisorEval = role !== 'employee' && empSelfData.kpis.length > 0
+  const totalAverage = value.averageRating ?? (activeRatings.reduce((s, k) => s + (k.rating || 4), 0) / activeRatings.length).toFixed(2)
+  const totalPercentage = value.overall ?? Math.round((totalAverage / 5) * 100)
+
+  const getPerformanceBadge = (pct) => {
+    if (pct >= 90) return { label: 'Excellent (Role Model)', color: '#10b981', bg: '#ecfdf5' }
+    if (pct >= 80) return { label: 'Good (Exceeds Standards)', color: '#4f46e5', bg: '#eef2ff' }
+    if (pct >= 70) return { label: 'Satisfactory (Meets Standards)', color: '#0284c7', bg: '#f0f9ff' }
+    if (pct >= 60) return { label: 'Fair (Needs Improvement)', color: '#d97706', bg: '#fffbeb' }
+    return { label: 'Poor (Critical Action Required)', color: '#ef4444', bg: '#fef2f2' }
+  }
+
+  const badge = getPerformanceBadge(totalPercentage)
 
   return (
-    <div className="builder assessment-builder">
-      <div className="builder-note">
-        {role === 'employee' 
-          ? 'Enter your self-assessment score (0–100%) and comments for each configured KPI. Your weighted contribution is calculated automatically.'
-          : 'Department Head / Supervisor Evaluation: Enter your independent evaluation score and comments for each configured KPI.'}
+    <div className="builder hospitality-eval-form">
+      {/* 1. Header Information (matching attached template) */}
+      <div className="hospitality-eval-header-card">
+        <div className="eval-doc-title">
+          <h2>Hotel & Restaurant Employee Evaluation Form</h2>
+          <p>{employeeInfo.department} Department · Performance Appraisal & Hospitality Competency Assessment</p>
+        </div>
+
+        <div className="eval-info-grid">
+          <div className="eval-info-item">
+            <span className="eval-info-label">Employee's Name:</span>
+            <span className="eval-info-val">{employeeInfo.name}</span>
+          </div>
+          <div className="eval-info-item">
+            <span className="eval-info-label">Department:</span>
+            <span className="eval-info-val">{employeeInfo.department}</span>
+          </div>
+          <div className="eval-info-item">
+            <span className="eval-info-label">Position / Role:</span>
+            <span className="eval-info-val">{employeeInfo.position}</span>
+          </div>
+          <div className="eval-info-item">
+            <span className="eval-info-label">Date of Evaluation:</span>
+            <span className="eval-info-val">{employeeInfo.evalDate}</span>
+          </div>
+          <div className="eval-info-item">
+            <span className="eval-info-label">Evaluator's Name:</span>
+            <span className="eval-info-val">
+              {role === 'employee' ? `${employeeInfo.name} (Self-Assessment)` : 'Supervisor / Department Head'}
+            </span>
+          </div>
+          <div className="eval-info-item">
+            <span className="eval-info-label">Evaluation Period:</span>
+            <span className="eval-info-val">{employeeInfo.period}</span>
+          </div>
+        </div>
       </div>
 
-      <div className="kpi-assessment-list">
-        {(kpis.length > 0 ? kpis : initialKpis).map((kpi, index) => {
-          const empMatch = empSelfData.kpis.find(e => e.name === kpi.name) || empSelfData.kpis[index]
-          const currentScore = kpi.score ?? 80
-          const currentContrib = calculateKpiContribution(currentScore, kpi.target, kpi.weight)
-          const empScore = empMatch ? empMatch.score : null
-          const empContrib = empScore !== null ? calculateKpiContribution(empScore, kpi.target, kpi.weight) : null
-
-          return (
-            <div className="kpi-assessment-card" key={index}>
-              <div className="kpi-assessment-header">
-                <div>
-                  <h4 className="kpi-title">{kpi.name}</h4>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                    {kpi.target && <span className="kpi-target-tag">Target: {kpi.target}</span>}
-                    <span className="kpi-target-tag" style={{ background: 'var(--bg-subtle, #f3f4f6)' }}>Weight: {kpi.weight}%</span>
-                    <span className="kpi-target-tag" style={{ background: '#e0e7ff', color: '#3730a3', fontWeight: 600 }}>
-                      Contribution: {currentContrib}%
-                    </span>
-                  </div>
-                </div>
-                <div className="kpi-score-badge">
-                  <b>{currentScore}%</b>
-                </div>
-              </div>
-
-              {isSupervisorEval && empMatch && (
-                <div className="emp-self-reference" style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, marginTop: 8, border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="reference-label" style={{ fontWeight: 600, fontSize: 12 }}>Employee Self-Assessment:</span>
-                    <span className="reference-score">
-                      <b>{empScore}%</b> <small style={{ color: '#64748b' }}>({empContrib}% contribution)</small>
-                    </span>
-                  </div>
-                  {empMatch.comment && <p className="reference-comment" style={{ margin: '4px 0 0 0', fontSize: 12, fontStyle: 'italic', color: '#475569' }}>"{empMatch.comment}"</p>}
-                </div>
-              )}
-
-              <div className="kpi-score-input-group" style={{ marginTop: 12 }}>
-                <label className="score-label">
-                  <span>{role === 'employee' ? 'Self Score (%)' : 'Supervisor Score (%)'}</span>
-                  <div className="slider-with-number">
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="100" 
-                      value={currentScore} 
-                      onChange={e => updateKpiScore(index, { score: Number(e.target.value) })}
-                    />
-                    <input 
-                      type="number" 
-                      min="0" 
-                      max="100" 
-                      value={currentScore} 
-                      onChange={e => updateKpiScore(index, { score: Math.min(100, Math.max(0, Number(e.target.value))) })}
-                    />
-                    <span>%</span>
-                  </div>
-                </label>
-              </div>
-
-              <div className="kpi-comment-input">
-                <textarea 
-                  value={kpi.comment || ''} 
-                  onChange={e => updateKpiScore(index, { comment: e.target.value })} 
-                  placeholder={role === 'employee' ? 'Add self-assessment supporting notes or achievements...' : 'Add supervisor evaluation notes and evidence...'}
-                  rows={2}
-                />
-              </div>
+      {/* 2. Rating Scale Reference Bar */}
+      <div className="eval-rating-scale-legend">
+        <span className="scale-title">Performance Rating Scale:</span>
+        <div className="scale-chips-row">
+          {RATING_SCALE_LEGEND.map(s => (
+            <div className="scale-chip" key={s.rating}>
+              <b className="scale-num">{s.rating}</b>
+              <span className="scale-name">{s.label}</span>
+              <small className="scale-desc">({s.rating * 20}%)</small>
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
 
-      <div className="builder-score-summary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-card, #f8fafc)', borderRadius: 10, marginTop: 16, border: '1px solid var(--border-color, #e2e8f0)' }}>
-        <span>Total Weighted {role === 'employee' ? 'Self-Assessment' : 'Supervisor Evaluation'} Score:</span>
-        <b className="overall-score-big" style={{ fontSize: 22, color: 'var(--primary-color, #4f46e5)' }}>{value.overall || 0}%</b>
+      {/* 3. Performance Criteria Table (14 Department-Specific Items) */}
+      <div className="eval-table-container">
+        <table className="hospitality-eval-table">
+          <thead>
+            <tr>
+              <th className="th-criteria" style={{ width: '24%' }}>Criteria</th>
+              <th className="th-desc" style={{ width: '40%' }}>Description</th>
+              <th className="th-rating" style={{ width: '6%' }}>1<small>Poor</small></th>
+              <th className="th-rating" style={{ width: '6%' }}>2<small>Fair</small></th>
+              <th className="th-rating" style={{ width: '6%' }}>3<small>Sat.</small></th>
+              <th className="th-rating" style={{ width: '6%' }}>4<small>Good</small></th>
+              <th className="th-rating" style={{ width: '6%' }}>5<small>Exc.</small></th>
+              <th className="th-score" style={{ width: '6%' }}>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeRatings.map((row, index) => {
+              const selectedRating = row.rating || 4
+              const rowPercentage = Math.round((selectedRating / 5) * 100)
+
+              return (
+                <tr key={index} className={selectedRating >= 4 ? 'row-high' : selectedRating <= 2 ? 'row-low' : ''}>
+                  <td className="td-criteria">
+                    <b>{row.name}</b>
+                    {row.weight && <span className="kpi-weight-badge">{row.weight}% weight</span>}
+                  </td>
+                  <td className="td-desc">
+                    <p>{row.description}</p>
+                  </td>
+                  {[1, 2, 3, 4, 5].map(ratingNum => (
+                    <td 
+                      key={ratingNum} 
+                      className={`td-rating-cell ${selectedRating === ratingNum ? 'selected' : ''}`}
+                      onClick={() => handleRatingSelect(index, ratingNum)}
+                    >
+                      <label className="eval-radio-label">
+                        <input 
+                          type="radio" 
+                          name={`criteria-rating-${index}`} 
+                          checked={selectedRating === ratingNum} 
+                          onChange={() => handleRatingSelect(index, ratingNum)}
+                        />
+                        <span className="eval-custom-radio" />
+                      </label>
+                    </td>
+                  ))}
+                  <td className="td-score">
+                    <span className={`eval-score-pill score-${selectedRating}`}>
+                      {rowPercentage}%
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 4. Qualitative Performance Feedback Section */}
+      <div className="hospitality-qualitative-card">
+        <h4 className="qualitative-heading">Specific Examples of Performance</h4>
+        
+        <div className="qualitative-field">
+          <label>
+            <b>Strengths:</b>
+            <small>Detail the employee's strengths and hospitality achievements. Include specific examples.</small>
+          </label>
+          <textarea 
+            rows={3} 
+            value={value.strengths || ''} 
+            onChange={e => onChange({ ...value, strengths: e.target.value })} 
+            placeholder="e.g. Excellent operational accuracy, high dependability during rush hours..."
+          />
+        </div>
+
+        <div className="qualitative-field">
+          <label>
+            <b>Areas for Improvement:</b>
+            <small>Detail areas where the employee could improve and development targets.</small>
+          </label>
+          <textarea 
+            rows={3} 
+            value={value.improvements || ''} 
+            onChange={e => onChange({ ...value, improvements: e.target.value })} 
+            placeholder="e.g. Enhance technical knowledge, improve station turnover speed..."
+          />
+        </div>
+
+        <div className="qualitative-field">
+          <label>
+            <b>Additional Comments:</b>
+            <small>Any additional observations or notes related to performance and conduct.</small>
+          </label>
+          <textarea 
+            rows={2} 
+            value={value.comments || ''} 
+            onChange={e => onChange({ ...value, comments: e.target.value })} 
+            placeholder="Optional additional notes..."
+          />
+        </div>
+      </div>
+
+      {/* 5. Live Score & Percentage Summary Card */}
+      <div className="hospitality-score-summary-card">
+        <div className="summary-col">
+          <span className="summary-label">Average Evaluation Rating</span>
+          <div className="summary-rating-big">
+            <b>{totalAverage}</b> <small>/ 5.0</small>
+          </div>
+        </div>
+
+        <div className="summary-divider" />
+
+        <div className="summary-col">
+          <span className="summary-label">Equivalent Total Percentage</span>
+          <div className="summary-percentage-big">
+            <b>{totalPercentage}%</b>
+          </div>
+        </div>
+
+        <div className="summary-divider" />
+
+        <div className="summary-col badge-col">
+          <span className="summary-label">Hospitality Performance Level</span>
+          <span className="summary-grade-badge" style={{ backgroundColor: badge.bg, color: badge.color, border: `1px solid ${badge.color}30` }}>
+            {badge.label}
+          </span>
+        </div>
       </div>
     </div>
   )
 }
 
-// ------------------------- Builder: Calibration ----------------------------
+// ------------------------- Builder: Calibration (HR) ----------------------------
 
-function CalibrationBuilder({ value = {}, onChange, events = [] }) {
-  const configuredKpis = extractConfiguredKpis(events) || []
+function CalibrationBuilder({ value = {}, onChange, events = [], subject, workflow, people = [] }) {
   const empData = extractKpiData(events, 'self_assessment')
   const deptData = extractKpiData(events, 'performance_evaluation')
 
-  // Fallback data if events don't exist yet
-  const baseKpis = configuredKpis.length > 0 ? configuredKpis : (empData.kpis.length > 0 ? empData.kpis : DEFAULT_KPIS)
+  // Resolve department to pull proper 14-item criteria
+  const targetId = subject?.id || workflow?.subject_employee_id
+  const targetName = subject?.full_name || workflow?.subject_name
+  const matchedPerson = (people || []).find(p => (targetId && p.id === targetId) || (targetName && p.full_name?.toLowerCase() === targetName.toLowerCase()))
+  const resolvedDept = matchedPerson?.department || workflow?.metadata?.department || 'Food & Beverage'
+  const deptCriteria = getDepartmentCriteria(resolvedDept)
+
+  // Use department criteria
+  const baseKpis = deptCriteria
 
   const kpiComparisons = baseKpis.map((kpi, i) => {
-    const empMatch = empData.kpis.find(d => d.name === (kpi.name || kpi.title)) || empData.kpis[i] || { score: 85, comment: '' }
-    const deptMatch = deptData.kpis.find(d => d.name === (kpi.name || kpi.title)) || deptData.kpis[i] || { score: 80, comment: '' }
+    const empMatch = empData.kpis.find(d => d.name === (kpi.name || kpi.title) || d.id === kpi.id) || empData.kpis[i] || { rating: 4, score: 80, comment: '' }
+    const deptMatch = deptData.kpis.find(d => d.name === (kpi.name || kpi.title) || d.id === kpi.id) || deptData.kpis[i] || { rating: 4, score: 80, comment: '' }
     
-    const target = kpi.target || '90'
-    const weight = Number(kpi.weight) || 25
-    const empVal = Number(empMatch.score || 0)
-    const deptVal = Number(deptMatch.score || 0)
-    const empContrib = calculateKpiContribution(empVal, target, weight)
-    const deptContrib = calculateKpiContribution(deptVal, target, weight)
-    const diff = empVal - deptVal
-    const contribDiff = Math.round((empContrib - deptContrib) * 100) / 100
+    const target = kpi.target || '90%'
+    const weight = Number(kpi.weight) || (100 / baseKpis.length)
+    const empRating = Number(empMatch.rating || Math.round((empMatch.score || 80) / 20))
+    const deptRating = Number(deptMatch.rating || Math.round((deptMatch.score || 80) / 20))
+    const empScore = Number(empMatch.score || empRating * 20)
+    const deptScore = Number(deptMatch.score || deptRating * 20)
+    
+    const diff = Math.round((empScore - deptScore) * 10) / 10
+    const ratingDiff = empRating - deptRating
     const absDiff = Math.abs(diff)
 
     return {
       name: kpi.name || kpi.title,
+      description: kpi.description || '',
       target,
       weight,
-      empScore: empVal,
-      deptScore: deptVal,
-      empContrib,
-      deptContrib,
+      empRating,
+      deptRating,
+      empScore,
+      deptScore,
       diff,
-      contribDiff,
+      ratingDiff,
       absDiff,
-      isDisagreement: absDiff >= 5,
+      isDisagreement: absDiff >= 10,
       empComment: empMatch.comment || '',
       deptComment: deptMatch.comment || ''
     }
   })
 
-  const overallEmpAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.empScore, weight: kpi.weight, target: kpi.target })))
-  const overallDeptAvg = calculateWeightedKpiAverage(kpiComparisons.map(kpi => ({ score: kpi.deptScore, weight: kpi.weight, target: kpi.target })))
-  const overallDiff = Math.round((overallEmpAvg - overallDeptAvg) * 100) / 100
+  const overallEmpAvg = empData.overall || calculateWeightedKpiAverage(kpiComparisons.map(k => ({ score: k.empScore, weight: k.weight })))
+  const overallDeptAvg = deptData.overall || calculateWeightedKpiAverage(kpiComparisons.map(k => ({ score: k.deptScore, weight: k.weight })))
+  const overallDiff = Math.round((overallEmpAvg - overallDeptAvg) * 10) / 10
   const absOverallDiff = Math.abs(overallDiff)
 
-  const decision = value.decision || ''
-  const isOverride = decision === 'Override Final Score' || decision === 'Override / Adjust Final Score'
-  const isReturn = decision === 'Return for Revision' || decision === 'Return Evaluation for Revision'
-  const requireReason = isOverride || isReturn
+  const empRatingAvg = (overallEmpAvg / 20).toFixed(2)
+  const deptRatingAvg = (overallDeptAvg / 20).toFixed(2)
 
-  const set = patch => onChange({ ...value, ...patch })
+  const decision = value.decision || ''
+  const isOverride = decision === 'Override Final Score' || decision === 'Custom HR Calibrated Score'
+  const isReturn = decision === 'Return for Revision' || decision === 'Return Evaluation for Revision'
 
   const handleDecisionSelect = opt => {
     let calculatedFinal = ''
-    if (opt.includes('Department Head') || opt.includes('Dept Head') || opt.includes('Supervisor')) calculatedFinal = overallDeptAvg
+    if (opt.includes('Supervisor') || opt.includes('Department Head')) calculatedFinal = overallDeptAvg
     else if (opt.includes('Self-Assessment') || opt.includes('Employee')) calculatedFinal = overallEmpAvg
-    else if (opt.includes('Average')) calculatedFinal = Math.round(((overallEmpAvg + overallDeptAvg) / 2) * 100) / 100
-    else if (opt.includes('Override') || opt.includes('Adjust')) calculatedFinal = value.finalScore ?? overallDeptAvg
+    else if (opt.includes('Average') || opt.includes('Balanced')) calculatedFinal = Math.round(((overallEmpAvg + overallDeptAvg) / 2) * 10) / 10
+    else if (opt.includes('Override') || opt.includes('Custom')) calculatedFinal = value.finalScore ?? overallDeptAvg
     else calculatedFinal = ''
 
     onChange({
@@ -612,11 +1025,6 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
     })
   }
 
-  const [expandedComments, setExpandedComments] = useState({})
-  const toggleComments = index => {
-    setExpandedComments(prev => ({ ...prev, [index]: !prev[index] }))
-  }
-
   return (
     <div className="builder calibration-builder">
       {/* Overview Score Cards */}
@@ -624,104 +1032,64 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
         <div className="calibration-card emp-card">
           <span className="card-tag">Employee Self-Assessment</span>
           <b className="card-score">{overallEmpAvg}%</b>
-          <small className="card-sub">Weighted Total Score</small>
+          <small className="card-sub">{empRatingAvg} / 5.0 Rating</small>
         </div>
 
         <div className="calibration-card diff-card">
-          <span className="card-tag">Score Difference</span>
+          <span className="card-tag">Score Variance</span>
           <b className={`card-diff ${overallDiff > 0 ? 'diff-pos' : overallDiff < 0 ? 'diff-neg' : ''}`}>
             {overallDiff > 0 ? `+${overallDiff}` : overallDiff}%
           </b>
           <small className="card-sub">
-            {absOverallDiff >= 5 ? <><AlertTriangle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Significant Disagreement</> : 'Within Normal Range'}
+            {absOverallDiff >= 10 ? <><AlertTriangle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Significant Gap</> : 'Within Standard Range'}
           </small>
         </div>
 
         <div className="calibration-card dept-card">
           <span className="card-tag">Supervisor Evaluation</span>
           <b className="card-score">{overallDeptAvg}%</b>
-          <small className="card-sub">Weighted Total Score</small>
+          <small className="card-sub">{deptRatingAvg} / 5.0 Rating</small>
         </div>
       </div>
 
-      {/* KPI Comparison Table */}
+      {/* Side-by-Side Criteria Table */}
       <div className="calibration-section">
-        <div className="section-head">
-          <h4>KPI Score & Contribution Comparison</h4>
-          <span className="section-hint">Review both scores and weighted contributions before final calibration</span>
+        <div className="section-head" style={{ marginBottom: 12 }}>
+          <h4>Hotel & Restaurant Criteria Comparison</h4>
+          <small>Side-by-side breakdown of 1–5 ratings and percentage scores.</small>
         </div>
 
         <div className="calibration-table-wrap">
           <table className="calibration-table">
             <thead>
               <tr>
-                <th>KPI / Target / Weight</th>
-                <th className="text-center">Employee Self</th>
-                <th className="text-center">Supervisor</th>
-                <th className="text-center">Difference</th>
-                <th>Status & Notes</th>
+                <th>Evaluation Criteria</th>
+                <th style={{ textAlign: 'center' }}>Employee Rating</th>
+                <th style={{ textAlign: 'center' }}>Supervisor Rating</th>
+                <th style={{ textAlign: 'center' }}>Difference</th>
               </tr>
             </thead>
             <tbody>
-              {kpiComparisons.map((item, index) => (
-                <tr key={index} className={item.isDisagreement ? 'row-disagreement' : ''}>
-                  <td className="kpi-cell">
-                    <strong>{item.name}</strong>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                      Target: {item.target} · Weight: {item.weight}%
-                    </div>
-                  </td>
-                  <td className="text-center score-emp">
-                    <div><b>{item.empScore}%</b></div>
-                    <small style={{ color: '#64748b', fontSize: 10 }}>({item.empContrib}% contrib)</small>
-                  </td>
-                  <td className="text-center score-dept">
-                    <div><b>{item.deptScore}%</b></div>
-                    <small style={{ color: '#64748b', fontSize: 10 }}>({item.deptContrib}% contrib)</small>
-                  </td>
-                  <td className="text-center">
-                    <span className={`diff-pill ${item.diff > 0 ? 'pill-plus' : item.diff < 0 ? 'pill-minus' : 'pill-zero'}`}>
-                      {item.diff > 0 ? `+${item.diff}` : item.diff} pts
-                    </span>
-                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                      {item.contribDiff > 0 ? `+${item.contribDiff}` : item.contribDiff}% contrib
-                    </div>
-                  </td>
+              {kpiComparisons.map((row, idx) => (
+                <tr key={idx} className={row.isDisagreement ? 'row-alert' : ''}>
                   <td>
-                    <div className="status-notes-cell">
-                      {item.isDisagreement ? (
-                        <span className="disagreement-badge"><AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> {item.absDiff} pts Disagreement</span>
-                      ) : (
-                        <span className="aligned-badge"><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Aligned</span>
-                      )}
-                      
-                      {(item.empComment || item.deptComment) && (
-                        <button 
-                          type="button" 
-                          className="toggle-comments-btn"
-                          onClick={() => toggleComments(index)}
-                        >
-                          {expandedComments[index] ? 'Hide Notes' : 'View Notes'}
-                        </button>
-                      )}
-                    </div>
-                    
-                    {expandedComments[index] && (
-                      <div className="comments-expand-box">
-                        {item.empComment && (
-                          <div className="comment-block emp-comment">
-                            <small>Employee Self Note:</small>
-                            <p>"{item.empComment}"</p>
-                          </div>
-                        )}
-                        {item.deptComment && (
-                          <div className="comment-block dept-comment">
-                            <small>Supervisor Note:</small>
-                            <p>"{item.deptComment}"</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <b>{row.name}</b>
+                    <small style={{ display: 'block', color: '#64748b', fontSize: 11, marginTop: 2 }}>{row.description}</small>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className="calib-rating-pill emp">
+                      {row.empRating} / 5 <small>({row.empScore}%)</small>
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className="calib-rating-pill sup">
+                      {row.deptRating} / 5 <small>({row.deptScore}%)</small>
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className={`calib-diff-pill ${row.diff > 0 ? 'pos' : row.diff < 0 ? 'neg' : 'zero'}`}>
+                      {row.diff > 0 ? `+${row.diff}%` : `${row.diff}%`}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -730,66 +1098,95 @@ function CalibrationBuilder({ value = {}, onChange, events = [] }) {
         </div>
       </div>
 
+      {/* Qualitative Feedback Review */}
+      {(empData.strengths || deptData.strengths || empData.improvements || deptData.improvements) && (
+        <div className="calibration-qualitative-review" style={{ marginTop: 20 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>Qualitative Feedback Review</h4>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="calib-feedback-box" style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <b style={{ color: '#4338ca', fontSize: 12 }}>Employee Self-Identified Strengths</b>
+              <p style={{ fontSize: 12, margin: '6px 0 0', color: '#475569' }}>
+                {empData.strengths || 'No specific strengths entered.'}
+              </p>
+            </div>
+
+            <div className="calib-feedback-box" style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <b style={{ color: '#0f766e', fontSize: 12 }}>Supervisor-Identified Strengths</b>
+              <p style={{ fontSize: 12, margin: '6px 0 0', color: '#475569' }}>
+                {deptData.strengths || 'No specific strengths entered.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HR Calibration Decision Controls */}
-      <div className="calibration-section decision-section">
+      <div className="calibration-decision-card" style={{ marginTop: 24 }}>
         <h4>HR Calibration Decision</h4>
-        <p className="field-hint">Select the final resolution for this employee's performance evaluation score:</p>
+        <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 16px' }}>Select the final resolution for this employee's performance evaluation percentage score:</p>
 
         <div className="decision-options-grid">
           {[
-            { id: 'Accept Department Head Score', label: 'Accept Supervisor Evaluation', sub: `${overallDeptAvg}% weighted final score` },
-            { id: 'Accept Employee Self-Assessment', label: 'Accept Employee Self-Assessment', sub: `${overallEmpAvg}% weighted final score` },
-            { id: 'Use Average of Scores', label: 'Use Average Score', sub: `${Math.round(((overallEmpAvg + overallDeptAvg)/2) * 100) / 100}% final score` },
-            { id: 'Override Final Score', label: 'Adjust / Override Final Score', sub: 'Custom calibrated score' },
-            { id: 'Return for Revision', label: 'Return Evaluation for Revision', sub: 'Send back to Supervisor' }
+            { id: 'Accept Department Head Score', label: 'Accept Supervisor Evaluation', score: `${overallDeptAvg}%`, sub: 'Official supervisor rating' },
+            { id: 'Use Average of Scores', label: 'Apply Balanced Average (50/50)', score: `${Math.round(((overallEmpAvg + overallDeptAvg)/2) * 10) / 10}%`, sub: 'Blend self and supervisor scores' },
+            { id: 'Accept Employee Self-Assessment', label: 'Accept Employee Self-Assessment', score: `${overallEmpAvg}%`, sub: 'Adopt employee self-rating' },
+            { id: 'Override Final Score', label: 'Custom HR Calibrated Score', score: 'Custom %', sub: 'HR adjustment with justification' },
+            { id: 'Return for Revision', label: 'Return Evaluation for Revision', score: 'Revision', sub: 'Send back to Supervisor' }
           ].map(opt => (
             <button
               key={opt.id}
               type="button"
-              className={`decision-option-card ${decision === opt.id ? 'active' : ''}`}
+              className={`decision-btn ${decision === opt.id || decision === opt.label ? 'selected' : ''}`}
               onClick={() => handleDecisionSelect(opt.id)}
             >
-              <div className="radio-circle">{decision === opt.id ? '●' : '○'}</div>
-              <div className="option-text">
-                <strong className="option-title">{opt.label}</strong>
-                <small className="option-sub">{opt.sub}</small>
+              <div className="decision-btn-head">
+                <span className="decision-btn-title">{opt.label}</span>
+                <span className="decision-btn-score">{opt.score}</span>
               </div>
+              <small className="decision-btn-sub">{opt.sub}</small>
             </button>
           ))}
         </div>
 
         {/* Final Calibrated Score Display / Input */}
         {decision && !isReturn && (
-          <div className="final-score-box">
-            <label className="form-field">
-              <span>Final Calibrated Performance Score (%) *</span>
+          <div className="final-score-box" style={{ marginTop: 16, padding: 14, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+              Final Calibrated Performance Score (%):
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="number"
                 min="0"
                 max="100"
-                step="0.01"
+                step="0.1"
                 value={value.finalScore ?? ''}
                 disabled={!isOverride}
-                onChange={e => set({ finalScore: e.target.value === '' ? '' : Number(e.target.value) })}
-                className="final-score-input"
+                onChange={e => onChange({ ...value, finalScore: e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))) })}
+                style={{ width: 100, padding: '8px 12px', fontSize: 15, fontWeight: 700, borderRadius: 8, border: '1px solid #c7d2fe', background: isOverride ? '#fff' : '#f1f5f9' }}
               />
-              <small className="field-hint">
-                {isOverride ? 'Enter custom calibrated percentage score.' : 'Authoritative score that will update the employee record in real time upon workflow completion.'}
-              </small>
-            </label>
+              <span style={{ fontWeight: 700 }}>%</span>
+            </div>
+            <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 4 }}>
+              {isOverride ? 'Enter custom calibrated percentage score.' : 'Authoritative percentage score that will be saved and published.'}
+            </small>
           </div>
         )}
 
         {/* Calibration Notes */}
-        <label className="form-field calibration-notes-field">
-          <span>Calibration Notes & Justification{requireReason ? ' *' : ''}</span>
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            Calibration Notes & Justification:
+          </label>
           <textarea
             value={value.reason || ''}
-            onChange={e => set({ reason: e.target.value })}
+            onChange={e => onChange({ ...value, reason: e.target.value })}
             rows={3}
-            placeholder={requireReason ? 'Explain the calibration decision or revision request (required).' : 'Add notes regarding HR calibration discussion, score adjustments, or justification.'}
+            placeholder="Add HR calibration observations, discussion notes, or alignment rationale..."
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12 }}
           />
-        </label>
+        </div>
       </div>
     </div>
   )
@@ -1930,7 +2327,7 @@ function NominationsBuilder({ value = [], onChange, people = [] }) {
 const BUILDERS = {
   kpi: { Component: KpiBuilder, initial: () => [] },
   kpiLibrary: { Component: KpiLibraryBuilder, initial: () => [] },
-  assessment: { Component: AssessmentBuilder, initial: role => ({ kpiRatings: DEFAULT_KPIS.map(k => ({ name: k.name, target: k.target, weight: k.weight, score: role === 'employee' ? 85 : 80, comment: '' })), overall: 82, role: role || '' }) },
+  assessment: { Component: AssessmentBuilder, initial: role => ({ kpiRatings: [], averageRating: 4.0, overall: 80, strengths: '', improvements: '', comments: '', role: role || '' }) },
   calibration: { Component: CalibrationBuilder, initial: () => ({ decision: '', finalScore: '', reason: '' }) },
   competencyTemplate: { Component: CompetencyTemplateBuilder, initial: () => [] },
   skillGapPlan: { Component: SkillGapPlanBuilder, initial: () => ({ planTitle: 'Development Plan', prioritySkills: ['Customer Service'], coachingNotes: '' }) },
@@ -1966,7 +2363,7 @@ export function getInitialValue(formConfig, role) {
   }, {})
 }
 
-export default function WorkflowForms({ formConfig, value, onChange, role, people, suggestions = [], events = [], subject }) {
+export default function WorkflowForms({ formConfig, value, onChange, role, people, suggestions = [], events = [], subject, workflow }) {
   const [error, setError] = useState('')
   const [section, setSection] = useState(0)
 
@@ -2018,7 +2415,7 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
         <h3>{formConfig.title}</h3>
         <p>{formConfig.description}</p>
       </div>
-{progressive && (
+      {progressive && (
         <div className="progressive-nav">
           {fields.filter((f, i, arr) => arr.findIndex(x => x.section === f.section) === i).map((f, i) => (
             <button key={f.name} type="button" className={`prog-dot ${i === section ? 'active' : ''}`} onClick={() => setSection(i)}>
@@ -2027,8 +2424,8 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
           ))}
         </div>
       )}
-{builder ? (
-        <builder.Component value={value} onChange={onChange} role={role} people={people || []} events={events} subject={subject} />
+      {builder ? (
+        <builder.Component value={value} onChange={onChange} role={role} people={people || []} events={events} subject={subject} workflow={workflow} />
       ) : (
         visibleFields.map(field => (
           <div className="form-field-wrap" key={field.name}>

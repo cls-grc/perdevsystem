@@ -455,24 +455,19 @@ create_review: {
         { name: 'dueDate', label: 'Due date', type: 'date', required: true },
       ],
     },
-    configure_kpi: {
-      title: 'Configure KPIs',
-      description: 'Pick KPIs from the library — each auto-fills name, description, weight and target. Adjust values only if needed.',
-      builder: 'kpiLibrary',
-    },
-self_assessment: {
+    self_assessment: {
       title: 'Employee self assessment',
-      description: 'Rate yourself against each KPI and add supporting comments.',
+      description: 'Complete the Hotel & Restaurant Employee Evaluation Form with 1–5 ratings, achievements, and development goals.',
       builder: 'assessment',
     },
     performance_evaluation: {
-      title: 'Performance evaluation',
-      description: 'Enter final ratings, feedback and evidence.',
+      title: 'Supervisor performance evaluation',
+      description: 'Evaluate employee against hospitality standards, review self-ratings, and provide feedback.',
       builder: 'assessment',
     },
     calibration: {
-      title: 'HR calibration',
-      description: 'Compare employee and supervisor scores, then approve, reject or return.',
+      title: 'HR calibration & score alignment',
+      description: 'Compare employee and supervisor scores, review rating variance, and set the final calibrated evaluation score.',
       builder: 'calibration',
     },
     final_approval: {
@@ -763,8 +758,7 @@ export function configFor(moduleKey) {
 export const STAGE_GUIDES = {
   performance: {
     create_review: { task: 'Set up the review cycle', action: 'Enter cycle details and select scope', time: '~2 min', checklist: ['Add review title', 'Choose period', 'Set due date'] },
-    configure_kpi: { task: 'Configure the KPIs', action: 'Add evaluation KPIs and weights', time: '~3 min', checklist: ['Add at least one KPI', 'Set weights', 'Define targets'] },
-self_assessment: { task: 'Complete your self assessment', action: 'Rate yourself against each KPI', time: '~5 min', checklist: ['Rate all questions', 'Add supporting comments'] },
+    self_assessment: { task: 'Complete your self assessment', action: 'Rate yourself against each KPI', time: '~5 min', checklist: ['Rate all questions', 'Add supporting comments'] },
     performance_evaluation: { task: 'Complete the evaluation', action: 'Review the self assessment and enter final ratings and evidence', time: '~5 min', checklist: ['Review each KPI', 'Fill final ratings', 'Add evidence'] },
     calibration: { task: 'Calibrate the scores', action: 'Compare and decide', time: '~3 min', checklist: ['Review score gap', 'Choose decision'] },
     final_approval: { task: 'Approve the results', action: 'Approve or reject the finalized review', time: '~1 min', checklist: ['Choose decision', 'Add notes (optional)'] },

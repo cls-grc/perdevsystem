@@ -2,9 +2,7 @@
 export const WORKFLOWS = {
   performance: [
     ['create_review', 'Create review', ['hr']],
-    ['configure_kpi', 'Configure KPI', ['hr']],
-    ['notify_employee', 'Notify employee', ['hr']],
-['self_assessment', 'Self assessment', ['employee']],
+    ['self_assessment', 'Self assessment', ['employee']],
     ['performance_evaluation', 'Performance evaluation', ['supervisor']],
     ['calibration', 'Calibration', ['hr']],
     ['final_approval', 'Final approval', ['hr']],

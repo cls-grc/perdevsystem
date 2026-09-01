@@ -434,14 +434,14 @@ const setFormValue = useCallback((patchOrValue, meta) => {
       const kpis = Array.isArray(v) ? v : (v?.kpis || [])
       if (!kpis.length) return false
       const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
-      if (Math.abs(totalWeight - 100) > 0.01) return false
-      return kpis.every(k => k.name && String(k.name).trim() && Number(k.weight) > 0 && k.target !== undefined && k.target !== '')
+      if (Math.abs(totalWeight - 100) > 0.5) return false
+      return kpis.every(k => k.name && String(k.name).trim() && Number(k.weight) > 0)
     }
     if (currentFormConfig.builder === 'assessment') {
       const v = currentFormValue
       const ratings = v?.kpiRatings || []
       if (!ratings.length) return false
-      return ratings.every(r => r.score !== undefined && r.score !== '' && Number(r.score) >= 0 && Number(r.score) <= 100)
+      return ratings.every(r => (r.rating !== undefined && Number(r.rating) >= 1 && Number(r.rating) <= 5) || (r.score !== undefined && Number(r.score) >= 0 && Number(r.score) <= 100))
     }
     if (currentFormConfig.builder === 'calibration') {
       const v = currentFormValue
@@ -707,6 +707,11 @@ const complete = async () => {
         showNotice(`${display} completed. ${result.nextAction} is now awaiting its assigned role.`)
       }
       window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
+      // Fire targeted event so Employee Records page can update the specific
+      // employee row immediately without a full reload
+      if (result.employee) {
+        window.dispatchEvent(new CustomEvent('pds:employee-score-updated', { detail: result.employee }))
+      }
       await load()
     } catch (requestError) {
       setError(requestError.message)
@@ -726,18 +731,18 @@ const complete = async () => {
           return
         }
         const totalWeight = kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0)
-        if (Math.abs(totalWeight - 100) > 0.01) {
-          setError(`Total KPI weight must equal exactly 100% (currently ${totalWeight}%). Please adjust the weights.`)
+        if (Math.abs(totalWeight - 100) > 0.5) {
+          setError(`Total KPI weight must equal 100% (currently ${totalWeight}%). Use the "Auto-Distribute" button or adjust the weights.`)
           return
         }
         const invalidKpi = kpis.find(k => !k.name || !String(k.name).trim() || !(Number(k.weight) > 0))
         if (invalidKpi) {
-          setError('Each KPI must have a name, weight greater than 0%, and target value.')
+          setError('Each KPI must have a name and a weight greater than 0%.')
           return
         }
       }
       if (currentFormConfig.builder === 'assessment') {
-        setError('Please enter a valid evaluation score (0–100%) for all KPIs before completing this step.')
+        setError('Please rate all evaluation criteria (1 to 5) before completing this step.')
         return
       }
       if (currentFormConfig.builder === 'calibration') {
@@ -1099,6 +1104,7 @@ const saveSchedule = async () => {
                       suggestions={currentSuggestions}
                       events={events}
                       subject={workflow ? { id: workflow.subject_employee_id, full_name: workflow.subject_name } : evaluatingSubject}
+                      workflow={workflow}
                     />
                   </StepFormErrorBoundary>
                 </div>

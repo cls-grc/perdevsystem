@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import QRCodeImage from '../components/QRCodeImage'
+import ESignaturePad from '../components/ESignaturePad'
 import { CheckCircle, AlertTriangle, Pencil, Trash2, X } from 'lucide-react'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
@@ -681,14 +682,21 @@ export default function CertificateManagement({ embedded = false }) {
                 <label className="full">Certificate body text
                   <textarea value={form.bodyText} onChange={e => setForm({ ...form, bodyText: e.target.value })}/>
                 </label>
-                <label>Organization logo
+                <label className="full">Organization logo
                   <input type="file" accept="image/*" onChange={e => upload('logoUrl', e.target.files?.[0])}/>
                   <small>{form.logoUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
                 </label>
-                <label>Authorized signature
-                  <input type="file" accept="image/*" onChange={e => upload('signatureUrl', e.target.files?.[0])}/>
-                  <small>{form.signatureUrlName || 'PNG, JPG, SVG, or WEBP · max 8 MB'}</small>
-                </label>
+                <div className="full">
+                  <label style={{ marginBottom: 6, display: 'block', fontSize: 11, fontWeight: 700, color: 'inherit' }}>
+                    Authorized signatory signature
+                  </label>
+                  <ESignaturePad
+                    value={form.signatureUrl}
+                    onChange={val => setForm(current => ({ ...current, signatureUrl: val }))}
+                    onFileNameChange={name => setForm(current => ({ ...current, signatureUrlName: name }))}
+                    fileName={form.signatureUrlName}
+                  />
+                </div>
               </div>
             </div>
             <div className="cert-modal-footer">

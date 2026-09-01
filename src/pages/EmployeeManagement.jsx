@@ -77,6 +77,38 @@ export default function EmployeeManagement() {
 
   useEffect(() => { load() }, [filter])
 
+  // Real-time refresh: whenever a workflow completes (or any other module
+  // fires pds:refresh-dashboard), reload employee records so the updated
+  // performance_score, competency_score, and learning_progress are shown
+  // immediately without requiring a manual page refresh.
+  useEffect(() => {
+    const handleRefresh = () => load()
+    window.addEventListener('pds:refresh-dashboard', handleRefresh)
+    return () => window.removeEventListener('pds:refresh-dashboard', handleRefresh)
+  }, [filter])
+
+  // Surgical in-place update — when a specific employee's score changes from
+  // a completed performance workflow, update just that row instantly without
+  // waiting for a full API reload.
+  useEffect(() => {
+    const handleScoreUpdate = (e) => {
+      const updated = e.detail
+      if (!updated?.id) return
+      setEmployees(prev => prev.map(emp =>
+        emp.id === updated.id
+          ? {
+              ...emp,
+              performance_score: updated.performance_score ?? emp.performance_score,
+              competency_score: updated.competency_score ?? emp.competency_score,
+              learning_progress: updated.learning_progress ?? emp.learning_progress,
+            }
+          : emp
+      ))
+    }
+    window.addEventListener('pds:employee-score-updated', handleScoreUpdate)
+    return () => window.removeEventListener('pds:employee-score-updated', handleScoreUpdate)
+  }, [])
+
   const resetForm = () => {
     setForm({
       employeeNumber: '',

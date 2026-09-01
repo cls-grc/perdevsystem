@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
@@ -20,6 +20,8 @@ import {
   ZoomOut,
   RotateCcw,
   BookOpen,
+  Maximize2,
+  Sliders,
 } from 'lucide-react'
 import '../orgChart.css'
 
@@ -170,8 +172,101 @@ export default function OrgChart() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDept, setSelectedDept] = useState('ALL')
   const [selectedReadiness, setSelectedReadiness] = useState('ALL')
-  const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomLevel, setZoomLevel] = useState(0.85)
+  const [percentInput, setPercentInput] = useState('85')
   const [collapsedNodes, setCollapsedNodes] = useState(new Set())
+  const [isPanning, setIsPanning] = useState(false)
+  const [panOrigin, setPanOrigin] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
+
+  const canvasRef = useRef(null)
+  const treeContainerRef = useRef(null)
+
+  // Keep input text synced with current zoom
+  useEffect(() => {
+    setPercentInput(String(Math.round(zoomLevel * 100)))
+  }, [zoomLevel])
+
+  // Custom Zoom Helper - Clamped between 15% (0.15) and 300% (3.00)
+  const setZoomTo = (rawPct) => {
+    const num = Number(rawPct)
+    if (!Number.isFinite(num)) return
+    const clamped = Math.max(0.15, Math.min(3.0, num / 100))
+    setZoomLevel(Math.round(clamped * 100) / 100)
+  }
+
+  const handlePercentInputBlur = () => {
+    const clean = percentInput.replace(/[^0-9.]/g, '')
+    if (clean) {
+      setZoomTo(clean)
+    } else {
+      setPercentInput(String(Math.round(zoomLevel * 100)))
+    }
+  }
+
+  const handlePercentInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur()
+    }
+  }
+
+  const fitToScreen = () => {
+    if (!canvasRef.current || !treeContainerRef.current) {
+      setZoomLevel(0.65)
+      return
+    }
+    const canvasWidth = canvasRef.current.clientWidth - 80
+    const treeWidth = treeContainerRef.current.scrollWidth || 1400
+    if (treeWidth > 0) {
+      const calculated = Math.max(0.2, Math.min(1.2, canvasWidth / treeWidth))
+      setZoomLevel(Math.round(calculated * 100) / 100)
+    }
+  }
+
+  // Ctrl + Wheel Zoom & Trackpad Pinch Zoom
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const delta = e.deltaY < 0 ? 0.05 : -0.05
+        setZoomLevel(prev => {
+          const next = Math.max(0.15, Math.min(3.0, Math.round((prev + delta) * 100) / 100))
+          return next
+        })
+      }
+    }
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  // Drag-to-pan Canvas Navigation
+  const handleCanvasMouseDown = (e) => {
+    if (e.target.closest('.org-node-card') || e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return
+    setIsPanning(true)
+    if (canvasRef.current) {
+      setPanOrigin({
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: canvasRef.current.scrollLeft,
+        scrollTop: canvasRef.current.scrollTop
+      })
+    }
+  }
+
+  const handleCanvasMouseMove = (e) => {
+    if (!isPanning || !canvasRef.current) return
+    const dx = e.clientX - panOrigin.x
+    const dy = e.clientY - panOrigin.y
+    canvasRef.current.scrollLeft = panOrigin.scrollLeft - dx
+    canvasRef.current.scrollTop = panOrigin.scrollTop - dy
+  }
+
+  const handleCanvasMouseUp = () => {
+    setIsPanning(false)
+  }
 
   // Fetch Tree on mount
   useEffect(() => {
@@ -379,41 +474,112 @@ export default function OrgChart() {
         </div>
 
         <div className="org-toolbar-right">
-          <button type="button" className="org-btn-tool" onClick={expandAll}>
+          <button type="button" className="org-btn-tool" onClick={expandAll} title="Expand all branches">
             <Layers size={14} />
             <span>Expand All</span>
           </button>
 
-          <button type="button" className="org-btn-tool" onClick={collapseAll}>
+          <button type="button" className="org-btn-tool" onClick={collapseAll} title="Collapse all branches">
             <ChevronUp size={14} />
             <span>Collapse</span>
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 6 }}>
+          {/* Full Arbitrary Zoom Control Suite */}
+          <div className="org-zoom-suite">
+            {/* Zoom Out Button */}
             <button
               type="button"
               className="org-btn-tool"
-              onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
-              title="Zoom Out"
+              style={{ padding: '6px 8px', border: 'none', background: 'transparent' }}
+              onClick={() => setZoomLevel(prev => Math.max(0.15, Math.round((prev - 0.05) * 100) / 100))}
+              title="Zoom Out (Ctrl + Scroll Down)"
             >
-              <ZoomOut size={14} />
+              <ZoomOut size={15} />
             </button>
+
+            {/* Smooth Zoom Slider from 15% to 250% */}
+            <input
+              type="range"
+              className="org-zoom-slider"
+              min="15"
+              max="250"
+              step="1"
+              value={Math.round(zoomLevel * 100)}
+              onChange={(e) => setZoomTo(e.target.value)}
+              title={`Zoom Slider: ${Math.round(zoomLevel * 100)}%`}
+            />
+
+            {/* Direct Editable Percentage Input */}
+            <div className="org-zoom-input-wrap" title="Type any custom percentage and press Enter">
+              <input
+                type="text"
+                className="org-zoom-input-field"
+                value={percentInput}
+                onChange={(e) => setPercentInput(e.target.value)}
+                onBlur={handlePercentInputBlur}
+                onKeyDown={handlePercentInputKeyDown}
+              />
+              <span className="org-zoom-input-unit">%</span>
+            </div>
+
+            {/* Preset Percentage Quick Picker */}
+            <select
+              className="org-zoom-select-presets"
+              value={['25', '40', '50', '60', '75', '85', '100', '125', '150', '200', '250'].includes(String(Math.round(zoomLevel * 100))) ? String(Math.round(zoomLevel * 100)) : 'custom'}
+              onChange={(e) => {
+                if (e.target.value === 'fit') fitToScreen()
+                else if (e.target.value !== 'custom') setZoomTo(e.target.value)
+              }}
+              title="Select zoom preset or fit to screen"
+            >
+              <option value="custom" disabled hidden>Zoom</option>
+              <option value="fit">Fit to Screen</option>
+              <option value="25">25% (Full Overview)</option>
+              <option value="40">40%</option>
+              <option value="50">50%</option>
+              <option value="60">60%</option>
+              <option value="75">75%</option>
+              <option value="85">85% (Comfortable)</option>
+              <option value="100">100% (Standard)</option>
+              <option value="125">125%</option>
+              <option value="150">150% (Close-Up)</option>
+              <option value="200">200% (Large Focus)</option>
+              <option value="250">250% (Max)</option>
+            </select>
+
+            {/* Zoom In Button */}
             <button
               type="button"
               className="org-btn-tool"
+              style={{ padding: '6px 8px', border: 'none', background: 'transparent' }}
+              onClick={() => setZoomLevel(prev => Math.min(3.0, Math.round((prev + 0.05) * 100) / 100))}
+              title="Zoom In (Ctrl + Scroll Up)"
+            >
+              <ZoomIn size={15} />
+            </button>
+
+            {/* Fit to Screen Button */}
+            <button
+              type="button"
+              className="org-btn-tool"
+              style={{ padding: '6px 10px', fontSize: 11.5 }}
+              onClick={fitToScreen}
+              title="Auto-Fit Entire Tree to Screen Width"
+            >
+              <Maximize2 size={13} />
+              <span>Fit</span>
+            </button>
+
+            {/* Reset to 100% */}
+            <button
+              type="button"
+              className="org-btn-tool"
+              style={{ padding: '6px 10px', fontSize: 11.5 }}
               onClick={() => setZoomLevel(1)}
-              title="Reset Zoom"
+              title="Reset Zoom to 100%"
             >
-              <RotateCcw size={13} />
-              <span>{Math.round(zoomLevel * 100)}%</span>
-            </button>
-            <button
-              type="button"
-              className="org-btn-tool"
-              onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
-              title="Zoom In"
-            >
-              <ZoomIn size={14} />
+              <RotateCcw size={12} />
+              <span>100%</span>
             </button>
           </div>
         </div>
@@ -457,7 +623,48 @@ export default function OrgChart() {
       )}
 
       {/* ── INTERACTIVE TREE CANVAS ─────────────────────────────────────────── */}
-      <div className="org-chart-canvas-wrapper">
+      <div 
+        ref={canvasRef}
+        className={`org-chart-canvas-wrapper ${isPanning ? 'is-panning' : ''}`}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onMouseLeave={handleCanvasMouseUp}
+      >
+        {/* Floating Glassmorphic Quick Zoom Indicator in Corner */}
+        <div className="org-floating-zoom-badge">
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#513AB3' }}>
+            {Math.round(zoomLevel * 100)}%
+          </span>
+          <button
+            type="button"
+            className="org-btn-tool"
+            style={{ padding: '3px 8px', fontSize: 11 }}
+            onClick={() => setZoomLevel(prev => Math.max(0.15, Math.round((prev - 0.1) * 100) / 100))}
+            title="Zoom Out"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            className="org-btn-tool"
+            style={{ padding: '3px 8px', fontSize: 11 }}
+            onClick={() => setZoomLevel(prev => Math.min(3.0, Math.round((prev + 0.1) * 100) / 100))}
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="org-btn-tool"
+            style={{ padding: '3px 8px', fontSize: 11 }}
+            onClick={fitToScreen}
+            title="Fit to Screen"
+          >
+            <Maximize2 size={11} />
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12 }}>
             <div className="skeleton-bar" style={{ width: 140, height: 14, borderRadius: 8 }} />
@@ -480,8 +687,9 @@ export default function OrgChart() {
           </div>
         ) : (
           <div
+            ref={treeContainerRef}
             className="org-tree-root-container"
-            style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: 'transform 0.2s ease' }}
+            style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: isPanning ? 'none' : 'transform 0.15s ease' }}
           >
             {filteredTree.map((rootNode) => (
               <TreeNode

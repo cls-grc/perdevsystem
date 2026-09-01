@@ -91,11 +91,20 @@ const progressAverage = form => {
 
 function stageForms(events, finalData = {}) {
   const forms = {}
+  // Process in order so the last (most recent) event per stage wins
   for (const event of events || []) {
-    forms[event.stage] = formFromDetails(event.details)
+    const details = event.details || {}
+    // Support both { formData: {...} } wrapper and flat details
+    const form = (details.formData && typeof details.formData === 'object')
+      ? { ...details.formData, ...details, formData: undefined }
+      : details
+    if (event.stage && Object.keys(form).length > 0) {
+      forms[event.stage] = form
+    }
   }
   if (finalData && Object.keys(finalData).length) {
-    forms.__finalInput = formFromDetails(finalData)
+    const fd = formFromDetails(finalData)
+    forms.__finalInput = fd
   }
   return forms
 }

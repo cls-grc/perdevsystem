@@ -225,6 +225,109 @@
   color: #ffffff;
 }
 
+/* Zoom Control Suite */
+.org-zoom-suite {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+}
+
+:root.dark .org-zoom-suite,
+.dark .org-zoom-suite {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.org-zoom-slider {
+  width: 90px;
+  height: 5px;
+  accent-color: #513AB3;
+  cursor: pointer;
+}
+
+.org-zoom-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2px 6px;
+}
+
+:root.dark .org-zoom-input-wrap,
+.dark .org-zoom-input-wrap {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.org-zoom-input-field {
+  width: 42px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+  outline: none;
+  padding: 2px 0;
+}
+
+:root.dark .org-zoom-input-field,
+.dark .org-zoom-input-field {
+  color: #f8fafc;
+}
+
+.org-zoom-input-unit {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+.org-zoom-select-presets {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+:root.dark .org-zoom-select-presets,
+.dark .org-zoom-select-presets {
+  color: #94a3b8;
+  background: #1e293b;
+}
+
+.org-floating-zoom-badge {
+  position: absolute;
+  bottom: 20px;
+  right: 24px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(81, 58, 179, 0.2);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+:root.dark .org-floating-zoom-badge,
+.dark .org-floating-zoom-badge {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
 /* Tree Canvas Container */
 .org-chart-canvas-wrapper {
   position: relative;
@@ -238,6 +341,12 @@
   display: flex;
   justify-content: center;
   box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+}
+
+.org-chart-canvas-wrapper.is-panning {
+  cursor: grabbing;
 }
 
 :root.dark .org-chart-canvas-wrapper,
