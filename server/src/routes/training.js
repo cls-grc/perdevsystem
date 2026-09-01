@@ -444,18 +444,45 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
     const employee = empRes.rows[0]
     const sessRes = await query('SELECT id, title, status FROM training_sessions WHERE id = $1', [id])
     if (sessRes.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
+    const session = sessRes.rows[0]
+
+    // ── Block if session is already completed
+    if (session.status === 'completed') {
+      return res.status(400).json({
+        error: `This training session has already been completed. Attendance can no longer be recorded.`,
+        notInvited: false,
+        sessionCompleted: true,
+      })
+    }
+
+    // ── Block if session is cancelled
+    if (session.status === 'cancelled') {
+      return res.status(400).json({ error: 'This training session has been cancelled.' })
+    }
+
+    // ── Check employee is an invited participant
+    const inviteCheck = await query(
+      'SELECT id FROM training_participants WHERE session_id = $1 AND employee_id = $2',
+      [id, employee.id]
+    )
+    if (inviteCheck.rows.length === 0) {
+      return res.status(403).json({
+        error: `${employee.full_name} (${employee.employee_number}) is not invited to this training session. Only invited participants can be checked in.`,
+        notInvited: true,
+        employee: { full_name: employee.full_name, employee_number: employee.employee_number },
+      })
+    }
 
     await transaction(async client => {
       await client.query(
-        `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
-         VALUES ($1, $2, $3, 'confirmed', $4, NOW(), $3, NOW())
-         ON CONFLICT (session_id, employee_id) DO UPDATE SET
-           attendance = $4,
+        `UPDATE training_participants SET
+           attendance = $1,
            status = 'confirmed',
            attendance_recorded_at = NOW(),
-           attendance_recorded_by = $3,
-           updated_at = NOW()`,
-        [id, employee.id, req.user.id, status]
+           attendance_recorded_by = $2,
+           updated_at = NOW()
+         WHERE session_id = $3 AND employee_id = $4`,
+        [status, req.user.id, id, employee.id]
       )
     })
 
@@ -505,17 +532,36 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
       return res.status(400).json({ error: 'This training session has been cancelled.' })
     }
 
+    // ── Block if session is already completed
+    if (session.status === 'completed') {
+      return res.status(400).json({
+        error: `"${session.title}" has already been completed. Attendance can no longer be recorded for a completed session.`,
+        sessionCompleted: true,
+      })
+    }
+
+    // ── Check the employee is an invited participant
+    const inviteCheck = await query(
+      'SELECT id FROM training_participants WHERE session_id = $1 AND employee_id = $2',
+      [id, employee.id]
+    )
+    if (inviteCheck.rows.length === 0) {
+      return res.status(403).json({
+        error: `You are not invited to "${session.title}". Only invited participants can check in to this session. Please contact your HR or supervisor.`,
+        notInvited: true,
+      })
+    }
+
     await transaction(async client => {
       await client.query(
-        `INSERT INTO training_participants (session_id, employee_id, invited_by, status, attendance, attendance_recorded_at, attendance_recorded_by, updated_at)
-         VALUES ($1, $2, $3, 'confirmed', 'present', NOW(), $3, NOW())
-         ON CONFLICT (session_id, employee_id) DO UPDATE SET
+        `UPDATE training_participants SET
            attendance = 'present',
            status = 'confirmed',
            attendance_recorded_at = NOW(),
-           attendance_recorded_by = $3,
-           updated_at = NOW()`,
-        [id, employee.id, req.user.id]
+           attendance_recorded_by = $1,
+           updated_at = NOW()
+         WHERE session_id = $2 AND employee_id = $3`,
+        [req.user.id, id, employee.id]
       )
     })
 

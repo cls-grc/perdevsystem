@@ -688,7 +688,7 @@ export default function TrainingManagement() {
                         <button className="session-action-btn primary" onClick={() => openSessionDetailModal(session)}>
                           Manage Session
                         </button>
-                        {canRecordAttendance && session.status !== 'cancelled' && (
+                        {canRecordAttendance && session.status !== 'cancelled' && session.status !== 'completed' && (
                           <button
                             type="button"
                             className="session-action-btn"
@@ -701,7 +701,7 @@ export default function TrainingManagement() {
                             <QrCode size={13} className="inline mr-1" /> QR Scanner
                           </button>
                         )}
-                        {!canRecordAttendance && session.status !== 'cancelled' && (
+                        {!canRecordAttendance && session.status !== 'cancelled' && session.status !== 'completed' && (
                           <button
                             type="button"
                             className="session-action-btn"
@@ -1151,7 +1151,7 @@ export default function TrainingManagement() {
                     + Invite Participants
                   </button>
                 )}
-                {canRecordAttendance && selectedSessionDetail.status !== 'cancelled' && (
+                {canRecordAttendance && selectedSessionDetail.status !== 'cancelled' && selectedSessionDetail.status !== 'completed' && (
                   <button
                     type="button"
                     className="session-action-btn"

@@ -105,7 +105,7 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
       setTimeout(() => {
         isProcessingRef.current = false
         setScanningStatus('idle')
-      }, 1800)
+      }, 3500)
     }
   }, [session.id, soundEnabled, onAttendanceUpdated])
 
