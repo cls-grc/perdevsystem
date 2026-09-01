@@ -360,20 +360,58 @@ button { touch-action: manipulation; }
 
   /* Smaller text for dense tables */
   .er-table { font-size: 11px; }
+
+  /* Modals on mobile: fit viewport cleanly */
+  .training-modal-overlay,
+  .modal-overlay,
+  .dialog-backdrop,
+  .certificate-modal-overlay {
+    padding: 8px !important;
+    align-items: flex-end !important;
+  }
+  .training-modal-content,
+  .modal-content,
+  .dialog-content,
+  .qr-attendance-modal,
+  .certificate-modal-content {
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: 90vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent iOS Safari auto-zoom on input focus */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Safe area padding for bottom bars */
+  .fixed-main,
+  .module-workspace,
+  .ai-dashboard {
+    padding-bottom: max(32px, env(safe-area-inset-bottom)) !important;
+  }
 }
 
 /* ---------- Very small phones (≤420px) ---------- */
 @media (max-width: 420px) {
   .metrics, .ai-kpis, .workflow-metrics, .review-metrics,
-  .process-summary, .module-metrics { grid-template-columns: 1fr; }
+  .process-summary, .module-metrics, .overview-kpi-grid { grid-template-columns: 1fr; }
   .topbar .crumb { display: none; }
   .top-actions .avatar { display: none; }
   .settings-dialog h2 { font-size: 17px; }
+  .overview-panel { padding: 14px 12px; }
+  .login-card-container { padding: 0 4px; }
 }
 
 /* ---------- Landscape phones / small tablets (height constrained) ---------- */
 @media (max-height: 500px) and (orientation: landscape) {
-  .settings-dialog, .schedule-dialog { max-height: 92vh; }
+  .settings-dialog, .schedule-dialog, .training-modal-content { max-height: 92vh; }
   .ai-chat-drawer { height: 100vh !important; }
   .notif-panel-box { max-height: 90vh; }
 }
