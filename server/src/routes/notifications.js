@@ -43,6 +43,18 @@ router.get('/outbox', authorize('hr', 'management'), (req, res) => {
   res.json({ emails: queue, total: queue.length })
 })
 
+// GET /api/notifications/smtp-status — Diagnostic: confirm which env vars are present on the server
+router.get('/smtp-status', authorize('hr', 'management'), (req, res) => {
+  res.json({
+    SMTP_HOST: process.env.SMTP_HOST || '❌ NOT SET',
+    SMTP_PORT: process.env.SMTP_PORT || '❌ NOT SET',
+    SMTP_USER: process.env.SMTP_USER ? `✅ ${process.env.SMTP_USER}` : '❌ NOT SET',
+    SMTP_PASS: process.env.SMTP_PASS ? `✅ set (${process.env.SMTP_PASS.length} chars)` : '❌ NOT SET',
+    SMTP_FROM: process.env.SMTP_FROM || '❌ NOT SET',
+    NODE_ENV: process.env.NODE_ENV || 'not set',
+  })
+})
+
 // POST /api/notifications/test-email — Send a test email to verify live delivery
 router.post('/test-email', authorize('hr', 'management'), async (req, res, next) => {
   try {
