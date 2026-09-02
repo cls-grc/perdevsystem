@@ -5,6 +5,7 @@ import { query, transaction } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { getScopeFilter } from '../services/departmentScope.js'
+import { sendEmail } from '../services/email.js'
 
 const router = Router()
 
@@ -181,7 +182,54 @@ router.get('/', authorize('hr', 'supervisor', 'employee'), async (req, res, next
     const certificates = rows.map(({ _total, ...r }) => r)
     res.json({ certificates, total, page: pageNum, limit: limitNum })
   } catch (error) { next(error) } })
-router.post('/issue', authorize('hr'), async (req, res, next) => { try { const input = issueSchema.parse(req.body); const result = await transaction(async client => { const templateResult = await client.query('SELECT * FROM certificate_templates WHERE id=$1 AND is_active=true', [input.templateId]); const template = templateResult.rows[0]; if (!template) throw Object.assign(new Error('Certificate template is not available.'), { status: 404 }); const people = await client.query('SELECT id, full_name, department, employee_number FROM employees WHERE id = ANY($1::uuid[]) AND is_active=true', [input.employeeIds]); if (people.rowCount !== input.employeeIds.length) throw Object.assign(new Error('One or more selected employees are unavailable.'), { status: 400 }); const created = []; for (const employee of people.rows) { const certificateNumber = `PDS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`; const expiresAt = template.validity_days ? new Date(Date.parse(input.awardedAt || new Date().toISOString().slice(0, 10)) + template.validity_days * 86400000).toISOString().slice(0, 10) : null; const inserted = await client.query('INSERT INTO certificates(template_id,employee_id,certificate_number,achievement_text,awarded_at,expires_at,issued_by,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [template.id, employee.id, certificateNumber, input.achievementText, input.awardedAt || new Date().toISOString().slice(0, 10), expiresAt, req.user.sub, { employeeName: employee.full_name, employeeNumber: employee.employee_number, department: employee.department }]); created.push(inserted.rows[0]) } return created }); await logActivity({ req, user: req.user, action: 'certificate.issue', category: 'certificate', description: `${req.user.name} issued ${result.length} certificate(s) using template ${input.templateId}`, details: { count: result.length, employeeIds: input.employeeIds } }); res.status(201).json({ certificates: result }) } catch (error) { next(error) } })
+router.post('/issue', authorize('hr'), async (req, res, next) => {
+  try {
+    const input = issueSchema.parse(req.body)
+    const result = await transaction(async client => {
+      const templateResult = await client.query('SELECT * FROM certificate_templates WHERE id=$1 AND is_active=true', [input.templateId])
+      const template = templateResult.rows[0]
+      if (!template) throw Object.assign(new Error('Certificate template is not available.'), { status: 404 })
+      const people = await client.query('SELECT id, full_name, department, employee_number FROM employees WHERE id = ANY($1::uuid[]) AND is_active=true', [input.employeeIds])
+      if (people.rowCount !== input.employeeIds.length) throw Object.assign(new Error('One or more selected employees are unavailable.'), { status: 400 })
+      const created = []
+      for (const employee of people.rows) {
+        const certificateNumber = `PDS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+        const expiresAt = template.validity_days ? new Date(Date.parse(input.awardedAt || new Date().toISOString().slice(0, 10)) + template.validity_days * 86400000).toISOString().slice(0, 10) : null
+        const inserted = await client.query(
+          'INSERT INTO certificates(template_id,employee_id,certificate_number,achievement_text,awarded_at,expires_at,issued_by,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+          [template.id, employee.id, certificateNumber, input.achievementText, input.awardedAt || new Date().toISOString().slice(0, 10), expiresAt, req.user.sub, { employeeName: employee.full_name, employeeNumber: employee.employee_number, department: employee.department }]
+        )
+        const certRecord = inserted.rows[0]
+        created.push(certRecord)
+
+        // Find user email and dispatch certificate award email
+        const u = await client.query('SELECT id, email, full_name FROM users WHERE employee_id=$1 AND is_active=true', [employee.id])
+        if (u.rows[0]?.email) {
+          const userRec = u.rows[0]
+          const verifyUrl = `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/verify/certificate/${certRecord.verification_code}`
+          sendEmail({
+            to: userRec.email,
+            subject: `🏆 Certificate Awarded: ${template.certificate_title}`,
+            text: `Congratulations ${employee.full_name}! You have been awarded the "${template.certificate_title}" certificate (Certificate No: ${certificateNumber}).`,
+            details: [
+              ['Certificate Title', template.certificate_title],
+              ['Recipient', employee.full_name],
+              ['Certificate No.', certificateNumber],
+              ['Award Date', input.awardedAt || new Date().toISOString().slice(0, 10)],
+              ['Organization', template.organization_name],
+              ['Signatory', template.signatory_name],
+            ],
+            actionUrl: verifyUrl,
+            actionText: 'View & Verify Online Certificate',
+          }).catch(err => console.warn('[PDS EMAIL] Certificate email dispatch error:', err.message))
+        }
+      }
+      return created
+    })
+    await logActivity({ req, user: req.user, action: 'certificate.issue', category: 'certificate', description: `${req.user.name} issued ${result.length} certificate(s) using template ${input.templateId}`, details: { count: result.length, employeeIds: input.employeeIds } })
+    res.status(201).json({ certificates: result })
+  } catch (error) { next(error) }
+})
 router.post('/:id/revoke', authorize('hr'), async (req, res, next) => { try { const input = revokeSchema.parse(req.body); const { rows } = await query("UPDATE certificates SET status='revoked', revoked_at=NOW(), revoked_reason=$1 WHERE id=$2 AND status='issued' RETURNING *", [input.reason, req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Issued certificate not found.' }); await logActivity({ req, user: req.user, action: 'certificate.revoke', category: 'certificate', targetId: req.params.id, description: `${req.user.name} revoked certificate ${rows[0].certificate_number}`, details: { reason: input.reason } }); res.json({ certificate: rows[0] }) } catch (error) { next(error) } })
 router.post('/:id/regenerate', authorize('hr'), async (req, res, next) => { try { const { rows } = await query("UPDATE certificates SET metadata=metadata || jsonb_build_object('regeneratedAt', NOW()::text) WHERE id=$1 AND status='issued' RETURNING *", [req.params.id]); if (!rows[0]) return res.status(404).json({ error: 'Issued certificate not found.' }); await logActivity({ req, user: req.user, action: 'certificate.regenerate', category: 'certificate', targetId: req.params.id, description: `${req.user.name} regenerated certificate ${rows[0].certificate_number}` }); res.json({ certificate: rows[0] }) } catch (error) { next(error) } })
 // Expiry automation — HR can manually trigger the expiry check. The GET / route also auto-runs this.

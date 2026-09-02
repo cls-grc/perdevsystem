@@ -24,14 +24,34 @@ const returnSchema = z.object({ targetStage: z.string().optional(), note: z.stri
 const cancelSchema = z.object({ reason: z.string().min(1).max(2000), data: z.record(z.unknown()).default({}) })
 const dueDateSchema = z.object({ dueDate: z.string().datetime() })
 const overdueQuerySchema = z.object({ days: z.coerce.number().int().positive().default(3) })
+import { sendEmail } from '../services/email.js'
+
 async function notifyNextOwners(client, workflow, destination) {
   const employeeOnly = destination.roles.length === 1 && destination.roles[0] === 'employee'
   const recipients = employeeOnly
-    ? await client.query('SELECT id FROM users WHERE employee_id=$1 AND is_active=true', [workflow.subject_employee_id])
-    : await client.query('SELECT id FROM users WHERE role = ANY($1::user_role[]) AND is_active=true', [destination.roles])
-  const title = `${workflow.module[0].toUpperCase()}${workflow.module.slice(1)} action required`
-  const message = `${destination.label} is ready for your action: ${workflow.title}.`
-  for (const recipient of recipients.rows) await client.query('INSERT INTO notifications(user_id, workflow_id, title, message) VALUES($1,$2,$3,$4)', [recipient.id, workflow.id, title, message])
+    ? await client.query('SELECT id, email, full_name FROM users WHERE employee_id=$1 AND is_active=true', [workflow.subject_employee_id])
+    : await client.query('SELECT id, email, full_name FROM users WHERE role = ANY($1::user_role[]) AND is_active=true', [destination.roles])
+  const title = `${workflow.module[0].toUpperCase()}${workflow.module.slice(1)}: Action Required`
+  const message = `${destination.label} is ready for your action: "${workflow.title}".`
+
+  for (const recipient of recipients.rows) {
+    await client.query('INSERT INTO notifications(user_id, workflow_id, title, message) VALUES($1,$2,$3,$4)', [recipient.id, workflow.id, title, message])
+    if (recipient.email) {
+      // Dispatch email asynchronously
+      sendEmail({
+        to: recipient.email,
+        subject: title,
+        text: message,
+        details: [
+          ['Workflow', workflow.title],
+          ['Module', workflow.module.toUpperCase()],
+          ['Stage', destination.label],
+        ],
+        actionUrl: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/${workflow.module}`,
+        actionText: `Open ${destination.label}`,
+      }).catch(err => console.warn('[PDS EMAIL] Notification dispatch error:', err.message))
+    }
+  }
 }
 router.use(authenticate)
 

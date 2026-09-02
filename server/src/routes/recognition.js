@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { query } from '../db.js'
 import { authenticate } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
+import { sendEmail } from '../services/email.js'
 
 const router = Router()
 router.use(authenticate)
@@ -396,10 +397,33 @@ router.post('/:id/approve', async (req, res, next) => {
 
     // Notify recipient that their recognition is now live on the Merit Wall!
     try {
-      await query(
-        'INSERT INTO notifications(user_id, title, message) SELECT id, $1, $2 FROM users WHERE full_name = $3 AND is_active = true',
-        ['Recognition Published on Merit Wall', `Congratulations! Your recognition for "${post.badge}" was approved by HR and is now live on the Merit Wall!`, post.recipientName]
+      const userRes = await query(
+        'SELECT id, email, full_name FROM users WHERE full_name = $1 AND is_active = true',
+        [post.recipientName]
       )
+      if (userRes.rows[0]) {
+        const recipientUser = userRes.rows[0]
+        await query(
+          'INSERT INTO notifications(user_id, title, message) VALUES($1, $2, $3)',
+          [recipientUser.id, 'Recognition Published on Merit Wall', `Congratulations! Your recognition for "${post.badge}" was approved by HR and is now live on the Merit Wall!`]
+        )
+
+        if (recipientUser.email) {
+          sendEmail({
+            to: recipientUser.email,
+            subject: `🌟 Recognition Commendation: ${post.badge}`,
+            text: `Congratulations ${post.recipientName}! You have received recognition from ${post.senderName} (${post.senderRole}): "${post.message}"`,
+            details: [
+              ['Commendation Badge', post.badge],
+              ['Core Hospitality Value', post.coreValue],
+              ['Recognized By', `${post.senderName} (${post.senderDepartment})`],
+              ['Commendation Note', post.message],
+            ],
+            actionUrl: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/recognition`,
+            actionText: 'View on Merit Wall',
+          }).catch(err => console.warn('[PDS EMAIL] Recognition email error:', err.message))
+        }
+      }
     } catch {}
 
     await logActivity({

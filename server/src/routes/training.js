@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware.js'
 import { getScopeFilter } from '../services/departmentScope.js'
 import { logActivity } from '../services/activity.js'
 import { generateOnDemand } from '../services/aiReports.js'
+import { sendEmail } from '../services/email.js'
 
 const router = Router()
 
@@ -323,17 +324,36 @@ router.post('/sessions/:id/participants', authorize('hr', 'supervisor'), async (
 
         if (ins.rowCount > 0) {
           addedCount++
-          // Create in-app notification for the invited employee
-          const u = await client.query('SELECT id FROM users WHERE employee_id=$1 AND is_active=true', [empId])
+          // Create in-app notification and dispatch automated email for the invited employee
+          const u = await client.query('SELECT id, email, full_name FROM users WHERE employee_id=$1 AND is_active=true', [empId])
           if (u.rows.length > 0) {
+            const userRec = u.rows[0]
             await client.query(
               'INSERT INTO notifications(user_id, title, message) VALUES($1, $2, $3)',
               [
-                u.rows[0].id,
+                userRec.id,
                 'Training Invitation',
                 `You have been invited to "${session.title}" scheduled on ${session.start_date} at ${session.venue}.`,
               ]
             )
+
+            if (userRec.email) {
+              sendEmail({
+                to: userRec.email,
+                subject: `🏨 Training Invitation: ${session.title}`,
+                text: `You have been officially enrolled in "${session.title}" scheduled on ${session.start_date} at ${session.venue}.`,
+                details: [
+                  ['Training Title', session.title],
+                  ['Category', session.category],
+                  ['Date', session.start_date],
+                  ['Time', session.start_time || 'TBD'],
+                  ['Venue', session.venue],
+                  ['Trainer', session.trainer || 'Internal Trainer'],
+                ],
+                actionUrl: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/training`,
+                actionText: 'View Training Session & QR Code',
+              }).catch(err => console.warn('[PDS EMAIL] Training invite dispatch error:', err.message))
+            }
           }
         }
       }

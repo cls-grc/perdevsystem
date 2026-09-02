@@ -1227,10 +1227,14 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
         api.learningAssignments().catch(() => ({ assignments: [] })),
       ])
       if (cancelledRef.current) return
-      const list = Array.isArray(result?.gaps) ? result.gaps : []
+      const list = Array.isArray(result?.skillGaps)
+        ? result.skillGaps
+        : (Array.isArray(result?.gaps) ? result.gaps : [])
       setGaps(list)
       setSelectedCompetency(prev =>
-        list.some(g => g.competency === prev) ? prev : (list[0]?.competency || '')
+        list.some(g => g.competency === prev)
+          ? prev
+          : (list[0]?.competency || 'Customer Service Excellence')
       )
 
       // Populate assignedMap from persistent database assignments for this employee
@@ -1265,6 +1269,7 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
   const recommendedCourses = useMemo(() => {
     const gap = gaps.find(g => g.competency === selectedCompetency)
     if (gap?.courses?.length) return gap.courses
+    if (gap?.recommendedResources?.length) return gap.recommendedResources
     return getRecommendedCoursesForGap(selectedCompetency, gap?.score || 0)
   }, [gaps, selectedCompetency])
 
@@ -1331,7 +1336,7 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
       // Pick the best course for this gap
       const courses = g.courses?.length
         ? g.courses
-        : getRecommendedCoursesForGap(g.competency, g.score || 0)
+        : (g.recommendedResources?.length ? g.recommendedResources : getRecommendedCoursesForGap(g.competency, g.score || 0))
       const course = courses[0]
       if (!course) {
         log.push({ gap: g.competency, course: null, status: 'skip' })
@@ -1445,7 +1450,43 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
         {loadingGaps ? (
           <p className="empty-hint">Loading skill gaps…</p>
         ) : gaps.length === 0 ? (
-          <p className="empty-hint">No skill gaps detected for this employee. All competencies meet their required level.</p>
+          <div className="no-gaps-panel" style={{ padding: '14px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)', margin: '8px 0 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', marginBottom: '6px' }}>
+              <CheckCircle size={16} />
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>All core competencies meet or exceed required level</span>
+            </div>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 12px 0' }}>
+              No critical skill gaps detected. You can still assign an elective development path or upskilling course for {subjectName} by choosing a target competency below:
+            </p>
+            <div className="gap-cards-grid" style={{ marginTop: '8px' }}>
+              {[
+                'Customer Service Excellence',
+                'Hospitality SOP Compliance',
+                'Safety, Sanitation & HACCP',
+                'Team Collaboration & Interdepartmental Comm.',
+                'Technical Operational Proficiency',
+                'Leadership & Problem Solving'
+              ].map(comp => (
+                <button
+                  key={comp}
+                  type="button"
+                  className={`gap-card ${selectedCompetency === comp ? 'active' : ''}${assignedMap[comp] ? ' assigned' : ''}`}
+                  onClick={() => handleSelectCompetency(comp)}
+                >
+                  <div className="gap-card-head">
+                    <span className="gap-competency">{comp}</span>
+                    {assignedMap[comp]
+                      ? <span className="gap-pill assigned-pill"><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Course assigned</span>
+                      : <span className="gap-pill" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', borderColor: 'rgba(99, 102, 241, 0.3)' }}>Elective</span>
+                    }
+                  </div>
+                  <div className="gap-card-foot" style={{ marginTop: '8px' }}>
+                    <small>Standard Benchmark: 80%+</small>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="gap-cards-grid">
             {gaps.map(g => (
@@ -1485,28 +1526,54 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
           {error && <p className="form-error">{error}</p>}
 
           <div className="recommended-courses-grid">
-            {recommendedCourses.map(course => (
-              <div className="recommended-course-card" key={course.title}>
-                <div className="course-card-head">
-                  <span className="course-category-tag">{course.category}</span>
-                  <span className="course-duration" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={12} /> {course.duration_hours || course.duration || '-'} hrs</span>
-                </div>
-                <h5 className="course-title">{course.title}</h5>
-                <p className="course-desc">{course.description}</p>
-                {course.objectives && <small className="course-objectives"><b>Objectives:</b> {course.objectives}</small>}
+            {recommendedCourses.map(course => {
+              const isAssigned = assignedMap[selectedCompetency] === course.title || Boolean(course.assignment_id)
+              const isVerified = Boolean(course.is_completed)
+              const progressPct = course.assignment_progress !== undefined && course.assignment_progress !== null ? Number(course.assignment_progress) : null
 
-                <button
-                  type="button"
-                  className="assign-course-btn"
-                  disabled={assigning || assignedMap[selectedCompetency] === course.title}
-                  onClick={() => handleAssignCourse(course)}
-                >
-                  {assignedMap[selectedCompetency] === course.title
-                    ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Learning Path Assigned</>
-                    : assigning ? 'Assigning…' : <><Zap size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Assign Learning Path</>}
-                </button>
-              </div>
-            ))}
+              return (
+                <div className={`recommended-course-card ${isVerified ? 'is-verified' : ''}`} key={course.title}>
+                  <div className="course-card-head">
+                    <span className="course-category-tag">{course.category}</span>
+                    <span className="course-duration" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={12} /> {course.duration_hours || course.duration || '-'} hrs</span>
+                  </div>
+                  <h5 className="course-title">{course.title}</h5>
+                  <p className="course-desc">{course.description}</p>
+                  {course.objectives && <small className="course-objectives"><b>Objectives:</b> {course.objectives}</small>}
+
+                  {/* Real-time Validation / Status Feedback */}
+                  {isVerified ? (
+                    <div style={{ margin: '8px 0', background: 'rgba(16,185,129,0.1)', color: '#065f46', border: '1px solid #a7f3d0', padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle size={14} style={{ color: '#059669', flexShrink: 0 }} />
+                      <span>Verified Complete {course.completed_at ? `(${new Date(course.completed_at).toLocaleDateString()})` : ''} · Competency Score Updated</span>
+                    </div>
+                  ) : progressPct !== null ? (
+                    <div style={{ margin: '8px 0', padding: '6px 10px', background: 'rgba(59,130,246,0.06)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.15)', fontSize: 11, color: '#334155' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600 }}>Employee Study Progress: {progressPct}%</span>
+                        <span style={{ textTransform: 'capitalize', color: '#64748b' }}>{course.assignment_status || 'Studying'}</span>
+                      </div>
+                      <div style={{ height: 4, background: '#cbd5e1', borderRadius: 2 }}>
+                        <div style={{ height: '100%', width: `${progressPct}%`, background: '#3b82f6', borderRadius: 2, transition: 'width 0.3s ease' }} />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="assign-course-btn"
+                    disabled={assigning || isAssigned}
+                    onClick={() => handleAssignCourse(course)}
+                  >
+                    {isVerified
+                      ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Completed &amp; Verified</>
+                      : isAssigned
+                      ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Learning Path Assigned</>
+                      : assigning ? 'Assigning…' : <><Zap size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Assign Learning Path</>}
+                  </button>
+                </div>
+              )
+            })}
             {recommendedCourses.length === 0 && <p className="empty-hint">No recommended courses found for this competency.</p>}
           </div>
         </div>

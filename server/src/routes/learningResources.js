@@ -73,6 +73,97 @@ router.get('/competencies', async (_req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// Centralized role and department competency profiles
+const ROLE_COMPETENCY_MAP = {
+  'Front Desk Officer': [
+    { comp: 'Customer Service', req: 90, offset: -8 },
+    { comp: 'Communication', req: 88, offset: -6 },
+    { comp: 'Reservation Management', req: 88, offset: -10 },
+    { comp: 'Conflict Resolution', req: 80, offset: -5 },
+    { comp: 'Hospitality SOP Compliance', req: 85, offset: 2 },
+  ],
+  'Head Concierge': [
+    { comp: 'Customer Service', req: 95, offset: -8 },
+    { comp: 'Communication', req: 90, offset: -6 },
+    { comp: 'Reservation Management', req: 90, offset: -7 },
+    { comp: 'Conflict Resolution', req: 85, offset: 2 },
+    { comp: 'Hospitality SOP Compliance', req: 90, offset: -4 },
+  ],
+  'Sous Chef': [
+    { comp: 'Line Expediting & Speed', req: 90, offset: -8 },
+    { comp: 'Recipe Consistency & Flavor', req: 90, offset: -6 },
+    { comp: 'HACCP & Kitchen Sanitation', req: 95, offset: -12 },
+    { comp: 'Food Safety', req: 90, offset: -5 },
+    { comp: 'Prep & Station Inventory', req: 85, offset: 2 },
+  ],
+  'Executive Chef': [
+    { comp: 'Line Expediting & Speed', req: 95, offset: -6 },
+    { comp: 'Recipe Consistency & Flavor', req: 95, offset: -6 },
+    { comp: 'HACCP & Kitchen Sanitation', req: 98, offset: -8 },
+    { comp: 'Food Safety', req: 95, offset: -5 },
+    { comp: 'Prep & Station Inventory', req: 90, offset: 2 },
+  ],
+  'Restaurant Supervisor': [
+    { comp: 'Floor Operations & Speed', req: 90, offset: -8 },
+    { comp: 'Customer Service', req: 90, offset: -7 },
+    { comp: 'POS & Cash Reconciliation', req: 85, offset: -5 },
+    { comp: 'Hygiene & Health Standards', req: 88, offset: -9 },
+    { comp: 'Team Collaboration', req: 85, offset: 2 },
+  ],
+  'Housekeeping Executive': [
+    { comp: 'Room Standards & Inspection', req: 95, offset: -10 },
+    { comp: 'Chemical & Bio-Safety Compliance', req: 90, offset: -6 },
+    { comp: 'Turnaround Time Optimization', req: 85, offset: -8 },
+    { comp: 'Linen & Inventory Management', req: 85, offset: 2 },
+    { comp: 'Hospitality SOP Compliance', req: 85, offset: -4 },
+  ],
+}
+
+const DEPARTMENT_COMPETENCY_MAP = {
+  'Front Office': [
+    { comp: 'Customer Service', req: 90, offset: -8 },
+    { comp: 'Communication', req: 88, offset: -6 },
+    { comp: 'Reservation Management', req: 88, offset: -10 },
+    { comp: 'Conflict Resolution', req: 80, offset: -5 },
+    { comp: 'Hospitality SOP Compliance', req: 85, offset: 2 },
+  ],
+  'Kitchen': [
+    { comp: 'Line Expediting & Speed', req: 90, offset: -8 },
+    { comp: 'Recipe Consistency & Flavor', req: 90, offset: -6 },
+    { comp: 'HACCP & Kitchen Sanitation', req: 95, offset: -12 },
+    { comp: 'Food Safety', req: 90, offset: -5 },
+    { comp: 'Prep & Station Inventory', req: 85, offset: 2 },
+  ],
+  'Food & Beverage': [
+    { comp: 'Floor Operations & Speed', req: 90, offset: -8 },
+    { comp: 'Customer Service', req: 90, offset: -7 },
+    { comp: 'POS & Cash Reconciliation', req: 85, offset: -5 },
+    { comp: 'Hygiene & Health Standards', req: 88, offset: -9 },
+    { comp: 'Team Collaboration', req: 85, offset: 2 },
+  ],
+  'Housekeeping': [
+    { comp: 'Room Standards & Inspection', req: 95, offset: -10 },
+    { comp: 'Chemical & Bio-Safety Compliance', req: 90, offset: -6 },
+    { comp: 'Turnaround Time Optimization', req: 85, offset: -8 },
+    { comp: 'Linen & Inventory Management', req: 85, offset: 2 },
+    { comp: 'Hospitality SOP Compliance', req: 85, offset: -4 },
+  ],
+  'Human Resources': [
+    { comp: 'Employee Relations', req: 88, offset: -7 },
+    { comp: 'Recruitment', req: 88, offset: -8 },
+    { comp: 'Compliance', req: 88, offset: -5 },
+    { comp: 'Communication', req: 80, offset: 2 },
+    { comp: 'Leadership', req: 80, offset: -4 },
+  ],
+  'default': [
+    { comp: 'Operational Management', req: 95, offset: -8 },
+    { comp: 'Leadership', req: 95, offset: -6 },
+    { comp: 'Financial Acumen', req: 88, offset: -7 },
+    { comp: 'Customer Service', req: 88, offset: 2 },
+    { comp: 'Communication', req: 88, offset: -4 },
+  ],
+}
+
 // Skill-gap detection — real per-competency data from competency_assessments.
 // Returns each gap (current score < required score) with the employee's
 // aggregate competency score and any learning resources that already carry the
@@ -82,6 +173,32 @@ router.get('/skill-gaps', async (req, res, next) => {
   try {
     const { employeeId } = req.query
     const scope = await getScopeFilter(req.user)
+
+    // If an employeeId is specified and has no competency assessments yet, auto-seed role & department-specific assessments
+    if (employeeId) {
+      const countRes = await query('SELECT count(*)::int as count FROM competency_assessments WHERE employee_id=$1', [employeeId])
+      if (Number(countRes.rows[0]?.count || 0) === 0) {
+        const empRes = await query('SELECT competency_score, department, job_title FROM employees WHERE id=$1', [employeeId])
+        const emp = empRes.rows[0]
+        if (emp) {
+          const baseScore = Number(emp.competency_score) || 75
+          const seedComps = ROLE_COMPETENCY_MAP[emp.job_title] ||
+            DEPARTMENT_COMPETENCY_MAP[emp.department] ||
+            DEPARTMENT_COMPETENCY_MAP['default']
+
+          for (const s of seedComps) {
+            const score = Math.max(35, Math.min(100, Math.round(baseScore + s.offset)))
+            await query(
+              `INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
+               VALUES ($1, $2, $3, $4, 'baseline')
+               ON CONFLICT (employee_id, competency) DO NOTHING`,
+              [employeeId, s.comp, score, s.req],
+            )
+          }
+        }
+      }
+    }
+
     let where = 'WHERE 1=1'
     const params = []
     // Employees may only view their own gaps.
@@ -107,23 +224,34 @@ router.get('/skill-gaps', async (req, res, next) => {
        ORDER BY gap DESC, e.full_name ASC`,
       params,
     )
-    // Enrich each gap with matching active learning resources
+    // Enrich each gap with matching active learning resources + live assignment and completion status
     const gapsWithCourses = await Promise.all(
       rows.map(async g => {
         const matchingResources = await query(
-          `SELECT r.* FROM learning_resources r
+          `SELECT r.*,
+                  la.id AS assignment_id,
+                  la.status AS assignment_status,
+                  la.progress AS assignment_progress,
+                  la.due_date AS assignment_due_date,
+                  (lc.id IS NOT NULL) AS is_completed,
+                  lc.completed_at,
+                  lc.assessment_result
+           FROM learning_resources r
            JOIN learning_resource_competencies lrc ON lrc.resource_id = r.id
+           LEFT JOIN learning_assignments la ON la.resource_id = r.id AND la.employee_id = $2
+           LEFT JOIN learning_completions lc ON lc.resource_id = r.id AND lc.employee_id = $2
            WHERE r.is_active = true AND LOWER(lrc.competency) = LOWER($1)
            ORDER BY r.title ASC`,
-          [g.competency],
+          [g.competency, g.employee_id],
         )
         return {
           ...g,
+          courses: matchingResources.rows,
           recommendedResources: matchingResources.rows,
         }
       }),
     )
-    res.json({ skillGaps: gapsWithCourses })
+    res.json({ skillGaps: gapsWithCourses, gaps: gapsWithCourses })
   } catch (error) { next(error) }
 })
 
@@ -338,6 +466,7 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
 
 // Record completion + assessment — HR or supervisor. This is the ONLY place
 // an employee is marked as having completed a course (official verification).
+// Verifying completion automatically updates linked competency scores and closes skill gaps!
 router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next) => {
   try {
     const input = completionSchema.parse(req.body)
@@ -356,6 +485,36 @@ router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next
       if (assignment.rows[0]) {
         await client.query("UPDATE learning_assignments SET progress=100, status='completed' WHERE id=$1", [assignment.rows[0].id])
       }
+
+      // Automatically update linked competency assessment scores when verified
+      const linkedComps = await client.query(
+        'SELECT competency FROM learning_resource_competencies WHERE resource_id=$1',
+        [input.resourceId],
+      )
+      for (const { competency } of linkedComps.rows) {
+        // Boost the competency score to meet required_score or add +15 pts
+        await client.query(
+          `UPDATE competency_assessments
+           SET score = LEAST(100, GREATEST(required_score, score + 15)),
+               source = 'learning_completion',
+               updated_at = NOW()
+           WHERE employee_id = $1 AND LOWER(competency) = LOWER($2)`,
+          [input.employeeId, competency],
+        )
+      }
+
+      // Recalculate employee's aggregate competency_score
+      await client.query(
+        `UPDATE employees
+         SET competency_score = (
+           SELECT COALESCE(ROUND(AVG(score)), 80)
+           FROM competency_assessments
+           WHERE employee_id = $1
+         )
+         WHERE id = $1`,
+        [input.employeeId],
+      )
+
       return rows[0]
     })
     await logActivity({ req, user: req.user, action: 'learning.completion', category: 'learning', targetId: input.employeeId, description: `${req.user.name} verified completion of learning resource for employee`, details: { resourceId: input.resourceId, employeeId: input.employeeId } })

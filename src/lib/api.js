@@ -106,6 +106,7 @@ notifications: ({ page, limit } = {}) => {
   },
   readNotifications: () => request('/api/notifications/read', { method: 'POST', body: '{}' }),
   emailOutbox: () => request('/api/notifications/outbox'),
+  sendTestEmail: (data) => request('/api/notifications/test-email', { method: 'POST', body: JSON.stringify(data) }),
   certificateTemplates: () => request('/api/certificates/templates'),
   createCertificateTemplate: (data) => request('/api/certificates/templates', { method: 'POST', body: JSON.stringify(data) }),
   updateCertificateTemplate: (id, data) => request(`/api/certificates/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
