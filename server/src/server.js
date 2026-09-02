@@ -38,6 +38,8 @@ app.get('/health', async (_req, res, next) => { try { await pool.query('SELECT 1
 // Public SMTP diagnostic — shows whether env vars reached the server (no auth required)
 app.get('/smtp-check', (_req, res) => {
   res.json({
+    BREVO_API_KEY: process.env.BREVO_API_KEY ? `✅ set (${process.env.BREVO_API_KEY.slice(0, 8)}...)` : '❌ NOT SET',
+    RESEND_API_KEY: process.env.RESEND_API_KEY ? `✅ set (${process.env.RESEND_API_KEY.slice(0, 8)}...)` : '❌ NOT SET',
     SMTP_HOST: process.env.SMTP_HOST || '❌ NOT SET',
     SMTP_PORT: process.env.SMTP_PORT || '❌ NOT SET',
     SMTP_USER: process.env.SMTP_USER ? `✅ ${process.env.SMTP_USER}` : '❌ NOT SET',

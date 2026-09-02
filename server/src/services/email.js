@@ -1,4 +1,4 @@
-// Full-featured email service — Resend API (production) + nodemailer SMTP (local dev fallback)
+// Full-featured email service — Brevo API (production) + Resend/SMTP (fallback)
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { config } from '../config.js'
@@ -6,19 +6,26 @@ import { config } from '../config.js'
 let resendClient = null
 let transporter = null
 let etherealAccount = null
+let useBrevo = false
 
-// Initialize email client — prefers Resend API (HTTPS, works on Render), falls back to SMTP
+// Initialize email client — priority: Brevo → Resend → SMTP → Simulated
 async function initEmailClient() {
-  // Priority 1: Resend API (works on any cloud host — no SMTP port needed)
+  // Priority 1: Brevo HTTP API (free, sends to any email, no domain needed, works on Render)
+  if (process.env.BREVO_API_KEY) {
+    useBrevo = true
+    console.log('[HORECA EMAIL] Using Brevo API for email delivery ✅')
+    return
+  }
+
+  // Priority 2: Resend API
   if (process.env.RESEND_API_KEY) {
     resendClient = new Resend(process.env.RESEND_API_KEY)
     console.log('[HORECA EMAIL] Using Resend API for email delivery ✅')
     return
   }
 
-  // Priority 2: Gmail / custom SMTP (works locally, may be blocked on Render free tier)
+  // Priority 3: Gmail / custom SMTP (local dev, blocked on Render free tier)
   const isGmail = (config.smtpHost && config.smtpHost.includes('gmail')) || (config.smtpUser && config.smtpUser.includes('@gmail.com'))
-
   if (isGmail && config.smtpUser && config.smtpPass) {
     transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -41,7 +48,6 @@ async function initEmailClient() {
     })
     console.log(`[HORECA EMAIL] Using SMTP transport (${config.smtpHost}:${config.smtpPort})`)
   } else {
-    // Demo/Development fallback: Ethereal sandboxed account
     try {
       etherealAccount = await nodemailer.createTestAccount()
       transporter = nodemailer.createTransport({
@@ -57,6 +63,8 @@ async function initEmailClient() {
     }
   }
 }
+
+
 
 // In-memory Outbox queue for live email inspection drawer
 const outboxQueue = []
@@ -147,7 +155,39 @@ export async function sendEmail({ to, subject, text, html, details, actionUrl, a
   outboxQueue.push(emailRecord)
   if (outboxQueue.length > 50) outboxQueue.shift()
 
-  // --- Resend API path (production / cloud) ---
+  // --- Brevo API path (production / cloud — sends to any email, 300/day free) ---
+  if (useBrevo) {
+    try {
+      const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'celsigarcia036@gmail.com'
+      const senderName = process.env.BREVO_SENDER_NAME || 'Horeca Hospitality HR'
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: senderName, email: senderEmail },
+          to: [{ email: to }],
+          subject,
+          htmlContent: finalHtml,
+          textContent: text,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || `Brevo error ${response.status}`)
+      emailRecord.status = 'sent'
+      console.log(`[HORECA EMAIL] Brevo delivered → ${to} | messageId: ${result.messageId}`)
+      return { sent: true, messageId: result.messageId, emailRecord }
+    } catch (error) {
+      console.error('[HORECA EMAIL] Brevo failed:', error.message)
+      emailRecord.status = `error: ${error.message}`
+      return { sent: false, error: error.message, emailRecord }
+    }
+  }
+
+  // --- Resend API path ---
   if (resendClient) {
     try {
       const fromAddress = process.env.RESEND_FROM || 'Horeca Hospitality HR <onboarding@resend.dev>'
