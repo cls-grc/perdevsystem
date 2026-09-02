@@ -7,14 +7,35 @@ let etherealAccount = null
 
 // Initialize SMTP transporter
 async function initTransporter() {
-  if (config.smtpHost && config.smtpUser) {
+  const isGmail = (config.smtpHost && config.smtpHost.includes('gmail')) || (config.smtpUser && config.smtpUser.includes('@gmail.com'))
+
+  if (isGmail && config.smtpUser && config.smtpPass) {
+    // Direct Gmail service mode (recommended for cloud servers like Render / Heroku to avoid port 587 blockages)
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config.smtpUser,
+        pass: config.smtpPass,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    })
+    console.log(`[HORECA EMAIL] Configured live Gmail service transport (${config.smtpUser})`)
+  } else if (config.smtpHost && config.smtpUser) {
     transporter = nodemailer.createTransport({
       host: config.smtpHost,
       port: config.smtpPort,
       secure: config.smtpSecure === 'true' || config.smtpPort === 465,
       auth: config.smtpPass ? { user: config.smtpUser, pass: config.smtpPass } : undefined,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+      tls: {
+        rejectUnauthorized: false,
+      },
     })
-    console.log(`[PDS EMAIL] Configured live SMTP transport (${config.smtpHost}:${config.smtpPort})`)
+    console.log(`[HORECA EMAIL] Configured live SMTP transport (${config.smtpHost}:${config.smtpPort})`)
   } else {
     // Demo/Development mode: create a test Ethereal account if needed
     try {
@@ -28,9 +49,9 @@ async function initTransporter() {
           pass: etherealAccount.pass,
         },
       })
-      console.log(`[PDS EMAIL] Initialized Ethereal test SMTP account (${etherealAccount.user})`)
+      console.log(`[HORECA EMAIL] Initialized Ethereal test SMTP account (${etherealAccount.user})`)
     } catch (err) {
-      console.warn('[PDS EMAIL] Could not create Ethereal test account, using simulated mode:', err.message)
+      console.warn('[HORECA EMAIL] Could not create Ethereal test account, using simulated mode:', err.message)
       transporter = null
     }
   }
