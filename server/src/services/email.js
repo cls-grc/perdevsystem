@@ -1,27 +1,33 @@
-// Full-featured email service with SMTP support, HTML templates, and Live Demo Outbox.
+// Full-featured email service — Resend API (production) + nodemailer SMTP (local dev fallback)
 import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { config } from '../config.js'
 
+let resendClient = null
 let transporter = null
 let etherealAccount = null
 
-// Initialize SMTP transporter
-async function initTransporter() {
+// Initialize email client — prefers Resend API (HTTPS, works on Render), falls back to SMTP
+async function initEmailClient() {
+  // Priority 1: Resend API (works on any cloud host — no SMTP port needed)
+  if (process.env.RESEND_API_KEY) {
+    resendClient = new Resend(process.env.RESEND_API_KEY)
+    console.log('[HORECA EMAIL] Using Resend API for email delivery ✅')
+    return
+  }
+
+  // Priority 2: Gmail / custom SMTP (works locally, may be blocked on Render free tier)
   const isGmail = (config.smtpHost && config.smtpHost.includes('gmail')) || (config.smtpUser && config.smtpUser.includes('@gmail.com'))
 
   if (isGmail && config.smtpUser && config.smtpPass) {
-    // Direct Gmail service mode (recommended for cloud servers like Render / Heroku to avoid port 587 blockages)
     transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: {
-        user: config.smtpUser,
-        pass: config.smtpPass,
-      },
+      auth: { user: config.smtpUser, pass: config.smtpPass },
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 20000,
     })
-    console.log(`[HORECA EMAIL] Configured live Gmail service transport (${config.smtpUser})`)
+    console.log(`[HORECA EMAIL] Using Gmail SMTP transport (${config.smtpUser})`)
   } else if (config.smtpHost && config.smtpUser) {
     transporter = nodemailer.createTransport({
       host: config.smtpHost,
@@ -31,33 +37,28 @@ async function initTransporter() {
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 20000,
-      tls: {
-        rejectUnauthorized: false,
-      },
+      tls: { rejectUnauthorized: false },
     })
-    console.log(`[HORECA EMAIL] Configured live SMTP transport (${config.smtpHost}:${config.smtpPort})`)
+    console.log(`[HORECA EMAIL] Using SMTP transport (${config.smtpHost}:${config.smtpPort})`)
   } else {
-    // Demo/Development mode: create a test Ethereal account if needed
+    // Demo/Development fallback: Ethereal sandboxed account
     try {
       etherealAccount = await nodemailer.createTestAccount()
       transporter = nodemailer.createTransport({
         host: 'smtp.ethereal.email',
         port: 587,
         secure: false,
-        auth: {
-          user: etherealAccount.user,
-          pass: etherealAccount.pass,
-        },
+        auth: { user: etherealAccount.user, pass: etherealAccount.pass },
       })
-      console.log(`[HORECA EMAIL] Initialized Ethereal test SMTP account (${etherealAccount.user})`)
+      console.log(`[HORECA EMAIL] Using Ethereal sandbox account (${etherealAccount.user})`)
     } catch (err) {
-      console.warn('[HORECA EMAIL] Could not create Ethereal test account, using simulated mode:', err.message)
+      console.warn('[HORECA EMAIL] Ethereal unavailable, using simulated mode:', err.message)
       transporter = null
     }
   }
 }
 
-// In-memory Outbox queue for presentation live email inspection
+// In-memory Outbox queue for live email inspection drawer
 const outboxQueue = []
 
 export function getOutboxQueue() {
@@ -99,31 +100,20 @@ export function buildHtmlTemplate({
       </head>
       <body style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color:#f1f5f9; margin:0; padding:20px; color:#1e293b;">
         <table align="center" border="0" cellpadding="0" cellspacing="0" style="max-width:560px; width:100%; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); border:1px solid #e2e8f0;">
-          <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%); padding:24px 28px; text-align:left;">
-              <div style="font-size:20px; font-weight:800; color:#ffffff; letter-spacing:0.8px; display:flex; align-items:center;">
-                🏨 HORECA
-              </div>
-              <div style="font-size:12px; color:#c7d2fe; margin-top:4px;">
-                Hotel, Restaurant &amp; Catering Hospitality HR System
-              </div>
+              <div style="font-size:20px; font-weight:800; color:#ffffff; letter-spacing:0.8px;">🏨 HORECA</div>
+              <div style="font-size:12px; color:#c7d2fe; margin-top:4px;">Hotel, Restaurant &amp; Catering Hospitality HR System</div>
             </td>
           </tr>
-
-          <!-- Content Body -->
           <tr>
             <td style="padding:28px 28px 20px;">
               <h2 style="font-size:18px; font-weight:700; color:#0f172a; margin:0 0 12px;">${title}</h2>
-              <p style="font-size:14px; line-height:1.6; color:#334155; margin:0 0 16px;">
-                ${message}
-              </p>
+              <p style="font-size:14px; line-height:1.6; color:#334155; margin:0 0 16px;">${message}</p>
               ${detailsHtml}
               ${buttonHtml}
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:16px 28px; text-align:center; font-size:11px; color:#94a3b8;">
               This is an automated notification sent by Horeca HR System.<br>
@@ -137,17 +127,12 @@ export function buildHtmlTemplate({
 }
 
 export async function sendEmail({ to, subject, text, html, details, actionUrl, actionText }) {
-  if (!transporter) {
-    await initTransporter()
+  // Lazy init on first send
+  if (!resendClient && !transporter) {
+    await initEmailClient()
   }
 
-  const finalHtml = html || buildHtmlTemplate({
-    title: subject,
-    message: text,
-    actionUrl,
-    actionText,
-    details,
-  })
+  const finalHtml = html || buildHtmlTemplate({ title: subject, message: text, actionUrl, actionText, details })
 
   const emailRecord = {
     id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -160,10 +145,33 @@ export async function sendEmail({ to, subject, text, html, details, actionUrl, a
   }
 
   outboxQueue.push(emailRecord)
-  if (outboxQueue.length > 50) outboxQueue.shift() // keep last 50 emails
+  if (outboxQueue.length > 50) outboxQueue.shift()
 
+  // --- Resend API path (production / cloud) ---
+  if (resendClient) {
+    try {
+      const fromAddress = process.env.RESEND_FROM || 'Horeca Hospitality HR <onboarding@resend.dev>'
+      const { data, error } = await resendClient.emails.send({
+        from: fromAddress,
+        to: [to],
+        subject,
+        html: finalHtml,
+        text,
+      })
+      if (error) throw new Error(error.message)
+      emailRecord.status = 'sent'
+      console.log(`[HORECA EMAIL] Resend delivered → ${to} | id: ${data.id}`)
+      return { sent: true, messageId: data.id, emailRecord }
+    } catch (error) {
+      console.error('[HORECA EMAIL] Resend failed:', error.message)
+      emailRecord.status = `error: ${error.message}`
+      return { sent: false, error: error.message, emailRecord }
+    }
+  }
+
+  // --- Nodemailer SMTP path (local dev) ---
   if (!transporter) {
-    console.log(`\n[HORECA EMAIL (Simulated)] To: ${to}\n[HORECA EMAIL] Subject: ${subject}\n[HORECA EMAIL] ${text}\n`)
+    console.log(`[HORECA EMAIL (Simulated)] To: ${to} | Subject: ${subject}`)
     emailRecord.status = 'simulated (demo mode)'
     return { simulated: true, emailRecord }
   }
@@ -176,18 +184,15 @@ export async function sendEmail({ to, subject, text, html, details, actionUrl, a
       text,
       html: finalHtml,
     })
-
     const previewUrl = nodemailer.getTestMessageUrl(info) || null
     emailRecord.status = 'sent'
     emailRecord.previewUrl = previewUrl
-    if (previewUrl) {
-      console.log(`[HORECA EMAIL] Real preview link: ${previewUrl}`)
-    }
-
+    if (previewUrl) console.log(`[HORECA EMAIL] Preview: ${previewUrl}`)
     return { sent: true, messageId: info.messageId, previewUrl, emailRecord }
   } catch (error) {
-    console.error('[HORECA EMAIL] Failed to send:', error.message)
+    console.error('[HORECA EMAIL] SMTP failed:', error.message)
     emailRecord.status = `error: ${error.message}`
     return { sent: false, error: error.message, emailRecord }
   }
 }
+
