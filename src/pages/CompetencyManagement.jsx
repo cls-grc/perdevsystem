@@ -10,17 +10,11 @@ export default function CompetencyManagement() {
       action={{ hr: 'Create development plan' }}
       stages={[
         ["Define competency requirements", "Define hospitality competency requirements and development objectives.", ["hr"]],
-        ["Manage learning resources", "Create or update service, food safety, and leadership resources.", ["hr"]],
-        ["Assign development plan", "Assign a plan using review results.", ["hr", "supervisor"]],
+        ["Assign development plan", "Review detected skill gaps, pick recommended learning courses, and assign learning paths.", ["hr", "supervisor"]],
         ["Track learning progress", "Review assigned learning and development progress.", ["employee", "supervisor"]],
         ["Update competency record", "Update competency records and analytics.", ["hr"]],
       ]}
-      items={[
-        ["Maya Chen", "Concierge - Customer service", "On track", "MC"],
-        ["Emily Thompson", "Restaurant Supervisor - Leadership", "In progress", "ET"],
-        ["Jordan Williams", "Front Office Staff - Communication", "Assessment due", "JW"],
-        ["Ava Reyes", "Kitchen Staff - HACCP compliance", "Complete", "AR"],
-      ]}
+      items={[]}
       itemLabel="Development plan"
       itemIsEmployee
     />

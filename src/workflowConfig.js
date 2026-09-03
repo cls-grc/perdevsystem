@@ -117,20 +117,87 @@ export const LEARNING_TEMPLATES = [
 
 // Mapping linking competency categories/names to recommended learning template categories
 export const COMPETENCY_LEARNING_MAP = {
+  // Front Office & Guest Service
   'Customer Service': ['Customer Service Excellence', 'Front Desk Excellence'],
-  'Hospitality Service': ['Customer Service Excellence'],
+  'Hospitality Service': ['Customer Service Excellence', 'Front Desk Excellence'],
   'Guest Service': ['Customer Service Excellence', 'Front Desk Excellence'],
-  'Leadership': ['Leadership Training', 'Conflict Resolution'],
-  'Team Leadership': ['Leadership Training', 'Conflict Resolution'],
-  'Operational Management': ['Leadership Training', 'Conflict Resolution'],
-  'Food Safety': ['Kitchen Hygiene', 'Food Safety'],
-  'Culinary Skill': ['Kitchen Hygiene', 'Food Safety'],
-  'Kitchen Operations': ['Kitchen Hygiene', 'Food Safety'],
-  'Hygiene & Safety': ['Kitchen Hygiene', 'Food Safety'],
-  'Compliance': ['Emergency Procedures', 'Cash Handling'],
-  'Financial Acumen': ['Cash Handling'],
-  'Communication': ['Conflict Resolution', 'Front Desk Excellence'],
+  'Guest Satisfaction': ['Customer Service Excellence', 'Front Desk Excellence'],
+  'Communication': ['Front Desk Excellence', 'Conflict Resolution'],
+  'Multilingual Communication': ['Front Desk Excellence', 'Conflict Resolution'],
+  'Reservation Management': ['Front Desk Excellence', 'Customer Service Excellence'],
+  'PMS & Reservation Control': ['Front Desk Excellence'],
+  'Guest Relations & VIP Protocol': ['Front Desk Excellence', 'Customer Service Excellence'],
+  'VIP Guest Etiquette': ['Customer Service Excellence', 'Front Desk Excellence'],
+  'VIP Guest Logistics & Transport': ['Front Desk Excellence', 'Customer Service Excellence'],
+  'Local & Destination Mastery': ['Front Desk Excellence', 'Customer Service Excellence'],
+  'Vendor & Experience Networking': ['Customer Service Excellence', 'Front Desk Excellence'],
   'Conflict Resolution': ['Conflict Resolution'],
+  'Hospitality SOP Compliance': ['Emergency Procedures', 'Front Desk Excellence'],
+
+  // Leadership & Management
+  'Leadership': ['Leadership Training'],
+  'Team Leadership': ['Leadership Training'],
+  'Team Leadership & Rostering': ['Leadership Training'],
+  'Team Supervision & Training': ['Leadership Training'],
+  'Kitchen Brigade Leadership': ['Leadership Training'],
+  'Junior Cook Mentorship': ['Leadership Training'],
+  'Staff Mentorship & Briefings': ['Leadership Training'],
+  'Staff Coaching & Tasting': ['Leadership Training'],
+  'Pastry Brigade Coordination': ['Leadership Training'],
+  'Department Leadership & Culture': ['Leadership Training'],
+  'Operational Management': ['Leadership Training'],
+  'Multi-Outlet Operational Excellence': ['Leadership Training'],
+  'Employee Relations': ['Leadership Training', 'Conflict Resolution'],
+  'Team Collaboration': ['Conflict Resolution', 'Leadership Training'],
+
+  // Kitchen & Culinary & Food Safety
+  'Food Safety': ['Kitchen Hygiene', 'Food Safety'],
+  'HACCP & Kitchen Sanitation': ['Kitchen Hygiene', 'Food Safety'],
+  'HACCP & Food Safety Mastery': ['Food Safety', 'Kitchen Hygiene'],
+  'Kitchen Hygiene': ['Kitchen Hygiene', 'Food Safety'],
+  'Hygiene & Safety': ['Kitchen Hygiene', 'Food Safety'],
+  'Hygiene & Health Standards': ['Kitchen Hygiene', 'Food Safety'],
+  'Sanitation & Bar Maintenance': ['Kitchen Hygiene', 'Food Safety'],
+  'Temperature & Food Safety': ['Kitchen Hygiene', 'Food Safety'],
+  'Food Safety & Brand Standards': ['Food Safety', 'Kitchen Hygiene'],
+  'Culinary Skill': ['Kitchen Hygiene', 'Food Safety'],
+  'Advanced Culinary Artistry': ['Kitchen Hygiene', 'Food Safety'],
+  'Kitchen Operations': ['Kitchen Hygiene', 'Food Safety'],
+  'Line Expediting & Speed': ['Kitchen Hygiene', 'Food Safety'],
+  'Recipe Consistency & Flavor': ['Kitchen Hygiene', 'Food Safety'],
+  'Baking & Pastry Techniques': ['Kitchen Hygiene', 'Food Safety'],
+  'Dessert Plating & Artistry': ['Kitchen Hygiene', 'Food Safety'],
+  'Recipe Scaling & Waste Reduction': ['Kitchen Hygiene', 'Food Safety'],
+  'Food & Wine Pairing': ['Customer Service Excellence', 'Food Safety'],
+  'Wine & Beverage Master': ['Customer Service Excellence'],
+  'Craft Cocktail Mixology': ['Customer Service Excellence'],
+  'Bar Speed & Multitasking': ['Customer Service Excellence'],
+  'Floor Operations & Speed': ['Customer Service Excellence'],
+
+  // Housekeeping & Facilities
+  'Room Standards & Inspection': ['Emergency Procedures', 'Compliance'],
+  'Chemical & Bio-Safety Compliance': ['Emergency Procedures'],
+  'Turnaround Time Optimization': ['Emergency Procedures'],
+  'Linen & Inventory Management': ['Emergency Procedures', 'Cash Handling'],
+
+  // Finance, Compliance & Operations
+  'Compliance': ['Emergency Procedures', 'Cash Handling'],
+  'Discretion & Privacy Compliance': ['Emergency Procedures'],
+  'Alcohol Compliance & Verification': ['Emergency Procedures'],
+  'Safety & Emergency Procedures': ['Emergency Procedures'],
+  'Financial Acumen': ['Cash Handling'],
+  'POS & Cash Reconciliation': ['Cash Handling'],
+  'Beverage Cost Control': ['Cash Handling'],
+  'Menu Engineering & Costing': ['Cash Handling'],
+  'Strategic P&L & Revenue Mgmt': ['Cash Handling'],
+  'Night Audit & Revenue Tracking': ['Cash Handling'],
+  'Data & Payroll': ['Cash Handling'],
+  'Cellar & Inventory Control': ['Cash Handling'],
+  'Supplier & Inventory Control': ['Cash Handling'],
+  'Prep & Station Inventory': ['Kitchen Hygiene'],
+  'Quality & Speed Audits': ['Leadership Training'],
+  'Supplier Contract Negotiations': ['Leadership Training', 'Conflict Resolution'],
+  'Recruitment': ['Leadership Training'],
 }
 
 export function getRecommendedCoursesForGap(competencyName, score = 0) {
@@ -139,16 +206,31 @@ export function getRecommendedCoursesForGap(competencyName, score = 0) {
   
   let matches = LEARNING_TEMPLATES.filter(t => matchedTitles.includes(t.title))
   if (matches.length === 0) {
-    // Partial search fallback
+    // Partial search fallback across titles & categories
     matches = LEARNING_TEMPLATES.filter(t => 
       t.category.toLowerCase().includes(norm.toLowerCase()) || 
       t.title.toLowerCase().includes(norm.toLowerCase()) ||
-      norm.toLowerCase().includes(t.category.toLowerCase())
+      norm.toLowerCase().includes(t.category.toLowerCase()) ||
+      norm.toLowerCase().includes(t.title.toLowerCase())
     )
   }
   if (matches.length === 0) {
-    // Default fallback course
-    matches = [LEARNING_TEMPLATES[1]]
+    // Context-aware default based on keywords in the competency name
+    const normLower = norm.toLowerCase()
+    if (normLower.includes('food') || normLower.includes('kitchen') || normLower.includes('haccp') || normLower.includes('sanitation') || normLower.includes('hygiene') || normLower.includes('recipe') || normLower.includes('culinary')) {
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Kitchen Hygiene') || LEARNING_TEMPLATES[2]]
+    } else if (normLower.includes('lead') || normLower.includes('manage') || normLower.includes('supervis') || normLower.includes('coach') || normLower.includes('mentor')) {
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Leadership Training') || LEARNING_TEMPLATES[0]]
+    } else if (normLower.includes('cash') || normLower.includes('audit') || normLower.includes('cost') || normLower.includes('financ') || normLower.includes('revenue') || normLower.includes('payroll')) {
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Cash Handling') || LEARNING_TEMPLATES[6]]
+    } else if (normLower.includes('conflict') || normLower.includes('communicat')) {
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Conflict Resolution') || LEARNING_TEMPLATES[5]]
+    } else if (normLower.includes('compliance') || normLower.includes('safety') || normLower.includes('emergency')) {
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Emergency Procedures') || LEARNING_TEMPLATES[7]]
+    } else {
+      // Front Office / Customer Service default
+      matches = [LEARNING_TEMPLATES.find(t => t.title === 'Front Desk Excellence') || LEARNING_TEMPLATES[1]]
+    }
   }
   return matches
 }
@@ -515,11 +597,6 @@ define_requirements: {
       description: 'Pick a position template to auto-load required competencies, levels and weights.',
       builder: 'competencyTemplate',
     },
-    manage_resources: {
-      title: 'Manage competency resources',
-      description: 'Link learning resources, guides and references to the competency library.',
-      builder: 'resources',
-    },
     assign_plan: {
       title: 'Assign development plan & course',
       description: 'Review detected skill gaps, pick recommended learning courses, and assign learning paths.',
@@ -766,8 +843,7 @@ export const STAGE_GUIDES = {
   },
   competency: {
     define_requirements: { task: 'Define competency requirements', action: 'Add position competency requirements', time: '~3 min', checklist: ['Add requirements', 'Set levels and weights'] },
-    manage_resources: { task: 'Link learning resources', action: 'Add references and guides', time: '~2 min', checklist: ['Add resources', 'Provide links'] },
-    assign_plan: { task: 'Assign development plan', action: 'Create a plan for the gaps', time: '~2 min', checklist: ['Add plan title', 'Set duration', 'List priority skills'] },
+    assign_plan: { task: 'Assign development plan', action: 'Review skill gaps and assign gap-specific learning courses', time: '~2 min', checklist: ['Review detected gaps', 'Assign recommended course', 'Set duration'] },
     track_progress: { task: 'Track learning progress', action: 'Review progress against the plan', time: '~2 min', checklist: ['Confirm progress', 'Note any blockers'] },
     update_record: { task: 'Update competency record', action: 'Finalize the new competency score', time: '~1 min', checklist: ['Enter new score', 'Add record notes'] },
   },

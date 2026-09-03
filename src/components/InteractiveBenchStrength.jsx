@@ -52,13 +52,33 @@ const CRITICAL_POSITIONS = [
 ]
 
 export default function InteractiveBenchStrength({ employees = [], onSelectCandidate }) {
+  const dynamicPositions = useMemo(() => {
+    return CRITICAL_POSITIONS.map(pos => {
+      // Find real matching incumbent from database employees in this department
+      const match = employees.find(e =>
+        e.department?.toLowerCase() === pos.department.toLowerCase() &&
+        (e.job_title?.toLowerCase().includes('manager') ||
+         e.job_title?.toLowerCase().includes('director') ||
+         e.job_title?.toLowerCase().includes('chef') ||
+         e.job_title?.toLowerCase().includes('head') ||
+         e.job_title?.toLowerCase().includes('supervisor'))
+      ) || employees.find(e => e.department?.toLowerCase() === pos.department.toLowerCase())
+
+      return {
+        ...pos,
+        incumbent: match ? match.full_name : pos.incumbent,
+        incumbentTitle: match ? match.job_title : pos.incumbentTitle,
+      }
+    })
+  }, [employees])
+
   const [selectedRole, setSelectedRole] = useState(CRITICAL_POSITIONS[0].role)
   const [readinessFilter, setReadinessFilter] = useState('ALL')
 
   // Group active employees by succession readiness
   const successorsByRole = useMemo(() => {
     const map = {}
-    CRITICAL_POSITIONS.forEach((pos) => {
+    dynamicPositions.forEach((pos) => {
       // Find candidates in same or related department, or high performers
       const candidates = employees.filter((e) => {
         if (e.full_name === pos.incumbent) return false
@@ -92,15 +112,15 @@ export default function InteractiveBenchStrength({ employees = [], onSelectCandi
       }
     })
     return map
-  }, [employees])
+  }, [dynamicPositions, employees])
 
-  const activePositionData = successorsByRole[selectedRole] || successorsByRole[CRITICAL_POSITIONS[0].role]
+  const activePositionData = successorsByRole[selectedRole] || successorsByRole[dynamicPositions[0]?.role]
 
   return (
     <div className="bench-strength-container">
       {/* ── TOP HEADER / BENCH OVERVIEW CARDS ────────────────────────────────── */}
       <div className="bench-roles-grid">
-        {CRITICAL_POSITIONS.map((pos) => {
+        {dynamicPositions.map((pos) => {
           const data = successorsByRole[pos.role]
           const isSelected = selectedRole === pos.role
 

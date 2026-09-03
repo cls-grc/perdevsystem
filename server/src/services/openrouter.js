@@ -308,7 +308,139 @@ function normalize(content, fallbackTitle) {
   return [{ title, summary: content.trim() }]
 }
 
-// ------------------------------ Public API ----------------------------------
+// ------------------------------ Development Plan API ------------------------
+
+/**
+ * Generate AI-powered Skill Gap Development Plan.
+ * Analyzes an employee's role, department, recorded competency gaps, and available catalog courses.
+ *
+ * @param {object} params
+ * @param {object} params.employee
+ * @param {Array<object>} params.gaps
+ * @param {Array<object>} params.resources
+ * @returns {Promise<object>} Structured AI development plan
+ */
+export async function generateDevelopmentPlan({ employee, gaps = [], resources = [] }) {
+  const empName = employee?.full_name || 'Hospitality Employee'
+  const dept = employee?.department || 'Operations'
+  const role = employee?.job_title || 'Staff'
+
+  // If no API key or on error, deterministic template fallback
+  const fallbackPlan = () => {
+    const gapList = gaps.map(g => {
+      const match = resources.find(r => (r.competencies || []).some(c => c.toLowerCase() === g.competency.toLowerCase()))
+      return {
+        competency: g.competency,
+        currentScore: g.score,
+        requiredScore: g.required_score,
+        gapPoints: g.gap,
+        priority: g.gap >= 10 ? 'High' : 'Medium',
+        impact: `Directly impacts ${dept} quality standards and guest satisfaction expectations for ${role}.`,
+        actionSteps: [
+          `Complete targeted module: ${match ? `"${match.title}"` : `${g.competency} Foundational Training`}.`,
+          `Practical on-the-floor application and supervisor observation in ${dept}.`,
+          `Post-training reassessment to achieve benchmark (${g.required_score}% target).`
+        ],
+        recommendedCourse: match ? match.title : 'Internal Hospitality SOP Refresher',
+      }
+    })
+
+    return {
+      employeeName: empName,
+      department: dept,
+      jobTitle: role,
+      summary: `Targeted capability development plan specifically formulated for ${empName} (${role} · ${dept}) to close ${gaps.length} identified competency gap(s).`,
+      overview: `Based on current evaluation records, ${empName} demonstrates baseline operational performance. Addressing the detected gaps will align service delivery with departmental standards.`,
+      gapPlans: gapList,
+      timelineWeeks: Math.max(2, gaps.length * 2),
+      supervisorNotes: `Supervisor should schedule weekly 15-minute check-ins to monitor study progress and verify practical competency application.`,
+    }
+  }
+
+  if (!config.openRouterApiKey || !gaps.length) {
+    return fallbackPlan()
+  }
+
+  try {
+    const promptGaps = gaps.map(g => `- ${g.competency}: Current Score ${g.score}%, Target ${g.required_score}% (Deficit: -${g.gap}%)`).join('\n')
+    const promptCourses = resources.slice(0, 10).map(r => `- ${r.title} (Competencies: ${(r.competencies || []).join(', ')})`).join('\n')
+
+    const systemPrompt = `You are an executive Hospitality HR Development Specialist for a premium hotel & restaurant group.
+You analyze skill gaps and generate actionable, tailored employee development plans strictly aligned with the employee's job title and department.
+Return ONLY valid JSON with no extra commentary or markdown fencing.`
+
+    const userPrompt = `Generate an AI Development Plan for:
+Employee: ${empName}
+Role: ${role}
+Department: ${dept}
+
+Detected Skill Gaps:
+${promptGaps}
+
+Available Learning Resources Catalog:
+${promptCourses}
+
+Return a JSON object with this exact structure:
+{
+  "employeeName": "${empName}",
+  "department": "${dept}",
+  "jobTitle": "${role}",
+  "summary": "Short 2-sentence executive summary of the plan",
+  "overview": "Context on how closing these gaps enhances performance in ${dept}",
+  "timelineWeeks": 4,
+  "gapPlans": [
+    {
+      "competency": "Name of competency",
+      "currentScore": 70,
+      "requiredScore": 85,
+      "gapPoints": 15,
+      "priority": "High | Medium | Low",
+      "impact": "Specific reason why this gap matters for a ${role} in ${dept}",
+      "actionSteps": [
+        "Step 1: Specific learning/study action",
+        "Step 2: Practical daily operational exercise",
+        "Step 3: Verification or assessment milestone"
+      ],
+      "recommendedCourse": "Title of best matching course from catalog"
+    }
+  ],
+  "supervisorNotes": "Key recommendation for the supervisor"
+}`
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.openRouterApiKey}`,
+        'HTTP-Referer': config.clientOrigin,
+        'X-Title': 'PerDevSys',
+      },
+      body: JSON.stringify({
+        model: config.openRouterModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 1200,
+      }),
+    })
+
+    if (!response.ok) throw new Error(`OpenRouter failed: ${response.status}`)
+    const payload = await response.json()
+    const raw = payload?.choices?.[0]?.message?.content || ''
+    
+    // Parse JSON safely
+    const cleanJson = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
+    const parsed = JSON.parse(cleanJson)
+    return parsed
+  } catch (err) {
+    console.warn('[openrouter] Error generating AI development plan, falling back:', err.message)
+    return fallbackPlan()
+  }
+}
+
+// ------------------------------ Public Analytics Insights API ---------------
 
 /**
  * Generate analytics insights.
@@ -317,12 +449,8 @@ function normalize(content, fallbackTitle) {
  * @returns {Promise<Array<{title: string, summary: string}>>} Insights array.
  */
 export async function generateInsights(context) {
-  // Employee-specific scope: generate a PERSONAL AI insight from the employee's
-  // own metrics, never the org-wide module/executive report.
   const isEmployeeScope = Boolean(context.employeeMetrics && context.moduleWorkflow?.scope === 'employee-specific')
 
-  // If no OpenRouter API key is configured, use the deterministic template
-  // reports so the application continues to work offline / in demos.
   if (!config.openRouterApiKey) {
     if (isEmployeeScope) return employeeInsights(context)
     return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
@@ -339,11 +467,10 @@ export async function generateInsights(context) {
     const content = await callOpenRouter(context)
     return normalize(content, fallbackTitle)
   } catch (error) {
-    // Graceful degradation: fall back to the template report so the UI never
-    // breaks when the LLM service is unavailable.
     console.warn('[openrouter] Falling back to template insights:', error.message)
     if (isEmployeeScope) return employeeInsights(context)
     return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
   }
 }
+
 

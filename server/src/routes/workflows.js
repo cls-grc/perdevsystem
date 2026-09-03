@@ -6,7 +6,7 @@ import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 import { getScopeFilter, verifyEmployeeAccess, verifyWorkflowAccess } from '../services/departmentScope.js'
-import { applyWorkflowScoreWriteBack } from '../services/workflowCompletion.js'
+import { applyWorkflowScoreWriteBack, autoAssignGapLearning } from '../services/workflowCompletion.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
@@ -394,6 +394,16 @@ router.post('/:id/advance', async (req, res, next) => {
         )
         await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'completed', req.user.sub, input.note || null, completionDetails])
 
+        // Auto-assign learning courses/workflows for any detected competency gaps
+        let gapAssignments = []
+        if (['competency', 'performance'].includes(workflow.module) && workflow.subject_employee_id) {
+          try {
+            gapAssignments = await autoAssignGapLearning(client, workflow.subject_employee_id, req.user.sub)
+          } catch (gapErr) {
+            console.warn('[workflows] autoAssignGapLearning error:', gapErr.message)
+          }
+        }
+
         // AI-assisted analytics: calculate and save the module metrics so the
         // UI can show a "Ready to Generate AI Report" state. The AI report is
         // NOT generated automatically — HR generates it on demand via
@@ -402,10 +412,10 @@ router.post('/:id/advance', async (req, res, next) => {
         try {
           const { metrics } = await calculateMetrics(workflow.module, {}, client)
           await saveMetricsForWorkflow(client, completedWorkflow.rows[0], req.user.sub, metrics)
-          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, metricsReady: true }
+          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, gapAssignments, metricsReady: true }
         } catch (aiError) {
           console.warn('[workflows] Could not save metrics for workflow completion:', aiError.message)
-          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, metricsReady: false }
+          return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, gapAssignments, metricsReady: false }
         }
       }
       const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])

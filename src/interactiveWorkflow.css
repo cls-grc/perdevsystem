@@ -846,11 +846,22 @@
   align-items: center !important;
   flex-wrap: wrap !important;
   gap: 10px !important;
+  position: relative !important;
+  z-index: 60 !important;
 }
 
 .workflow-header-picker {
   display: flex;
   align-items: center;
+  position: relative !important;
+  z-index: 60 !important;
+}
+
+.workflow-picker-dropdown {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  right: 0 !important;
+  z-index: 9999 !important;
 }
 
 .workflow-picker-inline {

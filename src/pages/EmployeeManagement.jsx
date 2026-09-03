@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import { downloadCsv } from '../lib/exportUtils'
-import { Download, CheckCircle, ShieldCheck, Zap, Eye, EyeOff } from 'lucide-react'
+import {
+  Download, CheckCircle, ShieldCheck, Zap, Eye, EyeOff,
+  TrendingUp, TrendingDown, Minus, Award, AlertCircle, BarChart3, Clock, Target, Calendar, User, Briefcase, ChevronRight, X
+} from 'lucide-react'
 
 const roleLabels = { employee: 'Employee', supervisor: 'Supervisor', management: 'Management', hr: 'HR', operations_manager: 'Ops Manager' }
 
@@ -183,7 +187,11 @@ export default function EmployeeManagement() {
     setError('')
     try {
       const result = await api.employeeHistory(emp.id)
-      setHistory({ employee: emp.full_name, history: result.history || [] })
+      setHistory({
+        employee: emp.full_name,
+        employeeData: emp,
+        history: result.history || [],
+      })
     } catch (e) { setError(e.message) }
   }
 
@@ -321,8 +329,8 @@ export default function EmployeeManagement() {
       </section>
 
       {/* Add/Edit modal */}
-      {showForm && (
-        <div className="settings-backdrop" onClick={() => setShowForm(false)}>
+      {showForm && createPortal(
+        <div className="er-modal-backdrop" onClick={() => setShowForm(false)}>
           <section className="settings-dialog er-dialog" onClick={e => e.stopPropagation()}>
             <h2>{editId ? 'Edit employee' : 'Add employee'}</h2>
             <p className="er-dialog-sub">{editId ? 'Update the employee record below.' : 'Create a new employee record.'}</p>
@@ -443,40 +451,293 @@ export default function EmployeeManagement() {
               </div>
             </form>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Score history modal */}
-      {history && (
-        <div className="settings-backdrop" onClick={() => setHistory(null)}>
-          <section className="settings-dialog er-dialog" onClick={e => e.stopPropagation()}>
-            <h2>Score history — {history.employee}</h2>
-            <p className="er-dialog-sub">Snapshot of scores recorded over time.</p>
-            {history.history.length ? (
-              <div className="er-table-wrap">
-                <table className="er-table">
-                  <thead><tr><th>Date</th><th>Performance</th><th>Competency</th><th>Learning</th></tr></thead>
-                  <tbody>
-                    {history.history.map(row => (
-                      <tr key={row.id}>
-                        <td>{new Date(row.recorded_at).toLocaleDateString()}</td>
-                        <td><span className="er-score">{row.performance_score}%</span></td>
-                        <td><span className="er-score">{row.competency_score}%</span></td>
-                        <td><span className="er-score">{row.learning_progress}%</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {/* Rich Historical Data, Trend & Gap Evaluation Modal */}
+      {history && (() => {
+        const emp = history.employeeData || {}
+        const rows = history.history || []
+        
+        // Compute trend changes if multiple records exist
+        const firstRecord = rows[0] || {}
+        const latestRecord = rows[rows.length - 1] || {}
+        const perfDelta = rows.length > 1 ? (Number(latestRecord.performance_score || 0) - Number(firstRecord.performance_score || 0)) : 0
+        const compDelta = rows.length > 1 ? (Number(latestRecord.competency_score || 0) - Number(firstRecord.competency_score || 0)) : 0
+        const learnDelta = rows.length > 1 ? (Number(latestRecord.learning_progress || 0) - Number(firstRecord.learning_progress || 0)) : 0
+
+        // Benchmark target is 80% standard
+        const targetBenchmark = 80
+        const currentPerf = Number(emp.performance_score ?? latestRecord.performance_score ?? 0)
+        const currentComp = Number(emp.competency_score ?? latestRecord.competency_score ?? 0)
+        const currentLearn = Number(emp.learning_progress ?? latestRecord.learning_progress ?? 0)
+        
+        const perfGap = currentPerf - targetBenchmark
+        const compGap = currentComp - targetBenchmark
+
+        // Prepare points for SVG chart (0 to 480 width, 20 to 140 height)
+        const chartPoints = rows.map((r, idx) => {
+          const x = rows.length === 1 ? 240 : (idx / (rows.length - 1)) * 440 + 20
+          const yPerf = 140 - (Number(r.performance_score || 0) / 100) * 110
+          const yComp = 140 - (Number(r.competency_score || 0) / 100) * 110
+          const yLearn = 140 - (Number(r.learning_progress || 0) / 100) * 110
+          return { x, yPerf, yComp, yLearn, r }
+        })
+
+        const perfPath = chartPoints.length > 1 
+          ? chartPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yPerf}`, '')
+          : (chartPoints[0] ? `M 20 ${chartPoints[0].yPerf} L 460 ${chartPoints[0].yPerf}` : '')
+
+        const compPath = chartPoints.length > 1 
+          ? chartPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yComp}`, '')
+          : (chartPoints[0] ? `M 20 ${chartPoints[0].yComp} L 460 ${chartPoints[0].yComp}` : '')
+
+        const learnPath = chartPoints.length > 1 
+          ? chartPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yLearn}`, '')
+          : (chartPoints[0] ? `M 20 ${chartPoints[0].yLearn} L 460 ${chartPoints[0].yLearn}` : '')
+
+        return createPortal(
+          <div className="er-modal-backdrop" onClick={() => setHistory(null)}>
+            <section className="settings-dialog er-dialog er-history-modal" onClick={e => e.stopPropagation()}>
+              {/* Modal Header */}
+              <div className="er-history-header">
+                <div className="er-history-user">
+                  <div className="er-history-avatar">{initials(history.employee)}</div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2>{history.employee}</h2>
+                      <span className={`er-status ${emp.is_active ? 'active' : 'inactive'}`}>
+                        {emp.is_active ? 'Active Employee' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p className="er-dialog-sub">
+                      {emp.job_title || 'Hospitality Staff'} • {emp.department_name || emp.department || 'General Operations'} • {emp.employee_number || ''}
+                    </p>
+                  </div>
+                </div>
+                <button className="er-history-close" onClick={() => setHistory(null)} title="Close Modal">
+                  <X size={18} />
+                </button>
               </div>
-            ) : <p className="er-empty">No score history available.</p>}
-            <div className="module-actions"><button className="cancel-button" onClick={() => setHistory(null)}>Close</button></div>
-          </section>
-        </div>
-      )}
+
+              {/* Top Evaluation KPIs & Gap Summary */}
+              <div className="er-history-kpis">
+                <div className="er-history-kpi-card">
+                  <div className="kpi-tag-label">Performance Score</div>
+                  <div className="kpi-val-row">
+                    <span className="kpi-big-val text-purple-600 dark:text-purple-400">{currentPerf}%</span>
+                    <span className={`kpi-trend-pill ${perfDelta > 0 ? 'positive' : perfDelta < 0 ? 'negative' : 'neutral'}`}>
+                      {perfDelta > 0 ? <TrendingUp size={12} /> : perfDelta < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+                      <span>{perfDelta > 0 ? `+${perfDelta}%` : perfDelta < 0 ? `${perfDelta}%` : 'Stable'}</span>
+                    </span>
+                  </div>
+                  <div className="kpi-benchmark-sub">
+                    {perfGap >= 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Above standard benchmark (+{perfGap}%)</span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ Gap: {perfGap}% below 80% benchmark</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="er-history-kpi-card">
+                  <div className="kpi-tag-label">Competency Score</div>
+                  <div className="kpi-val-row">
+                    <span className="kpi-big-val text-indigo-600 dark:text-indigo-400">{currentComp}%</span>
+                    <span className={`kpi-trend-pill ${compDelta > 0 ? 'positive' : compDelta < 0 ? 'negative' : 'neutral'}`}>
+                      {compDelta > 0 ? <TrendingUp size={12} /> : compDelta < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+                      <span>{compDelta > 0 ? `+${compDelta}%` : compDelta < 0 ? `${compDelta}%` : 'Stable'}</span>
+                    </span>
+                  </div>
+                  <div className="kpi-benchmark-sub">
+                    {compGap >= 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Competency met (+{compGap}%)</span>
+                    ) : (
+                      <span className="text-rose-600 dark:text-rose-400 font-medium">⚠ Skill Gap: {compGap}% required focus</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="er-history-kpi-card">
+                  <div className="kpi-tag-label">Learning Progress</div>
+                  <div className="kpi-val-row">
+                    <span className="kpi-big-val text-emerald-600 dark:text-emerald-400">{currentLearn}%</span>
+                    <span className={`kpi-trend-pill ${learnDelta > 0 ? 'positive' : learnDelta < 0 ? 'negative' : 'neutral'}`}>
+                      {learnDelta > 0 ? <TrendingUp size={12} /> : learnDelta < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+                      <span>{learnDelta > 0 ? `+${learnDelta}%` : learnDelta < 0 ? `${learnDelta}%` : 'Stable'}</span>
+                    </span>
+                  </div>
+                  <div className="kpi-benchmark-sub">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">{currentLearn >= 100 ? '✓ All modules completed' : `${100 - currentLearn}% modules remaining`}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Historical Progression Graph */}
+              <div className="er-chart-box">
+                <div className="er-chart-top">
+                  <div>
+                    <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+                      <BarChart3 size={14} className="text-purple-500" />
+                      <span>Historical Progression &amp; Score Trends</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0">Time-series tracking recorded across performance workflows and reviews</p>
+                  </div>
+                  <div className="er-chart-legend">
+                    <span className="legend-item"><span className="dot dot-perf" /> Performance</span>
+                    <span className="legend-item"><span className="dot dot-comp" /> Competency</span>
+                    <span className="legend-item"><span className="dot dot-learn" /> Learning</span>
+                    <span className="legend-item"><span className="line-bench" /> 80% Benchmark</span>
+                  </div>
+                </div>
+
+                <div className="er-svg-wrap">
+                  <svg viewBox="0 0 480 160" className="er-timeline-svg" preserveAspectRatio="none">
+                    {/* Grid lines */}
+                    <line x1="20" y1="30" x2="460" y2="30" stroke="rgba(148, 163, 184, 0.2)" strokeDasharray="3 3" />
+                    <line x1="20" y1="75" x2="460" y2="75" stroke="rgba(148, 163, 184, 0.2)" strokeDasharray="3 3" />
+                    <line x1="20" y1="120" x2="460" y2="120" stroke="rgba(148, 163, 184, 0.2)" strokeDasharray="3 3" />
+                    
+                    {/* 80% Target Benchmark Line */}
+                    <line x1="20" y1="52" x2="460" y2="52" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.7" />
+                    <text x="462" y="55" fill="#f59e0b" fontSize="8" fontWeight="600">80%</text>
+
+                    {/* Path curves */}
+                    {perfPath && <path d={perfPath} fill="none" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {compPath && <path d={compPath} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {learnPath && <path d={learnPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+
+                    {/* Data Point Circles */}
+                    {chartPoints.map((pt, idx) => (
+                      <g key={idx}>
+                        <circle cx={pt.x} cy={pt.yPerf} r="4" fill="#a855f7" stroke="#ffffff" strokeWidth="1.5" />
+                        <circle cx={pt.x} cy={pt.yComp} r="4" fill="#6366f1" stroke="#ffffff" strokeWidth="1.5" />
+                        <circle cx={pt.x} cy={pt.yLearn} r="4" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
+                      </g>
+                    ))}
+                  </svg>
+                  <div className="er-chart-dates">
+                    {rows.map((r, i) => (
+                      <span key={i} style={{ left: `${rows.length === 1 ? 50 : (i / (rows.length - 1)) * 90 + 5}%` }}>
+                        {new Date(r.recorded_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance & Skill Gap Evaluation Box */}
+              <div className="er-gap-eval-box">
+                <div className="er-gap-eval-head">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800 dark:text-slate-100">
+                    <Target size={14} className="text-rose-500" />
+                    <span>Evaluated Competency &amp; Performance Gaps</span>
+                  </div>
+                  <span className="er-gap-badge-standard">Benchmark: 80.0% standard</span>
+                </div>
+                <div className="er-gap-grid">
+                  <div className="er-gap-item">
+                    <div className="gap-item-top">
+                      <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-200">Role Competency Requirement</span>
+                      <span className={`er-gap-tag ${compGap >= 0 ? 'ok' : 'risk'}`}>
+                        {compGap >= 0 ? 'On Track' : `${Math.abs(compGap)}% Deficit`}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 mb-2">
+                      {compGap >= 0 
+                        ? `${emp.full_name || 'Employee'} meets all baseline competencies required for ${emp.job_title || 'their role'}.`
+                        : `Current capability is below expected benchmark. Training module assignments recommended in Learning Management.`}
+                    </p>
+                    <div className="er-progress-track">
+                      <div className="er-progress-fill comp" style={{ width: `${Math.min(currentComp, 100)}%` }} />
+                      <div className="benchmark-pin" style={{ left: '80%' }} title="Target standard: 80%" />
+                    </div>
+                  </div>
+
+                  <div className="er-gap-item">
+                    <div className="gap-item-top">
+                      <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-200">Operational Performance Target</span>
+                      <span className={`er-gap-tag ${perfGap >= 0 ? 'ok' : 'risk'}`}>
+                        {perfGap >= 0 ? 'Exceeding Target' : `${Math.abs(perfGap)}% Deficit`}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 mb-2">
+                      {perfGap >= 0
+                        ? `Operational delivery meets expected hotel guest service and departmental KPIs.`
+                        : `Performance reviews indicate actionable areas for improvement before next evaluation cycle.`}
+                    </p>
+                    <div className="er-progress-track">
+                      <div className="er-progress-fill perf" style={{ width: `${Math.min(currentPerf, 100)}%` }} />
+                      <div className="benchmark-pin" style={{ left: '80%' }} title="Target standard: 80%" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Historical Logs Table */}
+              <div className="er-history-table-section">
+                <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                  <Clock size={13} className="text-slate-400" />
+                  <span>Chronological Snapshot Logs ({rows.length})</span>
+                </h4>
+                {rows.length ? (
+                  <div className="er-table-wrap er-history-table-wrap">
+                    <table className="er-table">
+                      <thead>
+                        <tr>
+                          <th>Recorded Date &amp; Time</th>
+                          <th>Performance</th>
+                          <th>Competency</th>
+                          <th>Learning Progress</th>
+                          <th>Evaluation Assessment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.slice().reverse().map((row, idx) => {
+                          const p = Number(row.performance_score || 0)
+                          const c = Number(row.competency_score || 0)
+                          const isCompliant = p >= 80 && c >= 80
+                          return (
+                            <tr key={row.id || idx}>
+                              <td>
+                                <div className="font-semibold text-[10.5px]">
+                                  {new Date(row.recorded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                </div>
+                                <small className="text-slate-400 text-[9px]">{new Date(row.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
+                              </td>
+                              <td><span className="er-score text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30">{p}%</span></td>
+                              <td><span className="er-score text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">{c}%</span></td>
+                              <td><span className="er-score text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30">{row.learning_progress || 0}%</span></td>
+                              <td>
+                                <span className={`er-status ${isCompliant ? 'active' : 'inactive'}`}>
+                                  {isCompliant ? 'Standards Met' : 'Gap Intervention Needed'}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="er-empty">No historical snapshots recorded yet for this employee.</p>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="module-actions" style={{ marginTop: 18, borderTop: '1px solid rgba(148,163,184,0.15)', paddingTop: 12 }}>
+                <button className="cancel-button" onClick={() => setHistory(null)}>Close Evaluation</button>
+              </div>
+            </section>
+          </div>,
+          document.body
+        )
+      })()}
 
       {/* Invite modal */}
-      {inviteOpen && (
-        <div className="settings-backdrop" onClick={() => setInviteOpen(false)}>
+      {inviteOpen && createPortal(
+        <div className="er-modal-backdrop" onClick={() => setInviteOpen(false)}>
           <section className="settings-dialog er-dialog" onClick={e => e.stopPropagation()}>
             <h2>Send invitation</h2>
             <p className="er-dialog-sub">The user receives a registration link valid for 7 days.</p>
@@ -498,7 +759,8 @@ export default function EmployeeManagement() {
               </div>
             </form>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </main>
   )

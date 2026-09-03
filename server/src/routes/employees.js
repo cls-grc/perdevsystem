@@ -180,6 +180,128 @@ router.get('/org-tree', async (_req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// ---------------------------------------------------------------------------
+// Self-Service Profile Endpoints (Accessible to all authenticated users)
+// ---------------------------------------------------------------------------
+
+const updateProfileSchema = z.object({
+  phone: z.string().max(50).nullable().optional(),
+  address: z.string().max(300).nullable().optional(),
+  emergencyContactName: z.string().max(120).nullable().optional(),
+  emergencyContactPhone: z.string().max(50).nullable().optional(),
+  emergencyContactRelationship: z.string().max(80).nullable().optional(),
+  avatarUrl: z.string().max(500000).nullable().optional(),
+})
+
+// GET /api/employees/profile/me — authenticated user's profile and employee record
+router.get('/profile/me', async (req, res, next) => {
+  try {
+    const userRes = await query(
+      `SELECT u.id, u.email, u.full_name, u.role, u.employee_id, u.avatar_url AS user_avatar, u.two_factor_enabled
+       FROM users u WHERE u.id = $1`,
+      [req.user.sub],
+    )
+    const user = userRes.rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+
+    let employee = null
+    if (user.employee_id) {
+      const empRes = await query(
+        `SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
+                e.phone, e.address, e.emergency_contact_name, e.emergency_contact_phone,
+                e.emergency_contact_relationship, e.avatar_url,
+                e.performance_score, e.competency_score, e.learning_progress
+         FROM employees e WHERE e.id = $1`,
+        [user.employee_id],
+      )
+      employee = empRes.rows[0] || null
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        role: user.role,
+        avatarUrl: user.user_avatar || employee?.avatar_url || null,
+        twoFactorEnabled: Boolean(user.two_factor_enabled),
+      },
+      employee: employee ? {
+        id: employee.id,
+        employeeNumber: employee.employee_number,
+        fullName: employee.full_name,
+        department: employee.department,
+        jobTitle: employee.job_title,
+        phone: employee.phone || '',
+        address: employee.address || '',
+        emergencyContactName: employee.emergency_contact_name || '',
+        emergencyContactPhone: employee.emergency_contact_phone || '',
+        emergencyContactRelationship: employee.emergency_contact_relationship || '',
+        avatarUrl: employee.avatar_url || user.user_avatar || null,
+        performanceScore: employee.performance_score,
+        competencyScore: employee.competency_score,
+        learningProgress: employee.learning_progress,
+      } : null,
+    })
+  } catch (error) { next(error) }
+})
+
+// PATCH /api/employees/profile/me — self-service update for personal contact & emergency details
+router.patch('/profile/me', async (req, res, next) => {
+  try {
+    const input = updateProfileSchema.parse(req.body)
+    const userRes = await query('SELECT id, employee_id, full_name FROM users WHERE id = $1', [req.user.sub])
+    const user = userRes.rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+
+    if (input.avatarUrl !== undefined) {
+      await query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [input.avatarUrl, user.id])
+    }
+
+    let updatedEmployee = null
+    if (user.employee_id) {
+      const resEmp = await query(
+        `UPDATE employees
+         SET phone = COALESCE($1, phone),
+             address = COALESCE($2, address),
+             emergency_contact_name = COALESCE($3, emergency_contact_name),
+             emergency_contact_phone = COALESCE($4, emergency_contact_phone),
+             emergency_contact_relationship = COALESCE($5, emergency_contact_relationship),
+             avatar_url = COALESCE($6, avatar_url),
+             updated_at = NOW()
+         WHERE id = $7
+         RETURNING *`,
+        [
+          input.phone !== undefined ? input.phone : null,
+          input.address !== undefined ? input.address : null,
+          input.emergencyContactName !== undefined ? input.emergencyContactName : null,
+          input.emergencyContactPhone !== undefined ? input.emergencyContactPhone : null,
+          input.emergencyContactRelationship !== undefined ? input.emergencyContactRelationship : null,
+          input.avatarUrl !== undefined ? input.avatarUrl : null,
+          user.employee_id,
+        ],
+      )
+      updatedEmployee = resEmp.rows[0]
+    }
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'employee.profile_self_update',
+      category: 'employee',
+      targetId: user.employee_id || user.id,
+      description: `${req.user.name} updated their personal contact profile`,
+    })
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      employee: updatedEmployee,
+      avatarUrl: input.avatarUrl !== undefined ? input.avatarUrl : (updatedEmployee?.avatar_url || null),
+    })
+  } catch (error) { next(error) }
+})
+
 // POST /api/employees/invite — send invite (HR only)
 router.post('/invite', authorize('hr'), async (req, res, next) => {
   try {

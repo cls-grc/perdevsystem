@@ -9,7 +9,7 @@ import useDialogFocus from '../hooks/useDialogFocus'
 import { usePolling } from '../hooks/usePolling'
 import { api } from '../lib/api'
 import { configFor, computeModuleStats, STAGE_GUIDES, COMMENT_SUGGESTIONS, QUICK_DECISIONS, isApprovalStage } from '../workflowConfig'
-import { Check, CheckCircle, AlertTriangle, Zap, Sparkles, Pencil, ClipboardList, Clock, Info } from 'lucide-react'
+import { Check, CheckCircle, AlertTriangle, Zap, Sparkles, Pencil, ClipboardList, Clock, Info, Search, ChevronDown, User, X, Plus } from 'lucide-react'
 
 // Error boundary — catches render errors in any step form so the entire page
 // doesn't go blank. Shows a recoverable error card instead.
@@ -216,6 +216,21 @@ const [workflow, setWorkflow] = useState(null)
   const [bulkSearch, setBulkSearch] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkResult, setBulkResult] = useState(null)
+  // Searchable workflow picker state
+  const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false)
+  const [workflowPickerQuery, setWorkflowPickerQuery] = useState('')
+  const workflowPickerRef = useRef(null)
+
+  // Close workflow picker when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (workflowPickerRef.current && !workflowPickerRef.current.contains(e.target)) {
+        setWorkflowPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
 
   const roleAction = typeof action === 'string' ? action : action?.[role]
   const itemOptions = useMemo(
@@ -240,6 +255,10 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
       setDefinitions(definitionResult.workflows[moduleKey] || [])
       setPeople(subjectResult.employees || [])
       setSubject(previous => previous || subjectResult.employees?.[0] || null)
+      if (!selected[0] && subjectResult.employees?.[0]) {
+        const p = subjectResult.employees[0]
+        setSelected([p.full_name, `${p.job_title} - ${p.department}`, 'Active'])
+      }
       if (active?.subject_name && subjectResult.employees) {
         const match = subjectResult.employees.find(p => p.full_name === active.subject_name || p.id === active.subject_employee_id)
         if (match) setEvaluatingSubject(match)
@@ -702,7 +721,10 @@ const complete = async () => {
         setWorkflow(null)
         setEvents([])
         const updatedField = result.scoreWriteBack?.field ? ` ${result.scoreWriteBack.field.replaceAll('_', ' ')} updated to ${result.scoreWriteBack.newValue}%.` : ''
-        showNotice(`Workflow completed.${updatedField} ${result.metricsReady ? 'Metrics are ready for AI report generation.' : 'Employee data was updated; metrics preview will refresh shortly.'}`)
+        const gapNotice = (result.gapAssignments && result.gapAssignments.length > 0)
+          ? ` 🎓 ${result.gapAssignments.length} learning course(s) auto-assigned for detected skill gaps.`
+          : ''
+        showNotice(`Workflow completed.${updatedField}${gapNotice} ${result.metricsReady ? 'Metrics are ready for AI report generation.' : 'Employee data was updated; metrics preview will refresh shortly.'}`)
       } else {
         showNotice(`${display} completed. ${result.nextAction} is now awaiting its assigned role.`)
       }
@@ -979,9 +1001,9 @@ const saveSchedule = async () => {
             type="button"
             onClick={openBulkLauncher}
             disabled={saving || bulkSaving}
-            title="Launch a batch review cycle for multiple employees"
+            title={`Launch a batch ${title.toLowerCase()} cycle for multiple employees`}
           >
-            <Zap size={14} className="inline mr-1 text-amber-400" /> Launch Review Cycle
+            <Zap size={14} className="inline mr-1 text-amber-400" /> {moduleKey === 'performance' ? 'Launch Review Cycle' : moduleKey === 'competency' ? 'Launch Batch Plans' : moduleKey === 'succession' ? 'Launch Succession Batch' : 'Launch Batch Cycle'}
           </button>
         )}
         {roleAction && <button className="module-primary" type="button" onClick={handleHeaderAction} disabled={saving}>{saving ? 'Creating...' : roleAction}</button>}
@@ -1003,25 +1025,170 @@ const saveSchedule = async () => {
 
     <section className="module-grid">
       <section className="module-process">
-        <div className="module-process-head">
+        <div className="module-process-head" style={{ position: 'relative', zIndex: 60 }}>
           <div>
             <span>{workflow ? (canAct ? 'Action required' : 'Read-only status') : 'Ready to start'}</span>
             <b>{display}</b>
           </div>
-          {workflows.length > 1 && (
-            <div className="workflow-header-picker">
-              <select
-                className="workflow-picker-inline"
-                value={workflow?.id || ''}
-                onChange={event => chooseWorkflow(event.target.value)}
-                aria-label="Switch active workflow"
+          {workflows.length > 0 && (
+            <div className="workflow-header-picker" ref={workflowPickerRef} style={{ position: 'relative', zIndex: 60 }}>
+              <button
+                type="button"
+                className="workflow-picker-trigger-btn"
+                onClick={() => setWorkflowPickerOpen(prev => !prev)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 12px',
+                  background: 'var(--surface-color, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-color, #1e293b)',
+                  cursor: 'pointer',
+                  maxWidth: 280,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                }}
               >
-                {workflows.map(entry => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.subject_name ? `${entry.subject_name} — ${entry.title}` : entry.title}
-                  </option>
-                ))}
-              </select>
+                <User size={13} style={{ color: '#7c3aed', flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
+                  {workflow?.subject_name || workflow?.title || 'Select Employee'}
+                </span>
+                <span style={{ fontSize: 10, background: 'rgba(124,58,237,0.1)', color: '#7c3aed', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                  {workflows.length} active
+                </span>
+                <ChevronDown size={13} style={{ color: '#64748b', flexShrink: 0, transform: workflowPickerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+
+              {workflowPickerOpen && (
+                <div
+                  className="workflow-picker-dropdown"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    width: 310,
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 10,
+                    boxShadow: '0 12px 28px -4px rgba(0,0,0,0.18), 0 4px 10px -2px rgba(0,0,0,0.08)',
+                    zIndex: 9999,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Search Input */}
+                  <div style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc' }}>
+                    <Search size={13} style={{ color: '#94a3b8' }} />
+                    <input
+                      type="text"
+                      value={workflowPickerQuery}
+                      onChange={e => setWorkflowPickerQuery(e.target.value)}
+                      placeholder="Search employee or role…"
+                      autoFocus
+                      style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, width: '100%', color: '#1e293b' }}
+                    />
+                    {workflowPickerQuery && (
+                      <button type="button" onClick={() => setWorkflowPickerQuery('')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: '#94a3b8' }}>
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Results List */}
+                  <div style={{ maxHeight: 240, overflowY: 'auto', padding: 4 }}>
+                    {(() => {
+                      const filtered = workflows.filter(entry => {
+                        if (!workflowPickerQuery.trim()) return true
+                        const q = workflowPickerQuery.toLowerCase()
+                        return (
+                          (entry.subject_name || '').toLowerCase().includes(q) ||
+                          (entry.title || '').toLowerCase().includes(q) ||
+                          (entry.current_stage || '').toLowerCase().includes(q)
+                        )
+                      })
+                      if (!filtered.length) {
+                        return (
+                          <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
+                            No employee found matching "{workflowPickerQuery}"
+                          </div>
+                        )
+                      }
+                      return filtered.map(entry => {
+                        const isSelected = entry.id === workflow?.id
+                        const stageObj = normalizedStages.find(s => s.key === entry.current_stage)
+                        const stageLabel = stageObj?.label || entry.current_stage
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => {
+                              chooseWorkflow(entry.id)
+                              setWorkflowPickerOpen(false)
+                              setWorkflowPickerQuery('')
+                            }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '8px 10px',
+                              border: 'none', borderRadius: 6,
+                              background: isSelected ? 'rgba(124,58,237,0.08)' : 'transparent',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center',
+                              justifyContent: 'space-between', gap: 8,
+                            }}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#6d28d9' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {entry.subject_name || entry.title}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stageLabel}</span>
+                              </div>
+                            </div>
+                            {isSelected && <Check size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />}
+                          </button>
+                        )
+                      })
+                    })()}
+                  </div>
+
+                  {/* Add button inside dropdown to quickly evaluate another employee */}
+                  {canStart && (
+                    <div style={{ padding: '6px 8px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorkflowPickerOpen(false)
+                          setComposerOpen(true)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          background: '#7c3aed',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#6d28d9' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#7c3aed' }}
+                      >
+                        <Plus size={13} />
+                        <span>Evaluate another employee</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1103,7 +1270,11 @@ const saveSchedule = async () => {
                       people={people}
                       suggestions={currentSuggestions}
                       events={events}
-                      subject={workflow ? { id: workflow.subject_employee_id, full_name: workflow.subject_name } : evaluatingSubject}
+                      subject={
+                        workflow
+                          ? (people.find(p => (workflow.subject_employee_id && (p.id === workflow.subject_employee_id || p.employee_id === workflow.subject_employee_id)) || (workflow.subject_name && p.full_name?.toLowerCase() === workflow.subject_name?.toLowerCase())) || { id: workflow.subject_employee_id, full_name: workflow.subject_name })
+                          : evaluatingSubject
+                      }
                       workflow={workflow}
                     />
                   </StepFormErrorBoundary>

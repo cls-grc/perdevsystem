@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { query, transaction } from '../db.js'
 import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
+import { generateDevelopmentPlan } from '../services/openrouter.js'
 
 const router = Router()
 
@@ -255,6 +256,161 @@ router.get('/skill-gaps', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// GET /api/learning/recommendations — strictly department and role relevant learning courses
+// Only returns courses when the employee has actual competency_assessments recorded.
+// If no assessments exist yet, returns notAssessed: true so the UI can prompt the HR
+// to complete the competency evaluation first (Stage 1 of the Competency workflow).
+router.get('/recommendations', async (req, res, next) => {
+  try {
+    const scope = await getScopeFilter(req.user)
+    const empId = scope.isEmployee ? scope.employeeId : (req.query.employeeId || scope.employeeId)
+
+    if (!empId) {
+      return res.status(400).json({ error: 'Employee ID is required for tailored recommendations.' })
+    }
+
+    const empRes = await query('SELECT id, full_name, department, job_title, competency_score FROM employees WHERE id=$1', [empId])
+    const emp = empRes.rows[0]
+    if (!emp) return res.status(404).json({ error: 'Employee not found.' })
+
+    // ── GATE: require actual competency assessment records ──────────────────
+    // If the employee has not yet been evaluated in Competency Management
+    // (Stage 1: Define requirements), there are no assessments in the DB.
+    // In that case we return notAssessed = true so the frontend can display
+    // an instructional empty-state instead of falling back to generic role data.
+    const assessmentCountRes = await query(
+      'SELECT COUNT(*) AS cnt FROM competency_assessments WHERE employee_id = $1',
+      [emp.id]
+    )
+    const assessmentCount = parseInt(assessmentCountRes.rows[0]?.cnt || '0', 10)
+
+    if (assessmentCount === 0) {
+      return res.json({
+        notAssessed: true,
+        employee: {
+          id: emp.id,
+          name: emp.full_name,
+          department: emp.department,
+          jobTitle: emp.job_title,
+        },
+        relevantCompetencies: [],
+        recommendedResources: [],
+      })
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
+    // Only include competencies WHERE employee actually has a gap (score < required_score)
+    // Do NOT fall back to role-map for employees who are already assessed — only show
+    // courses addressing their real detected gaps.
+    const gapRes = await query(
+      `SELECT competency FROM competency_assessments WHERE employee_id=$1 AND score < required_score`,
+      [emp.id]
+    )
+    const gapComps = gapRes.rows.map(r => r.competency)
+
+    if (gapComps.length === 0) {
+      // Employee is assessed and has NO gaps — all competencies are on track
+      return res.json({
+        noGaps: true,
+        employee: {
+          id: emp.id,
+          name: emp.full_name,
+          department: emp.department,
+          jobTitle: emp.job_title,
+        },
+        relevantCompetencies: [],
+        recommendedResources: [],
+      })
+    }
+
+    // Strictly filter resources whose competency tags match the employee's actual gaps
+    const { rows } = await query(
+      `SELECT DISTINCT r.*,
+         COALESCE((SELECT array_agg(lrc.competency ORDER BY lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies,
+         (SELECT la.status FROM learning_assignments la WHERE la.resource_id = r.id AND la.employee_id = $1) AS assignment_status,
+         (SELECT la.progress FROM learning_assignments la WHERE la.resource_id = r.id AND la.employee_id = $1) AS assignment_progress,
+         EXISTS(SELECT 1 FROM learning_completions lc WHERE lc.resource_id = r.id AND lc.employee_id = $1) AS is_completed
+       FROM learning_resources r
+       JOIN learning_resource_competencies lrc ON lrc.resource_id = r.id
+       WHERE r.is_active = true AND lrc.competency = ANY($2::text[])
+       ORDER BY r.created_at DESC`,
+      [emp.id, gapComps]
+    )
+
+    res.json({
+      employee: {
+        id: emp.id,
+        name: emp.full_name,
+        department: emp.department,
+        jobTitle: emp.job_title,
+      },
+      relevantCompetencies: gapComps,
+      recommendedResources: rows,
+    })
+  } catch (error) { next(error) }
+})
+
+
+// POST /api/learning/development-plan — AI skill-gap development plan generator
+router.post('/development-plan', async (req, res, next) => {
+  try {
+    const scope = await getScopeFilter(req.user)
+    const targetEmpId = req.body.employeeId || (scope.isEmployee ? scope.employeeId : null)
+
+    if (!targetEmpId) {
+      return res.status(400).json({ error: 'Target employee ID is required.' })
+    }
+
+    if (!scope.isEmployee) {
+      await verifyEmployeeAccess(req.user, targetEmpId)
+    }
+
+    // 1. Fetch employee details
+    const empRes = await query('SELECT id, full_name, department, job_title, competency_score, performance_score FROM employees WHERE id=$1', [targetEmpId])
+    const employee = empRes.rows[0]
+    if (!employee) return res.status(404).json({ error: 'Employee not found.' })
+
+    // 2. Fetch detected skill gaps
+    const gapRes = await query(
+      `SELECT ca.competency, ca.score, ca.required_score, (ca.required_score - ca.score)::int AS gap
+       FROM competency_assessments ca
+       WHERE ca.employee_id = $1 AND ca.score < ca.required_score
+       ORDER BY (ca.required_score - ca.score) DESC`,
+      [targetEmpId]
+    )
+    const gaps = gapRes.rows
+
+    // 3. Fetch catalog resources with competencies
+    const resRes = await query(
+      `SELECT r.id, r.title, r.category, r.description,
+         COALESCE((SELECT array_agg(lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies
+       FROM learning_resources r
+       WHERE r.is_active = true`
+    )
+    const resources = resRes.rows
+
+    // 4. Run AI analysis
+    const plan = await generateDevelopmentPlan({ employee, gaps, resources })
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'ai.development_plan',
+      category: 'learning',
+      targetId: targetEmpId,
+      description: `Generated AI Skill Gap Development Plan for ${employee.full_name} (${employee.job_title})`,
+      details: { gapCount: gaps.length, department: employee.department }
+    })
+
+    res.json({
+      success: true,
+      plan,
+      gaps,
+      generatedAt: new Date().toISOString()
+    })
+  } catch (error) { next(error) }
+})
+
 // List resources (course library). HR and Supervisors see all active courses;
 // employees see active courses. Optional category/search filtering.
 router.get('/', async (req, res, next) => {
@@ -459,6 +615,61 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
       'UPDATE learning_assignments SET progress=$1, status=$2 WHERE id=$3 RETURNING *',
       [progress, status, req.params.id],
     )
+
+    if (progress >= 100 || status === 'completed') {
+      // 1. Auto-record completion in learning_completions if not already verified
+      await query(
+        `INSERT INTO learning_completions (resource_id, employee_id, assignment_id, assessment_result, verified_by)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (resource_id, employee_id) DO NOTHING`,
+        [assignment.resource_id, assignment.employee_id, assignment.id, JSON.stringify({ autoVerified: true, progress }), req.user.sub],
+      )
+
+      // 2. Lift linked competency scores to meet benchmark / resolve gap
+      const linkedComps = await query(
+        'SELECT competency FROM learning_resource_competencies WHERE resource_id=$1',
+        [assignment.resource_id],
+      )
+      for (const { competency } of linkedComps.rows) {
+        await query(
+          `UPDATE competency_assessments
+           SET score = LEAST(100, GREATEST(required_score, score + 18)),
+               source = 'learning_completion',
+               assessed_at = NOW(),
+               updated_at = NOW()
+           WHERE employee_id = $1 AND LOWER(competency) = LOWER($2)`,
+          [assignment.employee_id, competency],
+        )
+      }
+
+      // 3. Recalculate employee's aggregate competency score
+      await query(
+        `UPDATE employees
+         SET competency_score = (
+           SELECT COALESCE(ROUND(AVG(score)), 85)
+           FROM competency_assessments
+           WHERE employee_id = $1
+         ),
+         learning_progress = (
+           SELECT COALESCE(ROUND(AVG(progress)), 100)
+           FROM learning_assignments
+           WHERE employee_id = $1
+         ),
+         updated_at = NOW()
+         WHERE id = $1`,
+        [assignment.employee_id],
+      )
+
+      // 4. Mark active learning workflow for this course as completed
+      await query(
+        `UPDATE workflows
+         SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+         WHERE module = 'learning' AND subject_employee_id = $1 AND status = 'active'
+           AND metadata->>'courseTitle' = (SELECT title FROM learning_resources WHERE id = $2)`,
+        [assignment.employee_id, assignment.resource_id],
+      )
+    }
+
     await logActivity({ req, user: req.user, action: 'learning.progress_update', category: 'learning', targetId: req.params.id, description: `${req.user.name} updated learning progress to ${progress}% (${status})`, details: { progress, status } })
     res.json({ assignment: updated.rows[0] })
   } catch (error) { next(error) }

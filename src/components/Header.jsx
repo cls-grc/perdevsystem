@@ -3,6 +3,7 @@ import { Icon } from './Sidebar'
 import { api } from '../lib/api'
 import EmailOutboxDrawer from './EmailOutboxDrawer'
 import TwoFactorModal from './TwoFactorModal'
+import UserProfileModal from './UserProfileModal'
 import GlobalSearchModal from './GlobalSearchModal'
 import { BarChart3, Target, GraduationCap, Calendar, Crown, Trophy, Bell, Check, Sparkles, Mail, BellOff } from 'lucide-react'
 
@@ -33,6 +34,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notifFilter, setNotifFilter] = useState('all')
@@ -143,8 +145,8 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           <button
             className="header-icon-btn"
             type="button"
-            onClick={() => setTwoFactorOpen(true)}
-            title="Account & Security Settings"
+            onClick={() => setProfileOpen(true)}
+            title="My Profile & Settings"
           >
             <Icon name="settings" size={17} />
           </button>
@@ -301,6 +303,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
 
     <EmailOutboxDrawer isOpen={outboxOpen} onClose={() => setOutboxOpen(false)} />
     {twoFactorOpen && <TwoFactorModal onClose={() => setTwoFactorOpen(false)} />}
+    {profileOpen && <UserProfileModal onClose={() => setProfileOpen(false)} />}
     <GlobalSearchModal
       isOpen={searchOpen}
       onClose={() => setSearchOpen(false)}

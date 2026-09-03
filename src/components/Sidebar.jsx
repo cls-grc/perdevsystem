@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import UserProfileModal from './UserProfileModal'
 
 const sectionsByRole = {
   hr: [
@@ -241,6 +243,9 @@ export function Icon({ name, size = 20 }) {
 }
 
 export default function Sidebar({ user, onLogout }) {
+  const [showProfile, setShowProfile] = useState(false)
+  const [sidebarAvatar, setSidebarAvatar] = useState(null)
+
   const roleLabel =
     {
       hr: 'HR Administrator',
@@ -257,6 +262,7 @@ export default function Sidebar({ user, onLogout }) {
   const navSections = sectionsByRole[user.role] || sectionsByRole.employee
 
   return (
+    <>
     <aside className="sidebar">
       {/* Brand Header */}
       <div className="sidebar-brand-wrapper">
@@ -312,11 +318,22 @@ export default function Sidebar({ user, onLogout }) {
 
       {/* User Profile Pill at Bottom */}
       <div className="sidebar-footer">
-        <div className="profile-mini profile-rbac">
-          <span className="avatar avatar-lia">{initials}</span>
+        <div
+          className="profile-mini profile-rbac profile-clickable"
+          onClick={() => setShowProfile(true)}
+          title="Edit your profile"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setShowProfile(true)}
+        >
+          {sidebarAvatar
+            ? <img src={sidebarAvatar} alt="avatar" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+            : <span className="avatar avatar-lia">{initials}</span>
+          }
           <div className="profile-info">
             <b title={user.name}>{user.name}</b>
             <small>{roleLabel}</small>
+            <span className="profile-edit-hint">Edit Profile</span>
           </div>
           <span className="role-dot" title={`Role: ${roleLabel}`} />
         </div>
@@ -325,5 +342,13 @@ export default function Sidebar({ user, onLogout }) {
         </button>
       </div>
     </aside>
+
+    {showProfile && (
+      <UserProfileModal
+        onClose={() => setShowProfile(false)}
+        onAvatarUpdate={(url) => setSidebarAvatar(url)}
+      />
+    )}
+  </>
   )
 }

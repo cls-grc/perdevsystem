@@ -1266,10 +1266,24 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
   // Recommended courses: prefer real library courses already tagged with the
   // competency (attached by the server), then fall back to the curated
   // competency→learning template map.
+  // Recommended courses: strictly aligned with the selected competency gap
   const recommendedCourses = useMemo(() => {
     const gap = gaps.find(g => g.competency === selectedCompetency)
-    if (gap?.courses?.length) return gap.courses
-    if (gap?.recommendedResources?.length) return gap.recommendedResources
+    const dbCourses = (gap?.courses || gap?.recommendedResources || []).filter(c => {
+      // Ensure the course doesn't carry irrelevant cross-department terms if we're evaluating Front Office
+      const titleLower = (c.title || '').toLowerCase()
+      const compLower = selectedCompetency.toLowerCase()
+      if (compLower.includes('customer') || compLower.includes('reservation') || compLower.includes('communication') || compLower.includes('conflict')) {
+        if (titleLower.includes('kitchen') || titleLower.includes('haccp') || titleLower.includes('housekeep') || titleLower.includes('engineering')) {
+          return false
+        }
+      }
+      return true
+    })
+
+    if (dbCourses.length > 0) return dbCourses
+
+    // Fall back to our comprehensive competency -> course alignment map
     return getRecommendedCoursesForGap(selectedCompetency, gap?.score || 0)
   }, [gaps, selectedCompetency])
 
@@ -1793,12 +1807,58 @@ function CompetencyRequirementBuilder({ value = [], onChange }) {
 
 // ------------------------- Builder: Resources (from Learning Management) ---
 
-function ResourcesBuilder({ value = [], onChange }) {
+function ResourcesBuilder({ value = [], onChange, subject, people = [], workflow }) {
   const [lmResources, setLmResources] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQ, setSearchQ] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [notice, setNotice] = useState('')
+
+  // Identify employee details from props or fetch if missing
+  const [empInfo, setEmpInfo] = useState({
+    name: subject?.full_name || subject?.name || workflow?.subject_name || '',
+    department: subject?.department || '',
+    jobTitle: subject?.job_title || subject?.position || '',
+  })
+
+  useEffect(() => {
+    let active = true
+    const targetId = subject?.id || subject?.employee_id || workflow?.subject_employee_id
+    const targetName = subject?.full_name || subject?.name || workflow?.subject_name
+
+    // First try to resolve from people prop
+    if (Array.isArray(people) && people.length > 0) {
+      const match = people.find(p => (targetId && (p.id === targetId || p.employee_id === targetId)) || (targetName && p.full_name?.toLowerCase() === targetName?.toLowerCase()))
+      if (match && (match.department || match.job_title)) {
+        setEmpInfo({
+          name: match.full_name || targetName || 'Employee',
+          department: match.department || '',
+          jobTitle: match.job_title || '',
+        })
+        return
+      }
+    }
+
+    // Otherwise fetch all employees to guarantee we have their true department & role
+    api.workflowSubjects().then(res => {
+      if (!active) return
+      const list = res.employees || []
+      const match = list.find(p => (targetId && (p.id === targetId || p.employee_id === targetId)) || (targetName && p.full_name?.toLowerCase() === targetName?.toLowerCase()))
+      if (match) {
+        setEmpInfo({
+          name: match.full_name || targetName || 'Employee',
+          department: match.department || '',
+          jobTitle: match.job_title || '',
+        })
+      }
+    }).catch(() => {})
+
+    return () => { active = false }
+  }, [subject, people, workflow])
+
+  const employeeName = empInfo.name || 'Employee'
+  const employeeDept = empInfo.department.trim()
+  const employeeJob = empInfo.jobTitle.trim()
 
   useEffect(() => {
     let active = true
@@ -1812,9 +1872,125 @@ function ResourcesBuilder({ value = [], onChange }) {
   }, [])
 
   const linkedIds = new Set(value.map(r => r.id))
-  const categories = [...new Set(lmResources.map(r => r.category).filter(Boolean))]
 
-  const filtered = lmResources.filter(r => {
+  // Department-specific allowed course titles and competency targets
+  const FRONT_OFFICE_COURSES = ['Customer Service Excellence', 'Front Desk Excellence', 'Conflict Resolution', 'Hospitality De-escalation & Service Recovery', 'Emergency Procedures']
+  const KITCHEN_COURSES = ['Kitchen Hygiene', 'Food Safety', 'HACCP & Kitchen Sanitation', 'Recipe Consistency & Flavor', 'Line Expediting & Speed']
+  const HOUSEKEEPING_COURSES = ['Room Standards & Inspection', 'Chemical & Bio-Safety Compliance', 'Turnaround Time Optimization', 'Linen & Laundry', 'Public Area Cleanliness']
+  const FB_COURSES = ['Floor Operations & Speed', 'Customer Service Excellence', 'Conflict Resolution', 'POS & Cash Reconciliation', 'Hygiene & Health Standards', 'Bar Speed & Multitasking']
+
+  // Strict department filter: only show modules relevant to the employee's department and role
+  const departmentFilteredResources = useMemo(() => {
+    const dept = (employeeDept || '').toLowerCase()
+    const job = (employeeJob || '').toLowerCase()
+
+    const isFrontOffice = dept.includes('front') || dept.includes('office') || job.includes('guest') || job.includes('concierge') || job.includes('reception')
+    const isKitchen = dept.includes('kitchen') || dept.includes('culinary') || job.includes('cook') || job.includes('chef')
+    const isHousekeeping = dept.includes('housekeep') || job.includes('room') || job.includes('linen')
+    const isFB = dept.includes('beverage') || dept.includes('f&b') || dept.includes('restaurant') || job.includes('waiter') || job.includes('bar')
+
+    return lmResources.filter(r => {
+      const title = (r.title || '').trim()
+      const titleLower = title.toLowerCase()
+      const descLower = (r.description || '').toLowerCase()
+      const catLower = (r.category || '').toLowerCase()
+      const comps = (Array.isArray(r.competencies) ? r.competencies : []).map(c => c.toLowerCase())
+      const allText = `${titleLower} ${descLower} ${catLower} ${comps.join(' ')}`
+
+      if (isFrontOffice) {
+        // Must NOT match Kitchen or Housekeeping or Engineering topics
+        if (
+          titleLower.includes('kitchen') ||
+          titleLower.includes('hygiene') ||
+          titleLower.includes('haccp') ||
+          titleLower.includes('culinary') ||
+          titleLower.includes('food safety') ||
+          titleLower.includes('engineering') ||
+          titleLower.includes('maintenance') ||
+          titleLower.includes('housekeep') ||
+          titleLower.includes('room standard') ||
+          titleLower.includes('linen') ||
+          catLower.includes('food safety') ||
+          catLower.includes('kitchen') ||
+          catLower.includes('engineering') ||
+          catLower.includes('housekeeping')
+        ) {
+          return false
+        }
+        // Must match Front Office / Guest Service / Communication / Leadership / Customer Service
+        return (
+          FRONT_OFFICE_COURSES.some(fc => title.toLowerCase().includes(fc.toLowerCase())) ||
+          catLower.includes('customer service') ||
+          catLower.includes('communication') ||
+          catLower.includes('guest') ||
+          catLower.includes('front office') ||
+          comps.some(c => c.includes('customer') || c.includes('service') || c.includes('communication') || c.includes('front') || c.includes('guest') || c.includes('conflict') || c.includes('reservation'))
+        )
+      }
+
+      if (isKitchen) {
+        if (
+          titleLower.includes('front desk') ||
+          titleLower.includes('room standard') ||
+          titleLower.includes('engineering') ||
+          titleLower.includes('housekeep')
+        ) {
+          return false
+        }
+        return (
+          KITCHEN_COURSES.some(kc => title.toLowerCase().includes(kc.toLowerCase())) ||
+          catLower.includes('food safety') ||
+          catLower.includes('kitchen') ||
+          comps.some(c => c.includes('kitchen') || c.includes('haccp') || c.includes('food') || c.includes('recipe') || c.includes('culinary'))
+        )
+      }
+
+      if (isHousekeeping) {
+        if (
+          titleLower.includes('kitchen') ||
+          titleLower.includes('culinary') ||
+          titleLower.includes('food safety') ||
+          titleLower.includes('engineering') ||
+          titleLower.includes('front desk')
+        ) {
+          return false
+        }
+        return (
+          HOUSEKEEPING_COURSES.some(hc => title.toLowerCase().includes(hc.toLowerCase())) ||
+          catLower.includes('housekeeping') ||
+          comps.some(c => c.includes('housekeeping') || c.includes('room') || c.includes('linen') || c.includes('cleanliness'))
+        )
+      }
+
+      if (isFB) {
+        if (
+          titleLower.includes('engineering') ||
+          titleLower.includes('housekeep') ||
+          titleLower.includes('room standard')
+        ) {
+          return false
+        }
+        return (
+          FB_COURSES.some(fbc => title.toLowerCase().includes(fbc.toLowerCase())) ||
+          catLower.includes('beverage') ||
+          catLower.includes('service') ||
+          catLower.includes('customer')
+        )
+      }
+
+      // Default: do not show Kitchen, Housekeeping, or Engineering courses to general users
+      return !(
+        titleLower.includes('kitchen') ||
+        titleLower.includes('haccp') ||
+        titleLower.includes('engineering') ||
+        titleLower.includes('housekeep')
+      )
+    })
+  }, [lmResources, employeeDept, employeeJob])
+
+  const categories = [...new Set(departmentFilteredResources.map(r => r.category).filter(Boolean))]
+
+  const filtered = departmentFilteredResources.filter(r => {
     const q = searchQ.toLowerCase()
     const matchQ = !q || r.title?.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q)
     const matchCat = !catFilter || r.category === catFilter
@@ -1860,6 +2036,17 @@ function ResourcesBuilder({ value = [], onChange }) {
       )}
 
       {notice && <div className="assigned-success-notice">{notice}</div>}
+
+      {/* Role & Department Context Notice */}
+      {employeeDept && (
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(124, 58, 237, 0.05)', borderRadius: 8, border: '1px solid rgba(124, 58, 237, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ fontSize: 11, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Sparkles size={13} />
+            <span>Showing modules relevant to <b>{employeeName}</b> ({employeeJob || 'Staff'} · {employeeDept})</span>
+          </div>
+          <small style={{ fontSize: 10, color: '#7c3aed', fontWeight: 600 }}>Strict Department &amp; Role Filter Active</small>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="lm-filter-bar">

@@ -255,21 +255,97 @@ export async function applyWorkflowScoreWriteBack(client, workflow, events, fina
   }
 }
 
+async function resolveCompletedCourseGaps(client, employeeId) {
+  // Find all learning assignments that reached 100% progress or status='completed'
+  const completedAssignments = await client.query(
+    `SELECT la.*, lr.title FROM learning_assignments la
+     JOIN learning_resources lr ON lr.id = la.resource_id
+     WHERE la.employee_id = $1 AND (la.status = 'completed' OR la.progress >= 100)`,
+    [employeeId],
+  )
+
+  for (const asgn of completedAssignments.rows) {
+    // 1. Record official completion in learning_completions if not already present
+    await client.query(
+      `INSERT INTO learning_completions (resource_id, employee_id, assignment_id, assessment_result, verified_by)
+       VALUES ($1, $2, $3, $4, (SELECT COALESCE(created_by, $2) FROM workflows WHERE subject_employee_id=$2 ORDER BY created_at DESC LIMIT 1))
+       ON CONFLICT (resource_id, employee_id) DO NOTHING`,
+      [asgn.resource_id, employeeId, asgn.id, JSON.stringify({ autoVerified: true, progress: 100 })],
+    )
+
+    // 2. Lift linked competency scores so the gap is resolved!
+    const linkedComps = await client.query(
+      'SELECT competency FROM learning_resource_competencies WHERE resource_id=$1',
+      [asgn.resource_id],
+    )
+    for (const { competency } of linkedComps.rows) {
+      await client.query(
+        `UPDATE competency_assessments
+         SET score = LEAST(100, GREATEST(required_score, score + 18)),
+             source = 'learning_completion',
+             assessed_at = NOW(),
+             updated_at = NOW()
+         WHERE employee_id = $1 AND LOWER(competency) = LOWER($2)`,
+        [employeeId, competency],
+      )
+    }
+  }
+
+  // 3. Mark active learning workflows matching completed courses as completed
+  await client.query(
+    `UPDATE workflows
+     SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+     WHERE module = 'learning' AND subject_employee_id = $1 AND status = 'active'
+       AND metadata->>'courseTitle' IN (
+         SELECT lr.title FROM learning_assignments la
+         JOIN learning_resources lr ON lr.id = la.resource_id
+         WHERE la.employee_id = $1 AND (la.status = 'completed' OR la.progress >= 100)
+       )`,
+    [employeeId],
+  )
+}
+
 async function upsertCompetencyAssessments(client, employeeId, events, finalData, aggregateScore) {
-  const forms = stageForms(events, finalData)
-  const requirements = forms.define_requirements
-  const rows = Array.isArray(requirements) ? requirements : []
+  let rows = []
+  for (const event of events || []) {
+    const details = event.details || {}
+    if (Array.isArray(details.formData) && details.formData.length > 0) {
+      if (details.formData[0]?.competency || details.formData[0]?.name) {
+        rows = details.formData
+      }
+    } else if (Array.isArray(details) && details.length > 0) {
+      if (details[0]?.competency || details[0]?.name) {
+        rows = details
+      }
+    }
+  }
+
+  if (!rows.length) {
+    const forms = stageForms(events, finalData)
+    const reqs = forms.define_requirements
+    if (Array.isArray(reqs)) {
+      rows = reqs
+    } else if (reqs && typeof reqs === 'object') {
+      rows = Object.values(reqs).filter(v => v && typeof v === 'object' && (v.competency || v.name))
+    }
+  }
+
   for (const row of rows) {
     const competency = row?.competency || row?.name
     if (!competency) continue
+    const targetScore = clampScore(row.targetScore || row.target || row.required_score || row.requiredScore) || 80
+    const actualScore = clampScore(row.actual || row.score || aggregateScore) || aggregateScore
     await client.query(
       `INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
        VALUES ($1,$2,$3,$4,'assessment')
        ON CONFLICT (employee_id, competency)
        DO UPDATE SET score=EXCLUDED.score, required_score=EXCLUDED.required_score, source='assessment', assessed_at=NOW(), updated_at=NOW()`,
-      [employeeId, competency, aggregateScore, clampScore(row.required_score || row.requiredScore || row.target) || 80],
+      [employeeId, competency, actualScore, targetScore],
     )
   }
+
+  // Resolve any completed courses and their linked competency gaps
+  await resolveCompletedCourseGaps(client, employeeId)
 }
 
 async function markLearningAssignmentsComplete(client, employeeId) {
@@ -279,6 +355,7 @@ async function markLearningAssignmentsComplete(client, employeeId) {
      WHERE employee_id=$1 AND (progress < 100 OR status <> 'completed')`,
     [employeeId],
   )
+  await resolveCompletedCourseGaps(client, employeeId)
 }
 
 async function applyGapLearningCompetencyLift(client, workflow, finalData) {
@@ -304,3 +381,178 @@ async function applyGapLearningCompetencyLift(client, workflow, finalData) {
     [workflow.subject_employee_id, gapCompetency],
   )
 }
+
+// ---------------------------------------------------------------------------
+// autoAssignGapLearning
+// ---------------------------------------------------------------------------
+// Called automatically when a competency or performance workflow completes.
+// Detects all competency gaps (score < required_score) for the employee and:
+//   1. Finds matching learning_resource by competency tag, or creates a placeholder
+//   2. Creates a learning_assignment (skips if already assigned)
+//   3. Creates a learning workflow (skips if an active one exists for this employee + resource)
+//   4. Notifies the employee via the notifications table
+//
+// Runs INSIDE the caller's transaction so it atomically succeeds or rolls back
+// together with the workflow completion.
+//
+// Returns: array of { competency, resourceId, resourceTitle, workflowId, isNew }
+// ---------------------------------------------------------------------------
+export async function autoAssignGapLearning(client, employeeId, actorId) {
+  // 1. Fetch the employee
+  const empRes = await client.query(
+    'SELECT id, full_name FROM employees WHERE id=$1 AND is_active=true',
+    [employeeId],
+  )
+  const emp = empRes.rows[0]
+  if (!emp) return []
+
+  // 2. Detect all current gaps
+  const gapRes = await client.query(
+    `SELECT competency, score, required_score,
+            (required_score - score)::int AS gap
+     FROM competency_assessments
+     WHERE employee_id = $1 AND score < required_score
+     ORDER BY (required_score - score) DESC`,
+    [employeeId],
+  )
+  if (!gapRes.rows.length) return []
+
+  // Determine a system-level actor ID — fall back to actorId (HR user)
+  const systemActorId = actorId
+
+  // Fetch initial learning stage key
+  const stagesRes = await client.query(
+    "SELECT 'self_study' AS initial_stage"  // placeholder; we'll read from workflow.js via stagesFor
+  )
+  // We can't import stagesFor here without circular deps, so we hard-code the
+  // first learning stage key. This matches workflow.js stagesFor('learning')[0][0].
+  const LEARNING_INITIAL_STAGE = 'self_study'
+
+  const assigned = []
+
+  for (const gap of gapRes.rows) {
+    const { competency, gap: gapPoints } = gap
+
+    // 3. Find matching resource (by competency tag) or create a placeholder
+    const existingResource = await client.query(
+      `SELECT r.* FROM learning_resources r
+       JOIN learning_resource_competencies lrc ON lrc.resource_id = r.id
+       WHERE r.is_active = true AND LOWER(lrc.competency) = LOWER($1)
+       ORDER BY r.created_at DESC LIMIT 1`,
+      [competency],
+    )
+
+    let resource = existingResource.rows[0]
+    let isNewResource = false
+
+    if (!resource) {
+      // Create a labelled placeholder so HR can enrich it later
+      const newRes = await client.query(
+        `INSERT INTO learning_resources
+           (title, description, category, provider, provider_type, duration_hours, created_by)
+         VALUES ($1, $2, 'Skill Development', 'Company Training', 'internal', 4, $3)
+         RETURNING *`,
+        [
+          `Development: ${competency}`,
+          `Auto-assigned to address a detected skill gap in ${competency}. HR can add course content, video or PDF resources to this placeholder.`,
+          systemActorId,
+        ],
+      )
+      resource = newRes.rows[0]
+      isNewResource = true
+
+      // Tag the new resource with the competency
+      await client.query(
+        'INSERT INTO learning_resource_competencies (resource_id, competency) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+        [resource.id, competency],
+      )
+    }
+
+    // 4. Create a learning_assignment if not already assigned
+    await client.query(
+      `INSERT INTO learning_assignments (resource_id, employee_id, assigned_by, status, progress)
+       VALUES ($1, $2, $3, 'not_started', 0)
+       ON CONFLICT (resource_id, employee_id) DO NOTHING`,
+      [resource.id, employeeId, systemActorId],
+    )
+
+    // 5. Create a learning workflow if no active one exists for this employee + resource
+    const activeWfCheck = await client.query(
+      `SELECT id FROM workflows
+       WHERE module='learning' AND subject_employee_id=$1 AND status='active'
+         AND metadata->>'courseTitle' = $2
+       LIMIT 1`,
+      [employeeId, resource.title],
+    )
+
+    let workflowId = null
+    if (!activeWfCheck.rows.length) {
+      const metadata = {
+        courseTitle: resource.title,
+        assignedFromCompetencyGap: true,
+        competencyName: competency,
+        gapScore: gapPoints,
+        assignedBy: systemActorId,
+        autoAssigned: true,
+      }
+      const wfRes = await client.query(
+        `INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, metadata)
+         VALUES ('learning', $1, $2, $3, $4, $5) RETURNING *`,
+        [
+          `Learning Path: ${resource.title}`,
+          employeeId,
+          LEARNING_INITIAL_STAGE,
+          systemActorId,
+          metadata,
+        ],
+      )
+      workflowId = wfRes.rows[0].id
+      await client.query(
+        `INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, note, details)
+         VALUES ($1, $2, 'created', $3, $4, $5)`,
+        [
+          workflowId,
+          LEARNING_INITIAL_STAGE,
+          systemActorId,
+          `Auto-assigned to address skill gap in ${competency} (gap: ${gapPoints} points)`,
+          metadata,
+        ],
+      )
+    } else {
+      workflowId = activeWfCheck.rows[0].id
+    }
+
+    assigned.push({
+      competency,
+      resourceId: resource.id,
+      resourceTitle: resource.title,
+      workflowId,
+      isNewResource,
+    })
+  }
+
+  // 6. Notify the employee in-app (single bundled message)
+  if (assigned.length > 0) {
+    // Find the employee's user account
+    const userRes = await client.query(
+      'SELECT id FROM users WHERE employee_id=$1 AND is_active=true LIMIT 1',
+      [employeeId],
+    )
+    const userId = userRes.rows[0]?.id
+    if (userId) {
+      const courseList = assigned.map(a => a.resourceTitle).join(', ')
+      await client.query(
+        `INSERT INTO notifications (user_id, title, message)
+         VALUES ($1, $2, $3)`,
+        [
+          userId,
+          '🎓 New Learning Courses Assigned',
+          `Based on your latest assessment, ${assigned.length} course(s) have been automatically assigned to address your skill gaps: ${courseList}. Visit My Learning to get started.`,
+        ],
+      )
+    }
+  }
+
+  return assigned
+}
+

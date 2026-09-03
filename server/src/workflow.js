@@ -10,7 +10,6 @@ export const WORKFLOWS = {
   ],
   competency: [
     ['define_requirements', 'Define competency requirements', ['hr']],
-    ['manage_resources', 'Manage learning resources', ['hr']],
     ['assign_plan', 'Assign development plan', ['hr', 'supervisor']],
     ['track_progress', 'Track learning progress', ['employee', 'supervisor']],
     ['update_record', 'Update competency record', ['hr']],

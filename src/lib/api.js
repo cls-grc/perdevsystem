@@ -160,6 +160,13 @@ learningCompetencies: () => request('/api/learning/competencies'),
     const queryStr = qs.toString()
     return request(`/api/learning/skill-gaps${queryStr ? `?${queryStr}` : ''}`)
   },
+  learningRecommendations: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.employeeId) qs.set('employeeId', params.employeeId)
+    const queryStr = qs.toString()
+    return request(`/api/learning/recommendations${queryStr ? `?${queryStr}` : ''}`)
+  },
+  generateDevelopmentPlan: (data) => request('/api/learning/development-plan', { method: 'POST', body: JSON.stringify(data) }),
   assignLearning: (data) => request('/api/learning/assign', { method: 'POST', body: JSON.stringify(data) }),
   learningAssignments: () => request('/api/learning/assignments'),
   // Self-reported progress + status: employee drives their own study progress
@@ -223,5 +230,10 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
     const result = await request(`/api/audit-logs${qs ? '?' + qs : ''}`)
     return result.logs || []
   },
+
+  // Self-service profile (all authenticated users)
+  getProfileMe: () => request('/api/employees/profile/me'),
+  updateProfileMe: (data) => request('/api/employees/profile/me', { method: 'PATCH', body: JSON.stringify(data) }),
+  updateAccountMe: (data) => request('/api/auth/profile/account', { method: 'PATCH', body: JSON.stringify(data) }),
 }
 

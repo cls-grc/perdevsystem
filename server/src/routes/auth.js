@@ -566,4 +566,66 @@ router.post('/2fa/disable', authenticate, async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// ---------------------------------------------------------------------------
+// Account Settings: Email & Password Update (All authenticated users)
+// ---------------------------------------------------------------------------
+const accountUpdateSchema = z.object({
+  email: z.string().email().optional(),
+  currentPassword: z.string().min(1).optional(),
+  newPassword: z.string().min(6).max(128).optional(),
+})
+
+router.patch('/profile/account', authenticate, async (req, res, next) => {
+  try {
+    const input = accountUpdateSchema.parse(req.body)
+    const { rows } = await query('SELECT id, email, password_hash, full_name FROM users WHERE id = $1', [req.user.sub])
+    const user = rows[0]
+    if (!user) return res.status(404).json({ error: 'User account not found.' })
+
+    // Password change
+    if (input.newPassword) {
+      if (!input.currentPassword) {
+        return res.status(400).json({ error: 'Current password is required to change password.' })
+      }
+      const isMatch = await bcrypt.compare(input.currentPassword, user.password_hash)
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Current password does not match.' })
+      }
+      const newHash = await bcrypt.hash(input.newPassword, 10)
+      await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, user.id])
+      await logActivity({
+        req,
+        user: req.user,
+        action: 'user.password_change',
+        category: 'auth',
+        targetId: user.id,
+        description: `${req.user.name || user.full_name} changed their account password`,
+      })
+    }
+
+    // Email change
+    if (input.email && input.email.toLowerCase() !== user.email.toLowerCase()) {
+      const existing = await query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2', [input.email, user.id])
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ error: 'This email is already registered to another account.' })
+      }
+      await query('UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2', [input.email.toLowerCase(), user.id])
+      await logActivity({
+        req,
+        user: req.user,
+        action: 'user.email_change',
+        category: 'auth',
+        targetId: user.id,
+        description: `${req.user.name || user.full_name} changed their account email to ${input.email}`,
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'Account settings updated successfully.',
+      email: input.email || user.email,
+    })
+  } catch (error) { next(error) }
+})
+
 export default router

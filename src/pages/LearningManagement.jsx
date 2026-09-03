@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import CourseContentViewer from '../components/CourseContentViewer'
-import { CheckCircle, Target, Play, FileText, BookOpen, X } from 'lucide-react'
+import { CheckCircle, Target, Play, FileText, BookOpen, X, Sparkles, Compass, AlertTriangle, ArrowRight, Award, Zap, ChevronRight } from 'lucide-react'
 import '../learningLibrary.css'
 
 const CATEGORIES = ['Leadership', 'Customer Service', 'Food Safety', 'Kitchen Operations', 'Compliance', 'Communication', 'Sales', 'Technical Skills']
@@ -69,13 +69,20 @@ export default function LearningManagement() {
   const [assessmentNote, setAssessmentNote] = useState('')
   const [assessmentPass, setAssessmentPass] = useState('Pass')
 
+  // Recommendation & AI Development Plan state
+  const [recommendationsData, setRecommendationsData] = useState(null)
+  const [selectedEmpId, setSelectedEmpId] = useState('')
+  const [aiPlan, setAiPlan] = useState(null)
+  const [aiGeneratingPlan, setAiGeneratingPlan] = useState(false)
+  const [planModalOpen, setPlanModalOpen] = useState(false)
+
   const load = async () => {
     try {
       const calls = []
       if (!employee) {
         calls.push(api.learningResources(showArchived ? { includeArchived: true } : {}), api.learningAssignments(), api.workflowSubjects())
       } else {
-        calls.push(api.learningResources(), api.learningAssignments(), api.learningCompletions())
+        calls.push(api.learningResources(), api.learningAssignments(), api.learningCompletions(), api.learningRecommendations().catch(() => null))
       }
       calls.push(api.learningCompetencies())
       const results = await Promise.all(calls)
@@ -83,6 +90,7 @@ export default function LearningManagement() {
       setAssignments(results[1].assignments || [])
       if (employee) {
         setCompletions(results[2].completions || [])
+        setRecommendationsData(results[3] || null)
       } else {
         setEmployees(results[2].employees || [])
         setCompletions([])
@@ -97,16 +105,68 @@ export default function LearningManagement() {
 
   useEffect(() => { load() }, [showArchived])
 
-  // Module stats for the metrics strip (matches other modules' live widgets).
-  const moduleStats = useMemo(() => [
-    ['Courses in library', resources.filter(r => r.is_active !== false).length],
-    ['Assigned', assignments.length],
-    ['Confirmed completions', completions.length],
-    ['Need help', assignments.filter(a => a.status === 'need_help').length],
-  ], [resources, assignments, completions])
+  // Fetch department & role specific recommendations
+  const loadRecommendations = async (empId) => {
+    try {
+      const res = await api.learningRecommendations(empId ? { employeeId: empId } : {})
+      setRecommendationsData(res)
+    } catch (e) {
+      console.warn('Could not load recommendations:', e.message)
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'recommendations') {
+      loadRecommendations(selectedEmpId)
+    }
+  }, [tab, selectedEmpId])
+
+  // Generate AI Skill-Gap Development Plan
+  const triggerGeneratePlan = async (empId) => {
+    const targetId = empId || selectedEmpId || recommendationsData?.employee?.id
+    if (!targetId) {
+      setError('Please select an employee to generate an AI development plan.')
+      return
+    }
+    setAiGeneratingPlan(true)
+    setError('')
+    try {
+      const result = await api.generateDevelopmentPlan({ employeeId: targetId })
+      setAiPlan(result.plan)
+      setPlanModalOpen(true)
+    } catch (err) {
+      setError(err.message || 'Failed to generate AI development plan.')
+    } finally {
+      setAiGeneratingPlan(false)
+    }
+  }
 
   const filtered = useMemo(() => {
-    return resources.filter(r => {
+    let list = resources
+    if (employee) {
+      const recIds = new Set((recommendationsData?.recommendedResources || []).map(r => r.id))
+      const assignedIds = new Set(assignments.map(a => a.resource_id))
+
+      list = resources.filter(r => {
+        // If course is explicitly recommended for detected gaps or assigned to this employee
+        if (recIds.has(r.id) || assignedIds.has(r.id)) return true
+
+        // Fallback: If no gap recommendations or assignments are on record yet, show department/role-appropriate courses
+        if (!recIds.size && !assignedIds.size) {
+          const userDept = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').department || '' } catch { return '' } })()
+          if (!userDept) return true
+          const text = `${r.title} ${r.description} ${r.category} ${(r.competencies || []).join(' ')}`.toLowerCase()
+          const dept = userDept.toLowerCase()
+          if (dept.includes('front')) return !text.includes('kitchen') && !text.includes('culinary') && !text.includes('cook') && !text.includes('hvac') && !text.includes('maintenance') && !text.includes('engineering')
+          if (dept.includes('kitchen')) return !text.includes('front desk') && !text.includes('concierge') && !text.includes('reservation')
+          if (dept.includes('housekeeping')) return !text.includes('sous chef') && !text.includes('culinary') && !text.includes('front desk')
+          return true
+        }
+        return false
+      })
+    }
+
+    return list.filter(r => {
       const text = `${r.title} ${r.description} ${r.provider || ''} ${r.category || ''} ${(r.competencies || []).join(' ')}`.toLowerCase()
       const matchQ = !query || text.includes(query.toLowerCase())
       const matchC = !category || r.category === category
@@ -114,7 +174,15 @@ export default function LearningManagement() {
       const matchComp = !compFilter || (r.competencies || []).includes(compFilter)
       return matchQ && matchC && matchP && matchComp
     })
-  }, [resources, query, category, provType, compFilter])
+  }, [resources, employee, recommendationsData, assignments, query, category, provType, compFilter])
+
+  // Module stats for the metrics strip (matches other modules' live widgets).
+  const moduleStats = useMemo(() => [
+    ['Courses in library', employee ? filtered.length : resources.filter(r => r.is_active !== false).length],
+    ['Assigned', assignments.length],
+    ['Confirmed completions', completions.length],
+    ['Need help', assignments.filter(a => a.status === 'need_help').length],
+  ], [resources, assignments, completions, employee, filtered])
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(p => `${p.full_name} ${p.department} ${p.job_title}`.toLowerCase().includes(empQuery.toLowerCase()))
@@ -218,13 +286,31 @@ export default function LearningManagement() {
     </section>
 
     <nav className="learning-tabs" aria-label="Learning views">
-      {[['library', 'Course Library'], ['assign', 'Assign Courses'], ['progress', 'My Progress'], ['gaps', 'Skill Gap Assignments'], ['completions', 'Verified Completions'], ['ai', 'AI Insights']].map(([key, label]) => (
-        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{key === 'gaps' ? <><Target className="inline w-3.5 h-3.5 mr-1" /> {label}</> : label}</button>
+      {[
+        ['library', 'Course Library'],
+        ['recommendations', 'Recommended for You'],
+        ...(canAssign ? [['assign', 'Assign Courses']] : []),
+        ['progress', 'My Progress'],
+        ['gaps', 'Skill Gap Assignments'],
+        ['completions', 'Verified Completions'],
+        ...(hr ? [['ai', 'AI Insights']] : []),
+      ].map(([key, label]) => (
+        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+          {key === 'recommendations' ? <><Sparkles className="inline w-3.5 h-3.5 mr-1 text-purple-500" /> {label}</> : key === 'gaps' ? <><Target className="inline w-3.5 h-3.5 mr-1" /> {label}</> : label}
+        </button>
       ))}
     </nav>
 
     {tab === 'library' && (
       <section className="learning-section">
+        {employee && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(124, 58, 237, 0.06)', borderRadius: 10, border: '1px solid rgba(124, 58, 237, 0.16)', marginBottom: 14, fontSize: 11, color: '#6d28d9' }}>
+            <Sparkles size={15} className="text-purple-600 flex-shrink-0" />
+            <span>
+              <strong>Personalized Course Library:</strong> Showing courses recommended for your role and assigned development plan.
+            </span>
+          </div>
+        )}
         <div className="learning-toolbar">
           <label className="learning-search"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search courses, providers, competencies…" aria-label="Search courses" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear">×</button>}</label>
           <select value={category} onChange={e => setCategory(e.target.value)} aria-label="Filter category"><option value="">All categories</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
@@ -273,10 +359,221 @@ export default function LearningManagement() {
               </article>
             )
           })}
-          {!filtered.length && <div className="learning-empty">No courses {query || category || provType || compFilter ? 'match your filters' : 'in the library yet'}.</div>}
+          {!filtered.length && (
+            <div className="learning-empty">
+              {employee
+                ? 'No recommended courses assigned yet. Your personalized courses will appear once your competency assessment and development plan are configured in Skill Development.'
+                : (query || category || provType || compFilter ? 'No courses match your filters.' : 'No courses in the library yet.')
+              }
+            </div>
+          )}
         </div>
       </section>
     )}
+
+    {/* ================================================================= */}
+    {/* RECOMMENDED FOR YOU (Department & Role Relevant + AI Development) */}
+    {/* ================================================================= */}
+    {tab === 'recommendations' && (
+      <section className="learning-section">
+
+        {/* Header banner */}
+        <div className="completion-note" style={{ background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.06), rgba(99, 102, 241, 0.04))', borderColor: 'rgba(124, 58, 237, 0.18)', marginBottom: 16 }}>
+          <b style={{ color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={16} /> Gap-Based Learning Recommendations
+          </b>
+          <p style={{ marginTop: 4, marginBottom: 0 }}>
+            Courses shown here are <b>strictly based on detected competency gaps</b> from the employee's assessment in Competency Management.
+            No courses will appear until the employee has been evaluated.
+          </p>
+        </div>
+
+        {/* Manager/HR Employee Selector */}
+        {!employee && (
+          <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.7)', padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.2)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Filter for Employee:</span>
+            <select
+              value={selectedEmpId}
+              onChange={e => setSelectedEmpId(e.target.value)}
+              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 8, border: '1px solid #cbd5e1', minWidth: 220 }}
+            >
+              <option value="">— Select an employee —</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.full_name} ({emp.job_title} · {emp.department})
+                </option>
+              ))}
+            </select>
+            {recommendationsData?.relevantCompetencies?.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginLeft: 'auto' }}>
+                <small style={{ fontSize: 10, color: '#64748b' }}>Skill Gaps Detected:</small>
+                {recommendationsData.relevantCompetencies.slice(0, 4).map(c => (
+                  <span key={c} style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#fee2e2', color: '#b91c1c' }}>
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── STATE: Not assessed yet ─────────────────────────────────── */}
+        {recommendationsData?.notAssessed && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', textAlign: 'center', background: 'rgba(248,250,252,0.8)', borderRadius: 14, border: '1px dashed #cbd5e1' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(100,116,139,0.08)', display: 'grid', placeItems: 'center', marginBottom: 14 }}>
+              <AlertTriangle size={24} style={{ color: '#94a3b8' }} />
+            </div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#334155', margin: '0 0 6px' }}>
+              No Competency Assessment Found
+            </h3>
+            <p style={{ fontSize: 12, color: '#64748b', maxWidth: 420, margin: '0 0 16px', lineHeight: 1.6 }}>
+              <b>{recommendationsData.employee?.name}</b> has not yet been evaluated in Competency Management.
+              HR must first complete <b>Stage 1: Define Competency Requirements</b> in the Skill Development module to generate personalized gap-based course recommendations.
+            </p>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', background: '#f3e8ff', padding: '6px 14px', borderRadius: 8 }}>
+              Go to: Skill Development → Start Workflow → Define Competency Requirements
+            </div>
+          </div>
+        )}
+
+        {/* ── STATE: Assessed, no gaps (all on track) ─────────────────── */}
+        {recommendationsData?.noGaps && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', textAlign: 'center', background: 'rgba(240,253,244,0.8)', borderRadius: 14, border: '1px solid #a7f3d0' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(16,185,129,0.08)', display: 'grid', placeItems: 'center', marginBottom: 14 }}>
+              <CheckCircle size={24} style={{ color: '#10b981' }} />
+            </div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#065f46', margin: '0 0 6px' }}>
+              All Competencies On Track
+            </h3>
+            <p style={{ fontSize: 12, color: '#047857', maxWidth: 380, margin: 0, lineHeight: 1.6 }}>
+              <b>{recommendationsData.employee?.name}</b> meets or exceeds all required competency benchmarks.
+              No skill-gap-based recommendations are needed at this time. Continue tracking progress in subsequent stages.
+            </p>
+          </div>
+        )}
+
+        {/* ── STATE: No employee selected yet (HR view only) ──────────── */}
+        {!recommendationsData && !employee && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', textAlign: 'center', background: 'rgba(248,250,252,0.8)', borderRadius: 14, border: '1px dashed #cbd5e1' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(100,116,139,0.08)', display: 'grid', placeItems: 'center', marginBottom: 14 }}>
+              <Sparkles size={24} style={{ color: '#94a3b8' }} />
+            </div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#334155', margin: '0 0 6px' }}>Select an Employee</h3>
+            <p style={{ fontSize: 12, color: '#64748b', maxWidth: 360, margin: 0 }}>
+              Select an employee from the dropdown above to view their gap-based course recommendations.
+            </p>
+          </div>
+        )}
+
+        {/* ── STATE: Actual gap-matched courses ───────────────────────── */}
+        {recommendationsData?.recommendedResources?.length > 0 && (
+          <>
+            {/* AI Plan button — only shown when there are real gaps */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+              <button
+                type="button"
+                className="module-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #7c3aed, #6366f1)',
+                  border: 'none',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '9px 16px',
+                  fontSize: 11,
+                }}
+                onClick={() => triggerGeneratePlan(selectedEmpId)}
+                disabled={aiGeneratingPlan}
+              >
+                <Sparkles size={14} />
+                <span>{aiGeneratingPlan ? 'AI Analyzing Skill Gaps...' : 'Generate AI Development Plan'}</span>
+              </button>
+            </div>
+
+            <div className="course-grid">
+              {recommendationsData.recommendedResources.map(resource => {
+                const hasVideo = !!(resource.video_url || resource.videoUrl) || /(?:youtu\.be\/|youtube\.com\/|vimeo\.com\/)/i.test(resource.url || '')
+                const hasPdf = !!(resource.pdf_url || resource.pdfUrl) || /\.pdf(\?.*)?$/i.test(resource.url || '') || (resource.url || '').includes('drive.google.com')
+                const hasLesson = !!(resource.lesson_content || resource.lessonContent)
+                return (
+                  <article className="course-card" key={resource.id} style={{ borderColor: '#ddd6fe', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.05)' }}>
+                    <div className="course-top">
+                      <span className={`course-badge ${resource.provider_type}`}>{resource.provider_type === 'internal' ? 'Internal' : 'External'}</span>
+                      {resource.is_completed || resource.assignment_status === 'completed' || Number(resource.assignment_progress) >= 100 ? (
+                        <span className="course-category" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 600 }}>
+                          ✓ Resolved Gap
+                        </span>
+                      ) : (
+                        <span className="course-category" style={{ background: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}>
+                          ⚠ Gap Match
+                        </span>
+                      )}
+                    </div>
+                    <h3>{resource.title}</h3>
+                    <p className="course-provider"><b>{resource.provider || 'Hospitality Academy'}</b>{resource.duration_hours ? ` · ${resource.duration_hours}h` : ''}</p>
+                    <p className="course-desc">{resource.description}</p>
+                    {resource.objectives && (
+                      <div className="course-objectives">
+                        <b>Objectives</b>
+                        <ul>{resource.objectives.split(';').filter(Boolean).map((o, i) => <li key={i}>{o.trim()}</li>)}</ul>
+                      </div>
+                    )}
+                    <div className="course-tags">
+                      {(resource.competencies || []).map(c => (
+                        <span key={c} style={{ background: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}>{c}</span>
+                      ))}
+                    </div>
+                    <div className="course-content-indicators">
+                      {hasLesson && <span className="ccv-indicator lesson"><BookOpen size={11} /> Lesson</span>}
+                      {hasVideo && <span className="ccv-indicator video"><Play size={11} /> Video</span>}
+                      {hasPdf && <span className="ccv-indicator pdf"><FileText size={11} /> PDF</span>}
+                      {resource.url && !hasPdf && <a className="course-link" href={resource.url} target="_blank" rel="noreferrer">Open resource ↗</a>}
+                    </div>
+                    <div className="course-actions" style={{ marginTop: 'auto', paddingTop: 10 }}>
+                      <button className="ccv-open-btn" type="button" onClick={() => setViewResource(resource)}>
+                        <BookOpen size={13} /> View Content
+                      </button>
+                      {resource.is_completed || resource.assignment_status === 'completed' || Number(resource.assignment_progress) >= 100 ? (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+                          <CheckCircle size={14} /> Completed
+                        </span>
+                      ) : resource.assignment_status ? (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6366f1', marginLeft: 'auto' }}>
+                          In Progress ({Math.round(Number(resource.assignment_progress || 0))}%)
+                        </span>
+                      ) : canAssign && (
+                        <button
+                          type="button"
+                          style={{ marginLeft: 'auto', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 10, fontWeight: 700 }}
+                          onClick={() => {
+                            setAssignResource(resource)
+                            if (selectedEmpId) setAssignIds([selectedEmpId])
+                            setTab('assign')
+                          }}
+                        >
+                          + Assign Module
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* No matching courses even though gaps exist */}
+        {recommendationsData && !recommendationsData.notAssessed && !recommendationsData.noGaps && recommendationsData.recommendedResources?.length === 0 && (
+          <div className="learning-empty">
+            Gaps detected but no matching courses found in the library yet. Add relevant courses in the Course Library and tag them with the competency names.
+          </div>
+        )}
+
+      </section>
+    )}
+
 
     {tab === 'assign' && (
       <section className="learning-section">
@@ -579,6 +876,145 @@ export default function LearningManagement() {
     {/* Course Content Viewer modal */}
     {viewResource && (
       <CourseContentViewer resource={viewResource} onClose={() => setViewResource(null)} />
+    )}
+
+    {/* ================================================================= */}
+    {/* AI SKILL-GAP DEVELOPMENT PLAN MODAL                               */}
+    {/* ================================================================= */}
+    {planModalOpen && aiPlan && createPortal(
+      <div className="er-modal-backdrop" role="dialog" aria-modal="true" aria-label="AI Development Plan" onClick={() => setPlanModalOpen(false)}>
+        <div
+          className="er-dialog er-history-modal"
+          style={{ width: 'min(860px, 94vw)', maxHeight: '88vh', overflowY: 'auto' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="er-history-header">
+            <div className="er-history-user">
+              <div className="er-history-avatar" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: 17, fontWeight: 800 }}>AI Competency Development Plan</h2>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(124,58,237,0.1)', color: '#7c3aed' }}>
+                    AI Generated
+                  </span>
+                </div>
+                <p className="er-dialog-sub">
+                  Prepared for <b>{aiPlan.employeeName}</b> • {aiPlan.jobTitle} ({aiPlan.department}) • Estimated {aiPlan.timelineWeeks} Weeks Roadmap
+                </p>
+              </div>
+            </div>
+            <button className="er-history-close" onClick={() => setPlanModalOpen(false)} title="Close Plan">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Plan Summary Card */}
+          <div style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.06), rgba(99,102,241,0.04))', border: '1px solid rgba(124,58,237,0.18)', borderRadius: 12, padding: 16, marginBottom: 18 }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={14} /> Executive Strategy Overview
+            </h4>
+            <p style={{ margin: '0 0 8px', fontSize: 11.5, lineHeight: 1.5, color: '#334155' }}>
+              {aiPlan.summary}
+            </p>
+            <p style={{ margin: 0, fontSize: 10.5, color: '#64748b', fontStyle: 'italic' }}>
+              {aiPlan.overview}
+            </p>
+          </div>
+
+          {/* Gap-by-Gap Breakdown Cards */}
+          <h4 style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Target size={14} className="text-purple-600" />
+            <span>Targeted Gap Resolution Pathways ({(aiPlan.gapPlans || []).length})</span>
+          </h4>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {(aiPlan.gapPlans || []).map((gp, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 12,
+                  padding: 16,
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.02)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#f3e8ff', color: '#7c3aed', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 800 }}>
+                      {idx + 1}
+                    </span>
+                    <b style={{ fontSize: 13, color: '#0f172a' }}>{gp.competency}</b>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: gp.priority === 'High' ? '#fee2e2' : '#fef3c7', color: gp.priority === 'High' ? '#b91c1c' : '#b45309' }}>
+                      {gp.priority} Priority
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#f1f5f9', color: '#475569' }}>
+                      Deficit: -{gp.gapPoints}% (Current {gp.currentScore}% → Target {gp.requiredScore}%)
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: 11, color: '#475569', margin: '0 0 10px', lineHeight: 1.45 }}>
+                  <b>Role Relevance:</b> {gp.impact}
+                </p>
+
+                {/* 3-Step Action Plan */}
+                <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Prescribed 3-Step Action Sequence:
+                  </span>
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11, color: '#1e293b', lineHeight: 1.5 }}>
+                    {(gp.actionSteps || []).map((step, sIdx) => (
+                      <li key={sIdx}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: 6 }}>
+                  <small style={{ fontSize: 10, color: '#64748b' }}>
+                    <b>Matching Course:</b> {gp.recommendedCourse || 'Relevant Department SOP'}
+                  </small>
+                  <button
+                    type="button"
+                    style={{ background: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                    onClick={() => {
+                      setPlanModalOpen(false)
+                      setTab('library')
+                    }}
+                  >
+                    Open in Library →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Supervisor Guidance */}
+          {aiPlan.supervisorNotes && (
+            <div style={{ marginTop: 16, background: '#fcfbff', border: '1px dashed #c4b5fd', borderRadius: 10, padding: 12 }}>
+              <b style={{ fontSize: 10.5, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Award size={13} /> Supervisor Coaching Guidance
+              </b>
+              <p style={{ margin: '4px 0 0', fontSize: 10.5, color: '#581c87', lineHeight: 1.4 }}>
+                {aiPlan.supervisorNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="module-actions" style={{ marginTop: 18, borderTop: '1px solid rgba(148,163,184,0.15)', paddingTop: 12 }}>
+            <button className="cancel-button" onClick={() => setPlanModalOpen(false)}>
+              Close Development Plan
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
     )}
   </main>
 }
