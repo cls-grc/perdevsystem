@@ -59,6 +59,7 @@ router.get('/org-tree', async (_req, res, next) => {
       SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
              e.manager_id, m.full_name AS manager_name,
              e.performance_score, e.competency_score, e.learning_progress, e.is_active,
+             e.avatar_url,
              sp.readiness_score, sp.readiness_band, sp.target_role,
              d.name AS department_name
       FROM employees e
@@ -119,6 +120,7 @@ router.get('/org-tree', async (_req, res, next) => {
         id: emp.id,
         employeeNumber: emp.employee_number,
         fullName: emp.full_name,
+        avatarUrl: emp.avatar_url || null,
         department: emp.department,
         jobTitle: emp.job_title,
         managerId: emp.manager_id,
@@ -335,6 +337,7 @@ router.get('/', authorize('hr', 'operations_manager', 'supervisor'), async (req,
       SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
              e.manager_id, m.full_name AS manager_name,
              e.performance_score, e.competency_score, e.learning_progress, e.is_active,
+             e.avatar_url,
              e.created_at, e.updated_at,
              d.name AS department_name
       FROM employees e
@@ -354,6 +357,7 @@ router.get('/all', authorize('hr'), async (req, res, next) => {
       SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
              e.manager_id, m.full_name AS manager_name,
              e.performance_score, e.competency_score, e.learning_progress, e.is_active,
+             e.avatar_url,
              e.created_at, e.updated_at,
              d.name AS department_name
       FROM employees e

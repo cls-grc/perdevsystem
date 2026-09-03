@@ -85,7 +85,22 @@ function TreeNode({ node, onSelect, selectedId, collapsedNodes, toggleCollapse, 
         <div className={`org-node-top-bar ${getDeptBarClass(node.department)}`} />
 
         <div className="org-node-header">
-          <div className="org-node-avatar">{initials}</div>
+          {node.avatarUrl ? (
+            <img
+              src={node.avatarUrl}
+              alt={node.fullName}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                objectFit: 'cover',
+                display: 'block',
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <div className="org-node-avatar">{initials}</div>
+          )}
           <div className="org-node-info">
             <div className="org-node-name">{node.fullName}</div>
             <div className="org-node-title">{node.jobTitle}</div>
@@ -728,9 +743,24 @@ export default function OrgChart() {
             <div className="org-drawer-body">
               {/* Profile Hero */}
               <div className="org-profile-hero">
-                <div className="org-hero-avatar">
-                  {selectedNode.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
+                {selectedNode.avatarUrl ? (
+                  <img
+                    src={selectedNode.avatarUrl}
+                    alt={selectedNode.fullName}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 14,
+                      objectFit: 'cover',
+                      display: 'block',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div className="org-hero-avatar">
+                    {selectedNode.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
                   <div className="org-hero-name">{selectedNode.fullName}</div>
                   <div className="org-hero-title">{selectedNode.jobTitle} • {selectedNode.department}</div>

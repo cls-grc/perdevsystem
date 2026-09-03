@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import UserProfileModal from './UserProfileModal'
 
@@ -244,7 +244,21 @@ export function Icon({ name, size = 20 }) {
 
 export default function Sidebar({ user, onLogout }) {
   const [showProfile, setShowProfile] = useState(false)
-  const [sidebarAvatar, setSidebarAvatar] = useState(null)
+  const [sidebarAvatar, setSidebarAvatar] = useState(user?.avatarUrl || null)
+
+  useEffect(() => {
+    if (user?.avatarUrl) setSidebarAvatar(user.avatarUrl)
+  }, [user?.avatarUrl])
+
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      if (e.detail?.avatarUrl !== undefined) {
+        setSidebarAvatar(e.detail.avatarUrl)
+      }
+    }
+    window.addEventListener('pds:user-updated', handleUpdate)
+    return () => window.removeEventListener('pds:user-updated', handleUpdate)
+  }, [])
 
   const roleLabel =
     {
@@ -326,8 +340,8 @@ export default function Sidebar({ user, onLogout }) {
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && setShowProfile(true)}
         >
-          {sidebarAvatar
-            ? <img src={sidebarAvatar} alt="avatar" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+          {(sidebarAvatar || user?.avatarUrl)
+            ? <img src={sidebarAvatar || user?.avatarUrl} alt="avatar" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
             : <span className="avatar avatar-lia">{initials}</span>
           }
           <div className="profile-info">

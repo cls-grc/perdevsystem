@@ -35,8 +35,23 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
   const [open, setOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [headerAvatar, setHeaderAvatar] = useState(user?.avatarUrl || null)
   const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+
+  useEffect(() => {
+    if (user?.avatarUrl) setHeaderAvatar(user.avatarUrl)
+  }, [user?.avatarUrl])
+
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      if (e.detail?.avatarUrl !== undefined) {
+        setHeaderAvatar(e.detail.avatarUrl)
+      }
+    }
+    window.addEventListener('pds:user-updated', handleUpdate)
+    return () => window.removeEventListener('pds:user-updated', handleUpdate)
+  }, [])
   const [notifFilter, setNotifFilter] = useState('all')
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -189,10 +204,34 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
         </button>
 
         {/* User Avatar with Status Indicator */}
-        <div className="topbar-avatar-wrapper" title={`${user?.name || 'User'} (${user?.role || ''})`}>
-          <span className="avatar avatar-lia">
-            {user?.name ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase() : 'HR'}
-          </span>
+        <div
+          className="topbar-avatar-wrapper"
+          title={`${user?.name || 'User'} (${user?.role || ''}) — Click to edit profile`}
+          onClick={() => setProfileOpen(true)}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setProfileOpen(true)}
+        >
+          {(headerAvatar || user?.avatarUrl) ? (
+            <img
+              src={headerAvatar || user?.avatarUrl}
+              alt={user?.name || 'User'}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                display: 'block',
+                border: '1.5px solid rgba(255,255,255,0.85)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+              }}
+            />
+          ) : (
+            <span className="avatar avatar-lia">
+              {user?.name ? (user.name.match(/\b\w/g) || []).slice(0, 2).join('').toUpperCase() : 'HR'}
+            </span>
+          )}
           <span className="topbar-online-dot" />
         </div>
       </div>

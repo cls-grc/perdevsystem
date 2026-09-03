@@ -188,7 +188,11 @@ export default function MobileNav({ user, onLogout, open, onClose }) {
 
             <div className="sidebar-footer">
               <div className="profile-mini profile-rbac">
-                <span className="avatar avatar-lia">{initials}</span>
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="avatar" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <span className="avatar avatar-lia">{initials}</span>
+                )}
                 <div className="profile-info">
                   <b>{user.name}</b>
                   <small>{roleLabel}</small>

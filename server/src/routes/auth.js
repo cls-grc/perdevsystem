@@ -112,8 +112,8 @@ router.post('/login', loginLimiter, async (req, res, next) => {
 
     const { rows } = await query(`
       SELECT u.id, u.email, u.password_hash, u.role, u.full_name, u.employee_id,
-             u.two_factor_enabled, u.two_factor_secret,
-             e.department, e.department_id
+             u.two_factor_enabled, u.two_factor_secret, u.avatar_url,
+             e.department, e.department_id, e.avatar_url AS employee_avatar_url
       FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.email = $1 AND u.is_active = true
@@ -191,7 +191,17 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id, twoFactorEnabled: Boolean(user.two_factor_enabled) },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.full_name,
+        employeeId: user.employee_id,
+        department: user.department,
+        departmentId: user.department_id,
+        twoFactorEnabled: Boolean(user.two_factor_enabled),
+        avatarUrl: user.avatar_url || user.employee_avatar_url || null,
+      },
     })
   } catch (error) { next(error) }
 })
@@ -212,9 +222,9 @@ router.post('/verify-2fa', twoFactorLimiter, async (req, res, next) => {
     }
 
     const { rows } = await query(`
-      SELECT u.id, u.email, u.role, u.full_name, u.employee_id,
+      SELECT u.id, u.email, u.role, u.full_name, u.employee_id, u.avatar_url,
              u.two_factor_enabled, u.two_factor_secret, u.two_factor_backup_codes,
-             e.department, e.department_id
+             e.department, e.department_id, e.avatar_url AS employee_avatar_url
       FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.id = $1 AND u.is_active = true
@@ -261,7 +271,17 @@ router.post('/verify-2fa', twoFactorLimiter, async (req, res, next) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, name: user.full_name, employeeId: user.employee_id, department: user.department, departmentId: user.department_id, twoFactorEnabled: true },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.full_name,
+        employeeId: user.employee_id,
+        department: user.department,
+        departmentId: user.department_id,
+        twoFactorEnabled: true,
+        avatarUrl: user.avatar_url || user.employee_avatar_url || null,
+      },
     })
   } catch (error) { next(error) }
 })

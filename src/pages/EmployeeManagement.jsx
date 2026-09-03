@@ -296,7 +296,22 @@ export default function EmployeeManagement() {
                 <tr key={emp.id}>
                   <td>
                     <div className="er-employee">
-                      <span className="er-avatar">{initials(emp.full_name)}</span>
+                      {emp.avatar_url ? (
+                        <img
+                          src={emp.avatar_url}
+                          alt={emp.full_name}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            display: 'block',
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <span className="er-avatar">{initials(emp.full_name)}</span>
+                      )}
                       <div>
                         <b>{emp.full_name}</b>
                         <small>{emp.employee_number}</small>
@@ -503,7 +518,22 @@ export default function EmployeeManagement() {
               {/* Modal Header */}
               <div className="er-history-header">
                 <div className="er-history-user">
-                  <div className="er-history-avatar">{initials(history.employee)}</div>
+                  {emp?.avatar_url ? (
+                    <img
+                      src={emp.avatar_url}
+                      alt={history.employee}
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        display: 'block',
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div className="er-history-avatar">{initials(history.employee)}</div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2">
                       <h2>{history.employee}</h2>

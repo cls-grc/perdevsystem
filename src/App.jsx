@@ -205,6 +205,38 @@ function App() {
     } catch (err) { void err }
   }, [dark])
 
+  // Sync user profile on mount to ensure avatarUrl is up-to-date
+  useEffect(() => {
+    if (!user?.id) return
+    api.getProfileMe().then((res) => {
+      const liveAvatar = res.user?.avatarUrl || res.employee?.avatarUrl || res.user?.avatar_url || res.employee?.avatar_url || null
+      if (liveAvatar) {
+        setUser((prev) => {
+          if (!prev || prev.avatarUrl === liveAvatar) return prev
+          const updated = { ...prev, avatarUrl: liveAvatar }
+          try { localStorage.setItem('pds-user', JSON.stringify(updated)) } catch {}
+          return updated
+        })
+      }
+    }).catch(() => {})
+  }, [user?.id])
+
+  // Listen for instant profile/avatar updates
+  useEffect(() => {
+    const handleUserUpdate = (e) => {
+      if (e.detail?.avatarUrl !== undefined) {
+        setUser((prev) => {
+          if (!prev) return prev
+          const updated = { ...prev, avatarUrl: e.detail.avatarUrl }
+          try { localStorage.setItem('pds-user', JSON.stringify(updated)) } catch {}
+          return updated
+        })
+      }
+    }
+    window.addEventListener('pds:user-updated', handleUserUpdate)
+    return () => window.removeEventListener('pds:user-updated', handleUserUpdate)
+  }, [])
+
   const handleLogout = (reason = '') => {
     // Guard: if called directly as an onClick handler, reason will be a MouseEvent — ignore it
     const noticeMsg = typeof reason === 'string' ? reason : ''

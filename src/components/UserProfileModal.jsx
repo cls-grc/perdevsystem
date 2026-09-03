@@ -103,8 +103,21 @@ export default function UserProfileModal({ onClose, onAvatarUpdate }) {
         emergencyContactRelationship: ecRel,
       }
       if (avatarData !== undefined) payload.avatarUrl = avatarData
-      await api.updateProfileMe(payload)
-      if (avatarData !== undefined && onAvatarUpdate) onAvatarUpdate(avatarData)
+      const res = await api.updateProfileMe(payload)
+      const newAvatarUrl = res.avatarUrl !== undefined ? res.avatarUrl : avatarData
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('pds-user') || '{}')
+        if (stored && typeof stored === 'object') {
+          stored.avatarUrl = newAvatarUrl
+          localStorage.setItem('pds-user', JSON.stringify(stored))
+        }
+      } catch {}
+
+      window.dispatchEvent(new CustomEvent('pds:user-updated', { detail: { avatarUrl: newAvatarUrl } }))
+      window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
+
+      if (avatarData !== undefined && onAvatarUpdate) onAvatarUpdate(newAvatarUrl)
       showToast('Personal profile saved successfully!')
     } catch (err) {
       setError(err.message || 'Failed to save profile.')

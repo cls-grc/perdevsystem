@@ -895,7 +895,22 @@ export default function AIAnalytics() {
                   >
                     <td>
                       <div className="emp-cell">
-                        <span className={`emp-avatar av-${index % 6}`}>{initials(employee.full_name)}</span>
+                        {employee.avatar_url ? (
+                          <img
+                            src={employee.avatar_url}
+                            alt={employee.full_name}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              display: 'block',
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <span className={`emp-avatar av-${index % 6}`}>{initials(employee.full_name)}</span>
+                        )}
                         <div className="emp-names">
                           <b>{employee.full_name}</b>
                           <small>{employee.job_title || 'Hospitality Staff'}</small>
