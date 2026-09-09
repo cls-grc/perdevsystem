@@ -549,6 +549,19 @@ router.post('/assign', authorize('hr', 'supervisor'), async (req, res, next) => 
           [input.resourceId, employee.id, req.user.sub, input.dueDate || null],
         )
         created.push(inserted.rows[0])
+
+        // Immediately update employee's aggregate learning_progress average
+        await client.query(
+          `UPDATE employees
+           SET learning_progress = (
+             SELECT COALESCE(ROUND(AVG(progress)), 0)
+             FROM learning_assignments
+             WHERE employee_id = $1
+           ),
+           updated_at = NOW()
+           WHERE id = $1`,
+          [employee.id],
+        )
       }
       return created
     })
@@ -573,7 +586,7 @@ router.get('/assignments', async (req, res, next) => {
     const { rows } = await query(
       `SELECT la.*, r.title AS resource_title, r.category, r.provider, r.provider_type, r.duration_hours,
         e.full_name AS employee_name, e.department,
-        (lc.id IS NOT NULL) AS is_completed, lc.completed_at, lc.assessment_result,
+        (lc.id IS NOT NULL AND (la.progress >= 100 OR la.status = 'completed')) AS is_completed, lc.completed_at, lc.assessment_result,
         COALESCE((SELECT array_agg(lrc.competency ORDER BY lrc.competency) FROM learning_resource_competencies lrc WHERE lrc.resource_id = r.id), '{}') AS competencies
        FROM learning_assignments la
        JOIN learning_resources r ON r.id = la.resource_id
@@ -667,6 +680,11 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
          WHERE module = 'learning' AND subject_employee_id = $1 AND status = 'active'
            AND metadata->>'courseTitle' = (SELECT title FROM learning_resources WHERE id = $2)`,
         [assignment.employee_id, assignment.resource_id],
+      )
+    } else {
+      await query(
+        'DELETE FROM learning_completions WHERE resource_id = $1 AND employee_id = $2',
+        [assignment.resource_id, assignment.employee_id],
       )
     }
 

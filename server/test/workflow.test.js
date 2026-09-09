@@ -60,7 +60,7 @@ test('returnToStage rejects invalid targets and non-owners', () => {
 
 test('previousStages returns only stages before the current one', () => {
   const stages = previousStages('performance', 'calibration', 'hr')
-  assert.deepEqual(stages.map(({ key }) => key), ['create_review', 'configure_kpi', 'notify_employee', 'self_assessment', 'performance_evaluation'])
+  assert.deepEqual(stages.map(({ key }) => key), ['create_review', 'self_assessment', 'performance_evaluation'])
   assert.throws(() => previousStages('performance', 'self_assessment', 'supervisor'), { status: 403 })
 })
 

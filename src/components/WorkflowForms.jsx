@@ -1593,6 +1593,16 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
         </div>
       )}
 
+      {/* Browse Full Course Library */}
+      {selectedCompetency && (
+        <BrowseLibraryPanel
+          selectedCompetency={selectedCompetency}
+          assignedMap={assignedMap}
+          assigning={assigning}
+          onAssign={handleAssignCourse}
+        />
+      )}
+
       {/* Optional Plan Notes */}
       <div className="plan-notes-section">
         <label className="form-field">
@@ -1605,6 +1615,110 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
           />
         </label>
       </div>
+    </div>
+  )
+}
+
+// Expandable panel showing the full course library for a given competency,
+// so HR can pick any course beyond the AI-recommended shortlist.
+function BrowseLibraryPanel({ selectedCompetency, assignedMap, assigning, onAssign }) {
+  const [expanded, setExpanded] = useState(false)
+  const [allCourses, setAllCourses] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [libQuery, setLibQuery] = useState('')
+  const [libError, setLibError] = useState('')
+
+  // Load library the first time the panel is expanded.
+  useEffect(() => {
+    if (!expanded || allCourses.length > 0) return
+    setLoading(true)
+    setLibError('')
+    api.learningResources({}).then(res => {
+      setAllCourses(res.resources || [])
+    }).catch(err => {
+      setLibError(err.message || 'Could not load course library.')
+    }).finally(() => setLoading(false))
+  }, [expanded])
+
+  const visible = allCourses.filter(c => {
+    const text = `${c.title} ${c.description} ${c.category} ${(c.competencies || []).join(' ')}`.toLowerCase()
+    const matchComp = !selectedCompetency || text.includes(selectedCompetency.toLowerCase())
+    const matchQ = !libQuery || text.includes(libQuery.toLowerCase())
+    return matchComp && matchQ
+  })
+
+  return (
+    <div className="browse-library-panel" style={{ marginTop: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, overflow: 'hidden' }}>
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '9px 14px', background: expanded ? 'rgba(99,102,241,0.08)' : 'rgba(248,250,252,0.9)',
+          border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#4338ca',
+          borderBottom: expanded ? '1px solid rgba(99,102,241,0.15)' : 'none',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Search size={13} /> Browse Full Course Library for "{selectedCompetency}"
+        </span>
+        <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 600 }}>{expanded ? '▲ Hide' : '▼ Show'}</span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '10px 14px', background: 'rgba(248,250,252,0.7)' }}>
+          <input
+            type="text"
+            value={libQuery}
+            onChange={e => setLibQuery(e.target.value)}
+            placeholder="Search all courses…"
+            style={{ width: '100%', marginBottom: 10, padding: '6px 10px', fontSize: 12, borderRadius: 7, border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+          />
+          {loading && <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0' }}>Loading library…</p>}
+          {libError && <p style={{ fontSize: 12, color: '#ef4444', margin: '4px 0' }}>{libError}</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+            {visible.map(course => {
+              const isAssigned = assignedMap[selectedCompetency] === course.title
+              return (
+                <div key={course.id} style={{
+                  display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
+                  padding: '8px 10px', background: '#fff', borderRadius: 8,
+                  border: `1px solid ${isAssigned ? '#a7f3d0' : 'rgba(148,163,184,0.2)'}`,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>{course.title}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>{course.category}{course.duration_hours ? ` · ${course.duration_hours}h` : ''}</p>
+                    {(course.competencies || []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                        {course.competencies.map(c => (
+                          <span key={c} style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed' }}>{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={assigning || isAssigned}
+                    onClick={() => onAssign(course)}
+                    style={{
+                      flexShrink: 0, padding: '5px 10px', fontSize: 10, fontWeight: 700, borderRadius: 6, border: 'none',
+                      background: isAssigned ? '#d1fae5' : 'linear-gradient(135deg,#7c3aed,#6366f1)',
+                      color: isAssigned ? '#065f46' : '#fff', cursor: isAssigned ? 'default' : 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {isAssigned ? '✓ Assigned' : 'Assign'}
+                  </button>
+                </div>
+              )
+            })}
+            {!loading && visible.length === 0 && (
+              <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '12px 0' }}>
+                No courses found{libQuery ? ` for "${libQuery}"` : ''}.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2443,7 +2557,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                   <select
                     value={a.status || 'not_started'}
                     onChange={e => handleUpdateStatus(a, e.target.value)}
-                    disabled={updatingId === a.id || a.is_completed}
+                    disabled={updatingId === a.id}
                     style={{
                       fontSize: 11,
                       fontWeight: 600,
@@ -2452,6 +2566,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                       border: '1px solid #d1d5db',
                       background: 'inherit',
                       color: 'inherit',
+                      cursor: updatingId === a.id ? 'wait' : 'pointer',
                     }}
                   >
                     <option value="not_started">Not started</option>
@@ -2459,7 +2574,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                     <option value="completed">Completed</option>
                     <option value="need_help">Need help</option>
                   </select>
-                  {a.is_completed && (
+                  {a.is_completed && (Number(a.progress) >= 100 || a.status === 'completed') && (
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 12, background: '#d1fae5', color: '#065f46' }}>
                       ✓ Verified
                     </span>
@@ -2467,29 +2582,71 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                 </div>
               </div>
 
-              {/* Progress Slider & Bar */}
+              {/* Progress Slider & Interactive Bar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(148,163,184,0.2)', overflow: 'hidden' }}>
+                <div
+                  onClick={e => {
+                    if (updatingId === a.id) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)))
+                    handleUpdateProgress(a, pct)
+                  }}
+                  title="Click anywhere on the bar to set progress"
+                  style={{
+                    flex: 1,
+                    height: 10,
+                    borderRadius: 5,
+                    background: 'rgba(148,163,184,0.2)',
+                    overflow: 'hidden',
+                    cursor: updatingId === a.id ? 'wait' : 'pointer',
+                    position: 'relative',
+                  }}
+                >
                   <div
                     style={{
                       height: '100%',
                       width: `${a.progress || 0}%`,
-                      background: a.progress >= 100 ? '#10b981' : 'linear-gradient(90deg, #8b5cf6, #6366f1)',
-                      borderRadius: 3,
-                      transition: 'width 0.3s ease',
+                      background: Number(a.progress) >= 100 ? '#10b981' : 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                      borderRadius: 5,
+                      transition: 'width 0.2s ease',
                     }}
                   />
                 </div>
-                <b style={{ fontSize: 11.5, minWidth: 36, textAlign: 'right' }}>{a.progress || 0}%</b>
+                <b style={{ fontSize: 11.5, minWidth: 42, textAlign: 'right' }}>{Math.round(Number(a.progress || 0))}%</b>
                 <input
                   type="range"
                   min="0"
                   max="100"
-                  value={a.progress || 0}
-                  disabled={updatingId === a.id || a.is_completed}
+                  value={Math.round(Number(a.progress || 0))}
+                  disabled={updatingId === a.id}
                   onChange={e => handleUpdateProgress(a, Number(e.target.value))}
-                  style={{ width: 100, cursor: 'pointer' }}
+                  style={{ width: 110, cursor: updatingId === a.id ? 'wait' : 'pointer' }}
                 />
+              </div>
+
+              {/* Quick Set Buttons */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <small style={{ fontSize: 10, color: '#64748b' }}>Quick set:</small>
+                {[0, 25, 50, 75, 100].map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    disabled={updatingId === a.id}
+                    onClick={() => handleUpdateProgress(a, pct)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: 10,
+                      fontWeight: Math.round(Number(a.progress || 0)) === pct ? 700 : 500,
+                      borderRadius: 4,
+                      border: Math.round(Number(a.progress || 0)) === pct ? '1px solid #6366f1' : '1px solid #cbd5e1',
+                      background: Math.round(Number(a.progress || 0)) === pct ? '#ede9fe' : '#ffffff',
+                      color: Math.round(Number(a.progress || 0)) === pct ? '#4f46e5' : '#475569',
+                      cursor: updatingId === a.id ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {pct}%
+                  </button>
+                ))}
               </div>
             </div>
           ))}

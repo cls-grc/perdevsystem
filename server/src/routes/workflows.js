@@ -273,6 +273,19 @@ router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, r
         [resource.id, employee.rows[0].id, req.user.sub],
       )
 
+      // Immediately update employee's aggregate learning_progress average
+      await client.query(
+        `UPDATE employees
+         SET learning_progress = (
+           SELECT COALESCE(ROUND(AVG(progress)), 0)
+           FROM learning_assignments
+           WHERE employee_id = $1
+         ),
+         updated_at = NOW()
+         WHERE id = $1`,
+        [employee.rows[0].id],
+      )
+
       const { rows } = await client.query(
         'INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, metadata) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
         ['learning', title, input.subjectEmployeeId, initialStage[0], req.user.sub, metadata]

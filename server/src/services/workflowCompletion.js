@@ -95,7 +95,9 @@ function stageForms(events, finalData = {}) {
   for (const event of events || []) {
     const details = event.details || {}
     // Support both { formData: {...} } wrapper and flat details
-    const form = (details.formData && typeof details.formData === 'object')
+    const form = Array.isArray(details.formData)
+      ? details.formData
+      : (details.formData && typeof details.formData === 'object')
       ? { ...details.formData, ...details, formData: undefined }
       : details
     if (event.stage && Object.keys(form).length > 0) {
@@ -306,16 +308,14 @@ async function resolveCompletedCourseGaps(client, employeeId) {
 }
 
 async function upsertCompetencyAssessments(client, employeeId, events, finalData, aggregateScore) {
+  // 1. Extract defined competencies from define_requirements stage
   let rows = []
   for (const event of events || []) {
-    const details = event.details || {}
-    if (Array.isArray(details.formData) && details.formData.length > 0) {
-      if (details.formData[0]?.competency || details.formData[0]?.name) {
-        rows = details.formData
-      }
-    } else if (Array.isArray(details) && details.length > 0) {
-      if (details[0]?.competency || details[0]?.name) {
-        rows = details
+    if (event.stage === 'define_requirements') {
+      const details = event.details || {}
+      const list = Array.isArray(details.formData) ? details.formData : (Array.isArray(details) ? details : [])
+      if (list.length > 0 && list.some(r => r?.competency)) {
+        rows = list.filter(r => r?.competency)
       }
     }
   }
@@ -324,14 +324,15 @@ async function upsertCompetencyAssessments(client, employeeId, events, finalData
     const forms = stageForms(events, finalData)
     const reqs = forms.define_requirements
     if (Array.isArray(reqs)) {
-      rows = reqs
+      rows = reqs.filter(r => r?.competency)
     } else if (reqs && typeof reqs === 'object') {
-      rows = Object.values(reqs).filter(v => v && typeof v === 'object' && (v.competency || v.name))
+      rows = Object.values(reqs).filter(v => v && typeof v === 'object' && v.competency)
     }
   }
 
+  // 2. Upsert each defined competency from the requirements definition
   for (const row of rows) {
-    const competency = row?.competency || row?.name
+    const competency = row?.competency
     if (!competency) continue
     const targetScore = clampScore(row.targetScore || row.target || row.required_score || row.requiredScore) || 80
     const actualScore = clampScore(row.actual || row.score || aggregateScore) || aggregateScore
@@ -344,7 +345,55 @@ async function upsertCompetencyAssessments(client, employeeId, events, finalData
     )
   }
 
-  // Resolve any completed courses and their linked competency gaps
+  // 3. Extract prioritySkills from assign_plan and update their scores to the HR-approved evaluation score
+  const prioritySkills = new Set()
+  for (const event of events || []) {
+    if (event.stage === 'assign_plan') {
+      const details = event.details || {}
+      const form = details.formData || details
+      if (Array.isArray(form.prioritySkills)) {
+        form.prioritySkills.forEach(s => { if (s) prioritySkills.add(s) })
+      }
+      if (form.competencyName) prioritySkills.add(form.competencyName)
+    }
+  }
+
+  const targetScoreValue = Number(aggregateScore) || 85
+
+  for (const skill of prioritySkills) {
+    await client.query(
+      `INSERT INTO competency_assessments (employee_id, competency, score, required_score, source)
+       VALUES ($1, $2, $3, 85, 'assessment')
+       ON CONFLICT (employee_id, competency)
+       DO UPDATE SET score = GREATEST(competency_assessments.score, EXCLUDED.score),
+                     source = 'assessment',
+                     assessed_at = NOW(),
+                     updated_at = NOW()`,
+      [employeeId, skill, targetScoreValue],
+    )
+
+    // Mark any gap-linked course assignments for this skill as completed
+    const linkedAssignments = await client.query(
+      `SELECT la.id, la.resource_id FROM learning_assignments la
+       JOIN learning_resource_competencies lrc ON lrc.resource_id = la.resource_id
+       WHERE la.employee_id = $1 AND LOWER(lrc.competency) = LOWER($2)`,
+      [employeeId, skill],
+    )
+    for (const la of linkedAssignments.rows) {
+      await client.query(
+        `UPDATE learning_assignments SET progress=100, status='completed' WHERE id=$1`,
+        [la.id],
+      )
+      await client.query(
+        `INSERT INTO learning_completions (resource_id, employee_id, assignment_id, assessment_result, verified_by)
+         VALUES ($1, $2, $3, $4, (SELECT COALESCE(created_by, $2) FROM workflows WHERE subject_employee_id=$2 ORDER BY created_at DESC LIMIT 1))
+         ON CONFLICT (resource_id, employee_id) DO UPDATE SET assessment_result=EXCLUDED.assessment_result, completed_at=NOW()`,
+        [la.resource_id, employeeId, la.id, JSON.stringify({ autoVerified: true, progress: 100, source: 'competency_workflow_completion' })],
+      )
+    }
+  }
+
+  // 4. Resolve any completed courses and their linked competency gaps
   await resolveCompletedCourseGaps(client, employeeId)
 }
 
