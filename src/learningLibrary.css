@@ -993,4 +993,297 @@
   border-color: #282635;
 }
 
+/* ===========================================================================
+   SKILL GAP PROGRESS PANEL  (CompetencyManagement page)
+   All dark-mode overrides handled via .dark prefix — no inline style colors.
+=========================================================================== */
 
+/* Panel wrapper */
+.sgp-panel {
+  background: var(--card-bg, rgba(255,255,255,0.85));
+  border-radius: 14px;
+  border: 1px solid rgba(99,102,241,0.18);
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.07);
+  overflow: hidden;
+}
+.dark .sgp-panel {
+  background: var(--card-bg, #111625);
+  border-color: rgba(99,102,241,0.28);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+/* Header button */
+.sgp-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.07), rgba(124,58,237,0.05));
+  border: none;
+  border-bottom: 1px solid rgba(99,102,241,0.12);
+  cursor: pointer;
+}
+.dark .sgp-header {
+  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(124,58,237,0.09));
+  border-bottom-color: rgba(99,102,241,0.22);
+}
+
+/* Title row */
+.sgp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3730a3;
+}
+.dark .sgp-title { color: #a5b4fc; }
+
+.sgp-title-icon { color: #6366f1; }
+.dark .sgp-title-icon { color: #818cf8; }
+
+.sgp-live-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+}
+.dark .sgp-live-badge {
+  background: rgba(99,102,241,0.2);
+  color: #a5b4fc;
+}
+
+/* Body */
+.sgp-body { padding: 16px 20px; }
+
+/* Employee selector */
+.sgp-selector-row {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sgp-selector-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+.dark .sgp-selector-label { color: var(--text-secondary, #94a3b8); }
+
+.sgp-select {
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  min-width: 220px;
+  background: #fff;
+  color: #1e293b;
+}
+.dark .sgp-select {
+  background: #1e2130;
+  border-color: rgba(255,255,255,0.12);
+  color: #f1f5f9;
+}
+
+.sgp-gap-count {
+  font-size: 11px;
+  color: #7c3aed;
+  font-weight: 700;
+}
+.dark .sgp-gap-count { color: #c4b5fd; }
+
+/* Error */
+.sgp-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #991b1b;
+}
+.dark .sgp-error {
+  background: rgba(239,68,68,0.15);
+  color: #fca5a5;
+}
+
+/* Loading */
+.sgp-loading {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* Empty state — all good */
+.sgp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 20px;
+  background: rgba(240,253,244,0.7);
+  border-radius: 10px;
+  border: 1px solid #a7f3d0;
+  text-align: center;
+}
+.dark .sgp-empty {
+  background: rgba(16,185,129,0.08);
+  border-color: rgba(16,185,129,0.25);
+}
+.sgp-empty-icon { color: #10b981; margin-bottom: 8px; }
+.sgp-empty-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #065f46;
+  margin: 0 0 4px;
+}
+.dark .sgp-empty-title { color: #6ee7b7; }
+.sgp-empty-sub {
+  font-size: 12px;
+  color: #047857;
+  margin: 0;
+}
+.dark .sgp-empty-sub { color: #34d399; }
+
+/* Hint */
+.sgp-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* Table */
+.sgp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.sgp-thead-row {
+  border-bottom: 2px solid rgba(99,102,241,0.15);
+}
+.dark .sgp-thead-row {
+  border-bottom-color: rgba(99,102,241,0.28);
+}
+.sgp-th {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dark .sgp-th { color: var(--text-secondary, #94a3b8); }
+
+.sgp-row {
+  border-bottom: 1px solid rgba(148,163,184,0.15);
+  transition: background 0.15s;
+}
+.sgp-row:hover { background: rgba(99,102,241,0.04); }
+.dark .sgp-row:hover { background: rgba(99,102,241,0.1); }
+
+.sgp-td { padding: 10px 10px; }
+.sgp-td--name { font-weight: 700; color: #1e293b; }
+.dark .sgp-td--name { color: var(--text-primary, #f8fafc); }
+.sgp-td--muted { color: #475569; }
+.dark .sgp-td--muted { color: var(--text-secondary, #94a3b8); }
+
+/* Status badges */
+.sgp-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 5px;
+  display: inline-block;
+}
+.sgp-badge--ok      { background: #d1fae5; color: #065f46; }
+.sgp-badge--minor   { background: #fef9c3; color: #854d0e; }
+.sgp-badge--gap     { background: #fed7aa; color: #9a3412; }
+.sgp-badge--critical{ background: #fee2e2; color: #991b1b; }
+
+.dark .sgp-badge--ok      { background: rgba(16,185,129,0.18);  color: #6ee7b7; }
+.dark .sgp-badge--minor   { background: rgba(234,179,8,0.18);   color: #fde047; }
+.dark .sgp-badge--gap     { background: rgba(249,115,22,0.18);  color: #fdba74; }
+.dark .sgp-badge--critical{ background: rgba(239,68,68,0.18);   color: #fca5a5; }
+
+/* Course link */
+.sgp-course-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #4338ca;
+  font-weight: 600;
+}
+.dark .sgp-course-link { color: #a5b4fc; }
+
+.sgp-not-assigned {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Progress bar */
+.sgp-bar-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+  font-size: 10px;
+  color: #64748b;
+}
+.dark .sgp-bar-label { color: var(--text-secondary, #94a3b8); }
+
+.sgp-bar-track {
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 3px;
+}
+.dark .sgp-bar-track { background: #2d3148; }
+
+.sgp-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Legend */
+.sgp-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.sgp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.sgp-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  font-style: normal;
+}
+.sgp-legend-label { color: #64748b; }
+.dark .sgp-legend-label { color: var(--text-secondary, #94a3b8); }
+
+/* Outer panel wrapper to match module-workspace padding */
+.sgp-wrapper {
+  padding: 28px 38px 0;
+  max-width: 1500px;
+}
+
+/* Responsive — mirror .module-workspace breakpoints */
+@media (max-width: 730px) {
+  .sgp-wrapper { padding: 20px 16px 0 !important; }
+}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import WorkflowPage from '../components/WorkflowPage'
 import { api } from '../lib/api'
+import '../learningLibrary.css'
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Target, BookOpen } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -61,11 +62,11 @@ function SkillGapProgressPanel() {
     }
   }, [selectedEmpId, isEmployee, loadData])
 
-  const getStatusColor = (gap) => {
-    if (gap <= 0) return { bg: '#d1fae5', color: '#065f46', label: 'On Track' }
-    if (gap <= 10) return { bg: '#fef9c3', color: '#854d0e', label: 'Minor Gap' }
-    if (gap <= 20) return { bg: '#fed7aa', color: '#9a3412', label: 'Gap' }
-    return { bg: '#fee2e2', color: '#991b1b', label: 'Critical Gap' }
+  const getStatusMeta = (gap) => {
+    if (gap <= 0)  return { cls: 'sgp-badge sgp-badge--ok',       label: 'On Track'     }
+    if (gap <= 10) return { cls: 'sgp-badge sgp-badge--minor',    label: 'Minor Gap'    }
+    if (gap <= 20) return { cls: 'sgp-badge sgp-badge--gap',      label: 'Gap'          }
+    return           { cls: 'sgp-badge sgp-badge--critical', label: 'Critical Gap' }
   }
 
   const getLinkedAssignment = (competency) => {
@@ -78,42 +79,32 @@ function SkillGapProgressPanel() {
   if (!isHr && !isSupervisor && !isEmployee) return null
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.85)', borderRadius: 14,
-      border: '1px solid rgba(99,102,241,0.18)', marginBottom: 20,
-      boxShadow: '0 2px 12px rgba(99,102,241,0.07)', overflow: 'hidden',
-    }}>
+    <div className="sgp-panel">
       {/* Panel header */}
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', background: 'linear-gradient(135deg, rgba(99,102,241,0.07), rgba(124,58,237,0.05))',
-          border: 'none', borderBottom: open ? '1px solid rgba(99,102,241,0.12)' : 'none',
-          cursor: 'pointer',
-        }}
+        className="sgp-header"
+        style={{ borderBottom: open ? undefined : 'none' }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#3730a3' }}>
-          <Target size={16} style={{ color: '#6366f1' }} />
+        <span className="sgp-title">
+          <Target size={16} className="sgp-title-icon" />
           Skill Gap Learning Progress
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 5, background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
-            Live Cross-Module View
-          </span>
+          <span className="sgp-live-badge">Live Cross-Module View</span>
         </span>
-        {open ? <ChevronUp size={16} style={{ color: '#6366f1' }} /> : <ChevronDown size={16} style={{ color: '#6366f1' }} />}
+        {open ? <ChevronUp size={16} className="sgp-title-icon" /> : <ChevronDown size={16} className="sgp-title-icon" />}
       </button>
 
       {open && (
-        <div style={{ padding: '16px 20px' }}>
+        <div className="sgp-body">
           {/* Employee selector (HR/Supervisor) */}
           {!isEmployee && (
-            <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>View Skill Gaps For:</label>
+            <div className="sgp-selector-row">
+              <label className="sgp-selector-label">View Skill Gaps For:</label>
               <select
                 value={selectedEmpId}
                 onChange={e => setSelectedEmpId(e.target.value)}
-                style={{ padding: '6px 10px', fontSize: 11, borderRadius: 8, border: '1px solid #cbd5e1', minWidth: 220 }}
+                className="sgp-select"
               >
                 <option value="">— Select an employee —</option>
                 {employees.map(emp => (
@@ -123,7 +114,7 @@ function SkillGapProgressPanel() {
                 ))}
               </select>
               {selectedEmpId && gaps.length > 0 && (
-                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>
+                <span className="sgp-gap-count">
                   {gaps.length} gap{gaps.length > 1 ? 's' : ''} detected
                 </span>
               )}
@@ -132,33 +123,30 @@ function SkillGapProgressPanel() {
 
           {/* Error */}
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#fee2e2', borderRadius: 8, marginBottom: 10, fontSize: 12, color: '#991b1b' }}>
+            <div className="sgp-error">
               <AlertTriangle size={13} /> {error}
             </div>
           )}
 
           {/* Loading */}
           {loading && (
-            <div style={{ fontSize: 12, color: '#94a3b8', padding: '12px 0', textAlign: 'center' }}>
+            <div className="sgp-loading">
               Analyzing skill gaps and linked courses…
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Empty state — all on track */}
           {!loading && !error && gaps.length === 0 && (selectedEmpId || isEmployee) && (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 20px',
-              background: 'rgba(240,253,244,0.7)', borderRadius: 10, border: '1px solid #a7f3d0', textAlign: 'center',
-            }}>
-              <CheckCircle size={24} style={{ color: '#10b981', marginBottom: 8 }} />
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#065f46', margin: '0 0 4px' }}>All Competencies On Track</p>
-              <p style={{ fontSize: 12, color: '#047857', margin: 0 }}>No skill gaps detected. Keep developing!</p>
+            <div className="sgp-empty">
+              <CheckCircle size={24} className="sgp-empty-icon" />
+              <p className="sgp-empty-title">All Competencies On Track</p>
+              <p className="sgp-empty-sub">No skill gaps detected. Keep developing!</p>
             </div>
           )}
 
           {/* No employee selected */}
           {!loading && !error && !isEmployee && !selectedEmpId && (
-            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>
+            <p className="sgp-hint">
               Select an employee above to view their competency gaps and linked learning progress.
             </p>
           )}
@@ -166,65 +154,60 @@ function SkillGapProgressPanel() {
           {/* Gap table */}
           {!loading && gaps.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <table className="sgp-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid rgba(99,102,241,0.15)' }}>
+                  <tr className="sgp-thead-row">
                     {['Competency', 'Current', 'Required', 'Gap', 'Status', 'Linked Course', 'Progress'].map(h => (
-                      <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                      <th key={h} className="sgp-th">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {gaps.map((g, idx) => {
-                    const st = getStatusColor(g.gap)
+                    const st = getStatusMeta(g.gap)
                     const linked = getLinkedAssignment(g.competency)
                     const progress = linked ? (Number(linked.progress) || 0) : null
                     const verified = linked?.is_completed
+                    const barColor = verified ? '#10b981' : progress >= 75 ? '#6366f1' : progress >= 40 ? '#f59e0b' : '#94a3b8'
                     return (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(148,163,184,0.15)', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.03)'}
-                        onMouseLeave={e => e.currentTarget.style.background = ''}
-                      >
-                        <td style={{ padding: '10px 10px', fontWeight: 700, color: '#1e293b' }}>{g.competency}</td>
-                        <td style={{ padding: '10px 10px', color: '#475569' }}>{g.score}%</td>
-                        <td style={{ padding: '10px 10px', color: '#475569' }}>{g.required_score}%</td>
-                        <td style={{ padding: '10px 10px' }}>
+                      <tr key={idx} className="sgp-row">
+                        <td className="sgp-td sgp-td--name">{g.competency}</td>
+                        <td className="sgp-td sgp-td--muted">{g.score}%</td>
+                        <td className="sgp-td sgp-td--muted">{g.required_score}%</td>
+                        <td className="sgp-td">
                           <span style={{ fontWeight: 700, color: g.gap > 0 ? '#dc2626' : '#059669' }}>
                             {g.gap > 0 ? `-${g.gap}%` : '✓'}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 10px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: st.bg, color: st.color }}>
-                            {st.label}
-                          </span>
+                        <td className="sgp-td">
+                          <span className={st.cls}>{st.label}</span>
                         </td>
-                        <td style={{ padding: '10px 10px', maxWidth: 180 }}>
+                        <td className="sgp-td" style={{ maxWidth: 180 }}>
                           {linked ? (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4338ca', fontWeight: 600 }}>
+                            <span className="sgp-course-link">
                               <BookOpen size={11} style={{ flexShrink: 0 }} />
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linked.resource_title}</span>
                             </span>
                           ) : (
-                            <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Not assigned yet</span>
+                            <span className="sgp-not-assigned">Not assigned yet</span>
                           )}
                         </td>
-                        <td style={{ padding: '10px 10px', minWidth: 110 }}>
+                        <td className="sgp-td" style={{ minWidth: 110 }}>
                           {linked && progress !== null ? (
                             <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontSize: 10, color: '#64748b' }}>
+                              <div className="sgp-bar-label">
                                 <span>{verified ? '✓ Verified' : `${progress}%`}</span>
                                 {linked.status && !verified && <span style={{ textTransform: 'capitalize' }}>{linked.status.replace('_', ' ')}</span>}
                               </div>
-                              <div style={{ height: 5, background: '#e2e8f0', borderRadius: 3 }}>
-                                <div style={{
-                                  height: '100%', borderRadius: 3, transition: 'width 0.4s ease',
+                              <div className="sgp-bar-track">
+                                <div className="sgp-bar-fill" style={{
                                   width: `${verified ? 100 : progress}%`,
-                                  background: verified ? '#10b981' : progress >= 75 ? '#6366f1' : progress >= 40 ? '#f59e0b' : '#94a3b8',
+                                  background: barColor,
                                 }} />
                               </div>
                             </div>
                           ) : (
-                            <span style={{ fontSize: 11, color: '#94a3b8' }}>—</span>
+                            <span className="sgp-not-assigned">—</span>
                           )}
                         </td>
                       </tr>
@@ -237,16 +220,16 @@ function SkillGapProgressPanel() {
 
           {/* Legend */}
           {!loading && gaps.length > 0 && (
-            <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
+            <div className="sgp-legend">
               {[
-                { bg: '#d1fae5', color: '#065f46', label: 'On Track' },
-                { bg: '#fef9c3', color: '#854d0e', label: 'Minor Gap (≤10%)' },
-                { bg: '#fed7aa', color: '#9a3412', label: 'Gap (11–20%)' },
-                { bg: '#fee2e2', color: '#991b1b', label: 'Critical (>20%)' },
+                { cls: 'sgp-badge sgp-badge--ok',       label: 'On Track'       },
+                { cls: 'sgp-badge sgp-badge--minor',    label: 'Minor Gap (≤10%)' },
+                { cls: 'sgp-badge sgp-badge--gap',      label: 'Gap (11–20%)'   },
+                { cls: 'sgp-badge sgp-badge--critical', label: 'Critical (>20%)' },
               ].map(s => (
-                <span key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                  <em style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: s.bg, border: `1px solid ${s.color}` }} />
-                  <span style={{ color: '#64748b' }}>{s.label}</span>
+                <span key={s.label} className="sgp-legend-item">
+                  <em className={`${s.cls} sgp-legend-swatch`} />
+                  <span className="sgp-legend-label">{s.label}</span>
                 </span>
               ))}
             </div>
@@ -260,7 +243,9 @@ function SkillGapProgressPanel() {
 export default function CompetencyManagement() {
   return (
     <div>
-      <SkillGapProgressPanel />
+      <div className="sgp-wrapper">
+        <SkillGapProgressPanel />
+      </div>
       <WorkflowPage
         module="competency"
         title="Skill development"
