@@ -33,6 +33,7 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '12mb' }))
 app.use(requestLogger)
+app.get('/', (_req, res) => res.json({ status: 'ok', name: 'pds-api' }))
 app.get('/health', async (_req, res, next) => { try { await pool.query('SELECT 1'); res.json({ status: 'ok' }) } catch (error) { next(error) } })
 
 // Public SMTP diagnostic — shows whether env vars reached the server (no auth required)
