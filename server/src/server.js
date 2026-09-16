@@ -22,11 +22,18 @@ const app = express()
 app.disable('x-powered-by')
 app.use(helmet())
 app.use(cors({
-  origin: [
-    "https://perdevsystem.vercel.app",
-    "http://localhost:5173",
-    config.clientOrigin
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (
+      origin.endsWith('.hostforgeplatforms.com') ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('localhost') ||
+      origin === config.clientOrigin
+    ) {
+      return callback(null, true)
+    }
+    return callback(null, false)
+  },
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
