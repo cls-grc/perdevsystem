@@ -6,11 +6,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true })
 dotenv.config({ override: true })
 
-const required = ['DATABASE_URL', 'JWT_SECRET']
-for (const key of required) {
-  if (!process.env[key] && process.env.NODE_ENV === 'production') {
-    throw new Error(`${key} must be set in production`)
-  }
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('DATABASE_URL must be set in production')
+}
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('[SECURITY WARNING] JWT_SECRET not set in environment. Using fallback secret.')
 }
 
 export const config = {
