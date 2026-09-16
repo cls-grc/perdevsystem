@@ -64,8 +64,8 @@ app.use('/api/chat', chatRoutes)
 app.use(notFound)
 
 app.use(errorHandler)
-app.listen(config.port, async () => {
-  logger.info(`PDS API listening on port ${config.port}`)
+app.listen(config.port, '0.0.0.0', async () => {
+  logger.info(`PDS API listening on 0.0.0.0:${config.port}`)
   // Eagerly warm up SMTP transporter and send startup ping if configured
   if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
