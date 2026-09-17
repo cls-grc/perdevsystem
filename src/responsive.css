@@ -9,8 +9,12 @@
    ============================================================ */
 
 /* ---------- Fluid base ---------- */
-html, body {
+html {
   overflow-x: hidden;
+}
+body {
+  margin: 0;
+  overflow-x: visible;
 }
 img, svg { max-width: 100%; }
 button { touch-action: manipulation; }

@@ -4,14 +4,18 @@
 
 /* ── Full Viewport Split Container ────────────────────────────────────────── */
 .login-split-page.ref-theme-page {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
   width: 100%;
   display: flex;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
+  box-sizing: border-box;
+  background-color: #513AB3;
   /* Diagonal #513AB3 system violet left sweep, clean white right side */
   background: radial-gradient(circle at 25% 35%, rgba(81, 58, 179, 0.4) 0%, transparent 60%),
-              linear-gradient(112deg, #513AB3 0%, #3a258a 52%, #ffffff 52.2%, #fcfbf9 100%);
+              linear-gradient(108deg, #513AB3 0%, #3a258a 54%, #ffffff 54.2%, #fcfbf9 100%);
   color: #0f172a;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   transition: background 0.35s ease, color 0.35s ease;
@@ -20,8 +24,9 @@
 /* Dark mode root overrides */
 :root.dark .login-split-page.ref-theme-page,
 .dark .login-split-page.ref-theme-page {
+  background-color: #1c1147;
   background: radial-gradient(circle at 25% 35%, rgba(81, 58, 179, 0.25) 0%, transparent 60%),
-              linear-gradient(112deg, #37237e 0%, #1c1147 52%, #0f172a 52.2%, #080c16 100%);
+              linear-gradient(108deg, #37237e 0%, #1c1147 54%, #0f172a 54.2%, #080c16 100%);
   color: #f8fafc;
 }
 
@@ -89,21 +94,24 @@
 .login-illustration-column {
   flex: 0 0 55%;
   width: 55%;
+  height: 100%;
+  max-height: 100vh;
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 32px 24px;
-  overflow: visible;
+  padding: clamp(16px, 3vh, 32px) 24px;
+  overflow: hidden;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .ref-showcase-container {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 640px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -646,13 +654,17 @@
 .login-form-column {
   flex: 0 0 45%;
   width: 45%;
+  height: 100%;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 40px 48px;
+  padding: clamp(16px, 3.5vh, 40px) clamp(20px, 3vw, 48px);
   position: relative;
   z-index: 10;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .login-card-container {
@@ -664,7 +676,7 @@
 .login-card.ref-card {
   width: 100%;
   box-sizing: border-box;
-  padding: 40px 38px 34px;
+  padding: clamp(12px, 2vh, 28px) clamp(16px, 2vw, 36px);
   background: transparent;
   border: none;
   box-shadow: none;
@@ -680,12 +692,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: clamp(10px, 1.8vh, 20px);
 }
 
 .login-brand-icon {
-  width: 44px;
-  height: 44px;
+  width: clamp(38px, 4.5vh, 44px);
+  height: clamp(38px, 4.5vh, 44px);
   border-radius: 12px;
   background: linear-gradient(135deg, #513AB3 0%, #7054e3 100%);
   display: grid;
@@ -695,7 +707,7 @@
 }
 
 .login-brand-text {
-  font-size: 22px;
+  font-size: clamp(19px, 2.2vh, 22px);
   font-weight: 900;
   letter-spacing: -0.02em;
   display: flex;
@@ -736,11 +748,11 @@
 
 /* Reference Bold Heading */
 .ref-form-title {
-  font-size: 28px;
+  font-size: clamp(22px, 2.8vh, 28px);
   font-weight: 900;
   letter-spacing: -0.03em;
   color: #0f172a;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
 }
 
 :root.dark .ref-form-title,
@@ -749,10 +761,10 @@
 }
 
 .ref-form-sub {
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: clamp(11.5px, 1.4vh, 13.5px);
+  line-height: 1.4;
   color: #64748b;
-  margin: 0 0 24px;
+  margin: 0 0 clamp(10px, 1.8vh, 20px);
 }
 
 :root.dark .ref-form-sub,
@@ -762,7 +774,7 @@
 
 /* Form Fields & Clean Inputs */
 .ref-field-group {
-  margin-bottom: 16px;
+  margin-bottom: clamp(9px, 1.5vh, 15px);
 }
 
 .ref-label {
@@ -1036,27 +1048,47 @@
 }
 
 .login-copyright-note {
-  margin-top: 24px;
+  margin-top: clamp(8px, 1.6vh, 18px);
   font-size: 11px;
   color: #94a3b8;
   text-align: center;
 }
 
 /* --------------------------------------------------------------------------
-   RESPONSIVE DESIGN
+   RESPONSIVE DESIGN & SHORT VIEWPORT ADAPTATION
    -------------------------------------------------------------------------- */
+@media (max-height: 760px) and (min-width: 1041px) {
+  .ref-showcase-container {
+    transform: scale(0.85);
+    transform-origin: center center;
+  }
+}
+
+@media (max-height: 660px) and (min-width: 1041px) {
+  .ref-showcase-container {
+    transform: scale(0.74);
+    transform-origin: center center;
+  }
+}
+
 @media (max-width: 1040px) {
   .login-split-page.ref-theme-page {
-    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-height: none;
     overflow-y: auto;
+    flex-direction: column;
     background: radial-gradient(circle at 50% 20%, rgba(81, 58, 179, 0.25) 0%, transparent 60%),
                 linear-gradient(180deg, #513AB3 0%, #3a258a 440px, #ffffff 440.1px, #ffffff 100%);
+    background-attachment: fixed;
   }
 
   :root.dark .login-split-page.ref-theme-page,
   .dark .login-split-page.ref-theme-page {
     background: radial-gradient(circle at 50% 20%, rgba(81, 58, 179, 0.2) 0%, transparent 60%),
                 linear-gradient(180deg, #37237e 0%, #1c1147 440px, #0f172a 440.1px, #080c16 100%);
+    background-attachment: fixed;
   }
 
   .login-illustration-column {
