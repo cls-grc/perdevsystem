@@ -82,11 +82,12 @@ router.get('/org-tree', async (_req, res, next) => {
 
       // Determine succession readiness if not explicitly in table
       let readinessBand = emp.readiness_band
-      let readinessScore = Number(emp.readiness_score) || Math.round((perf * 0.5) + (comp * 0.5))
+      // Official formula: 50% Performance + 30% Competency + 20% Learning (matches successionService.js)
+      let readinessScore = Number(emp.readiness_score) || Math.round((perf * 0.5) + (comp * 0.3) + (learn * 0.2))
       if (!readinessBand) {
-        if (perf >= 86 && comp >= 85) {
+        if (readinessScore >= 85) {
           readinessBand = 'ready_now'
-        } else if (perf >= 80 || comp >= 80) {
+        } else if (readinessScore >= 70) {
           readinessBand = 'ready_in_1_2_years'
         } else {
           readinessBand = 'development_needed'

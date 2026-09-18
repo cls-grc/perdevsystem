@@ -2735,12 +2735,7 @@ function NominationsBuilder({ value = [], onChange, people = [] }) {
 
 // ------------------------- Builder: Succession Review -----------------------
 
-function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, workflow, role }) {
-  const [loading, setLoading] = useState(false)
-  const [assessment, setAssessment] = useState(null)
-  const [positions, setPositions] = useState([])
-  const [fetchError, setFetchError] = useState('')
-
+function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, workflow, role, formConfig, events = [] }) {
   // Determine current subject employee
   const currentEmployee = useMemo(() => {
     if (subject?.id) return subject
@@ -2767,35 +2762,74 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
   })()
   const isSelf = Boolean(currentUserId && targetEmpId && currentUserId === targetEmpId)
 
-  // Fetch authorized data and assessment
+  // Identify workflow step: Stage 2 (nominate), Stage 3 (review_readiness), Stage 4 (approved)
+  const currentStage = workflow?.current_stage || (formConfig?.builder === 'successionAssessment' ? 'nominate' : formConfig?.builder === 'successionApproval' ? 'approved' : 'review_readiness')
+  const isNominationStep = currentStage === 'nominate' || formConfig?.builder === 'successionAssessment'
+  const isApprovalStep = currentStage === 'approved' || formConfig?.builder === 'successionApproval'
+  const isReviewStep = !isNominationStep && !isApprovalStep
+
+  // Extract prior nomination proposal from Stage 2 if available
+  const nominationEvent = useMemo(() => {
+    return (events || []).find(e => e.stage === 'nominate') || null
+  }, [events])
+  const nominationData = nominationEvent?.details || workflow?.metadata?.nomination || null
+
+  // Use cached assessment if available from previous steps or metadata — NEVER auto-call AI on refresh
+  const cachedAssessment = useMemo(() => {
+    return value?.assessment || workflow?.metadata?.assessment || nominationData?.assessment || null
+  }, [value?.assessment, workflow?.metadata?.assessment, nominationData?.assessment])
+
+  const [assessment, setAssessment] = useState(cachedAssessment)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [positions, setPositions] = useState([])
+  const [fetchError, setFetchError] = useState('')
+
+  // Sync state if cachedAssessment appears from workflow props
+  useEffect(() => {
+    if (cachedAssessment && !assessment) {
+      setAssessment(cachedAssessment)
+    }
+  }, [cachedAssessment]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load database positions list only (fast, local SQL query, zero AI/LLM calls)
   useEffect(() => {
     let mounted = true
-    if (!targetEmpId) return
-
-    setLoading(true)
-    setFetchError('')
-
-    Promise.all([
-      api.successionAssess(targetEmpId).catch(err => ({ error: err.message })),
-      api.successionPositions().catch(() => ({ positions: [] })),
-    ]).then(([assessRes, posRes]) => {
+    api.successionPositions().then(posRes => {
       if (!mounted) return
-      setLoading(false)
-
-      if (assessRes.error) {
-        setFetchError(assessRes.error)
-        return
-      }
-
-      const assessData = assessRes.assessment || null
-      setAssessment(assessData)
-      setPositions(posRes.positions || [])
-
-      // Seed initial form values if not already user-set
-      if (assessData) {
-        const defaultTarget = value.targetPosition || assessData.recommendedPosition || (posRes.positions?.[0]?.title || '')
+      const list = posRes.positions || []
+      setPositions(list)
+      const defaultTarget = value.targetPosition || cachedAssessment?.recommendedPosition || nominationData?.targetPosition || (list[0]?.title || '')
+      if (!value.targetPosition) {
         onChange({
           ...value,
+          targetPosition: defaultTarget,
+          timeline: value.timeline || nominationData?.timeline || 'Ready Now',
+          decision: isNominationStep ? 'nominate' : (value.decision || 'approve'),
+          effectiveDate: value.effectiveDate || nominationData?.effectiveDate || new Date().toISOString().slice(0, 10),
+        })
+      }
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [targetEmpId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ON-DEMAND AI ANALYSIS: Only triggered when user explicitly clicks "Run AI Succession Analysis" in Step 2
+  const runAiAnalysis = async () => {
+    if (!targetEmpId || analyzing) return
+    setAnalyzing(true)
+    setFetchError('')
+    try {
+      const res = await api.successionAssess(targetEmpId)
+      if (res.error) {
+        setFetchError(res.error)
+        return
+      }
+      const assessData = res.assessment || null
+      setAssessment(assessData)
+      if (assessData) {
+        const defaultTarget = value.targetPosition || assessData.recommendedPosition || (positions[0]?.title || '')
+        onChange({
+          ...value,
+          assessment: assessData,
           employeeId: targetEmpId,
           employee: currentEmployee?.full_name || '',
           targetPosition: defaultTarget,
@@ -2803,47 +2837,36 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
           readinessBand: assessData.readinessBand,
           recommendedPosition: assessData.recommendedPosition,
           recommendationReason: assessData.recommendationReason,
-          decision: value.decision || 'approve',
-          effectiveDate: value.effectiveDate || new Date().toISOString().slice(0, 10),
         })
       }
-    })
+    } catch (err) {
+      setFetchError(err.message || 'Unable to generate AI assessment.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
-    return () => { mounted = false }
-  }, [targetEmpId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const bandLabel = assessment?.readinessBand === 'ready_now'
+  // Deterministic readiness score calculated instantly with 0 delay and zero AI calls
+  const deterministicScore = currentEmployee?.readiness_score ?? Math.round(
+    (currentEmployee?.performance_score || 0) * 0.5 +
+    (currentEmployee?.competency_score || 0) * 0.3 +
+    (currentEmployee?.learning_progress || 0) * 0.2
+  )
+  const readinessScore = assessment?.readinessScore ?? deterministicScore
+  const readinessBand = assessment?.readinessBand ?? (
+    readinessScore >= 85 ? 'ready_now' : readinessScore >= 70 ? 'ready_in_1_2_years' : 'development_needed'
+  )
+  const bandLabel = readinessBand === 'ready_now'
     ? 'Ready Now (Immediate)'
-    : assessment?.readinessBand === 'ready_in_1_2_years'
+    : readinessBand === 'ready_in_1_2_years'
     ? 'Ready in 1–2 Years'
     : 'Development Needed'
 
-  const bandColor = assessment?.readinessBand === 'ready_now'
+  const bandColor = readinessBand === 'ready_now'
     ? '#10b981'
-    : assessment?.readinessBand === 'ready_in_1_2_years'
+    : readinessBand === 'ready_in_1_2_years'
     ? '#3b82f6'
     : '#f59e0b'
-
-  if (loading) {
-    return (
-      <div className="srb-loading">
-        <Sparkles size={24} className="srb-loading-icon" />
-        <p className="srb-loading-title">Retrieving authorized employee data &amp; generating AI succession assessment…</p>
-        <small className="srb-loading-sub">Evaluating performance, competencies, and available system positions</small>
-      </div>
-    )
-  }
-
-  if (fetchError) {
-    return (
-      <div className="srb-error-box">
-        <strong className="srb-error-title">
-          <AlertTriangle size={15} /> Unable to load succession assessment
-        </strong>
-        <p className="srb-error-msg">{fetchError}</p>
-      </div>
-    )
-  }
 
   return (
     <div className="builder succession-review-builder srb-root">
@@ -2867,7 +2890,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         <div className="srb-readiness-gauge-wrap">
           <div className="srb-readiness-ring" style={{ borderColor: bandColor, background: `${bandColor}18` }}>
             <span className="srb-readiness-score" style={{ color: bandColor }}>
-              {assessment?.readinessScore ?? currentEmployee?.readiness_score ?? 0}%
+              {readinessScore}%
             </span>
             <small className="srb-readiness-label" style={{ color: bandColor }}>Score</small>
           </div>
@@ -2894,14 +2917,33 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         </div>
       )}
 
-      {/* 2. AI Next Position & Critical Role Recommendation */}
-      {assessment?.sufficientData !== false && (
+      {/* 2. AI Next Position & Critical Role Recommendation / On-Demand Analyzer */}
+      {analyzing ? (
+        <div className="srb-loading">
+          <Sparkles size={24} className="srb-loading-icon" />
+          <p className="srb-loading-title">Analyzing candidate capability data &amp; generating AI succession assessment…</p>
+          <small className="srb-loading-sub">Evaluating performance, competencies, and available system positions via AI</small>
+        </div>
+      ) : assessment ? (
         <div className="srb-ai-card">
           <div className="srb-ai-card-header">
             <div className="srb-ai-card-title">
               <Sparkles size={16} /> Recommended Next Position / Critical Role
             </div>
-            <span className="srb-ai-badge">AI-Assisted &amp; Grounded</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="srb-ai-badge">AI-Assisted &amp; Grounded</span>
+              {isNominationStep && (
+                <button
+                  type="button"
+                  onClick={runAiAnalysis}
+                  disabled={analyzing || isSelf}
+                  style={{ fontSize: 11, background: 'transparent', border: '1px solid rgba(99,102,241,0.3)', color: '#6366f1', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}
+                  title="Re-run AI analysis if employee data changed"
+                >
+                  ↻ Re-analyze with AI
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="srb-position-highlight">
@@ -2957,88 +2999,246 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
             </div>
           )}
         </div>
+      ) : (
+        /* If assessment not yet generated: Show on-demand analysis action box */
+        <div className="srb-ai-card" style={{ textAlign: 'center', padding: '24px 20px', borderStyle: 'dashed' }}>
+          <div style={{ display: 'inline-flex', padding: 12, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', color: '#6366f1', marginBottom: 10 }}>
+            <Sparkles size={24} />
+          </div>
+          <div className="srb-review-heading" style={{ fontSize: 14, marginBottom: 4 }}>
+            AI Capability &amp; Role Recommendation
+          </div>
+          <p style={{ margin: '0 auto 16px', maxWidth: 460, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+            Analyze <strong>{currentEmployee?.full_name}</strong>'s performance scores, core competency levels, and learning progress against hotel critical positions using AI.
+          </p>
+          <button
+            type="button"
+            disabled={analyzing || isSelf}
+            onClick={runAiAnalysis}
+            className="srb-btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 18px',
+              borderRadius: 8,
+              fontSize: 12.5,
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#ffffff',
+              border: 0,
+              cursor: isSelf ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 10px rgba(99,102,241,0.25)',
+            }}
+          >
+            <Sparkles size={15} />
+            Run AI Succession Analysis
+          </button>
+          {fetchError && (
+            <div style={{ marginTop: 10, color: '#dc2626', fontSize: 11.5 }}>
+              ⚠ {fetchError}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* 3. Human Review & Decision Controls */}
-      <div className="srb-review-card">
-        <div className="srb-review-heading">Human Review &amp; Decision</div>
-        <small className="srb-review-sub">
-          AI recommendations are decision-support only and never automatically promote employees. Authorized management review is required.
-        </small>
-
-        {isSelf && (
-          <div className="srb-self-warning">
-            ⚠ You are viewing your own succession assessment. System policy prohibits employees from approving their own succession or modifying succession recommendations.
+      {/* Stage 2: Candidate Nomination & Proposal Form */}
+      {isNominationStep && (
+        <div className="srb-review-card srb-nomination-card">
+          <div className="srb-review-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Stage 2: Candidate Nomination &amp; Proposal</span>
+            <span style={{ fontSize: 11, background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+              Nominator Form
+            </span>
           </div>
-        )}
+          <small className="srb-review-sub">
+            Review the AI evaluation and capability profile above. Specify the proposed target position and document the business rationale for nominating this candidate into the succession pipeline.
+          </small>
 
-        <div className="srb-fields-grid">
-          <label className="srb-field-label">
-            Confirmed Target Position *
-            <select
-              value={value.targetPosition || ''}
-              onChange={e => onChange({ ...value, targetPosition: e.target.value })}
-              disabled={isSelf}
-              className="srb-select"
-            >
-              <option value="">Select target system position…</option>
-              {positions.map(p => (
-                <option key={p.id} value={p.title}>
-                  {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isSelf && (
+            <div className="srb-self-warning">
+              ⚠ You are viewing your own assessment. System policy prohibits employees from submitting or approving their own succession nominations.
+            </div>
+          )}
+
+          <div className="srb-fields-grid">
+            <label className="srb-field-label">
+              Proposed Target Position *
+              <select
+                value={value.targetPosition || ''}
+                onChange={e => onChange({ ...value, targetPosition: e.target.value })}
+                disabled={isSelf}
+                className="srb-select"
+              >
+                <option value="">Select target system position…</option>
+                {positions.map(p => (
+                  <option key={p.id} value={p.title}>
+                    {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="srb-field-label">
+              Target Readiness Timeline *
+              <select
+                value={value.timeline || 'Ready Now'}
+                onChange={e => onChange({ ...value, timeline: e.target.value })}
+                disabled={isSelf}
+                className="srb-select"
+              >
+                <option value="Ready Now">Ready Now (Immediate)</option>
+                <option value="Ready in 1–2 Years">Ready in 1–2 Years</option>
+                <option value="Development Needed">Development Needed (Long-term Track)</option>
+              </select>
+            </label>
+          </div>
 
           <label className="srb-field-label">
-            Effective Promotion Date
-            <input
-              type="date"
-              value={value.effectiveDate || new Date().toISOString().slice(0, 10)}
-              onChange={e => onChange({ ...value, effectiveDate: e.target.value })}
+            Nomination Rationale &amp; Endorsement Notes *
+            <textarea
+              value={value.note || ''}
+              onChange={e => onChange({ ...value, note: e.target.value })}
+              placeholder="Explain why this candidate is nominated for this critical role, key strengths, leadership qualifications, or business justification..."
+              rows={3}
               disabled={isSelf}
-              className="srb-input"
+              className="srb-textarea"
             />
           </label>
-        </div>
 
-        <label className="srb-field-label">
-          Review Decision *
-          <div className="srb-decision-row">
-            {[
-              { key: 'approve', label: 'Approve Succession', color: '#10b981' },
-              { key: 'return', label: 'Return for Revision', color: '#f59e0b' },
-              { key: 'reject', label: 'Reject Nomination', color: '#ef4444' },
-            ].map(d => {
-              const isActive = (value.decision || 'approve') === d.key
-              return (
-                <button
-                  key={d.key}
-                  type="button"
-                  disabled={isSelf}
-                  onClick={() => onChange({ ...value, decision: d.key })}
-                  className={`srb-decision-btn${isActive ? ' srb-decision-btn--active' : ''}`}
-                  style={isActive ? { borderColor: d.color, background: `${d.color}18`, color: d.color } : {}}
-                >
-                  {d.label}
-                </button>
-              )
-            })}
+          <div style={{ padding: '10px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, fontSize: 11.5, color: '#4338ca' }}>
+            ℹ <strong>Next Step:</strong> Completing this step records the candidate's nomination and advances to <strong>Stage 3 (Review Readiness &amp; Decision)</strong> for Authorized Management &amp; HR Review.
           </div>
-        </label>
+        </div>
+      )}
 
-        <label className="srb-field-label">
-          Review Notes &amp; Justification
-          <textarea
-            value={value.note || ''}
-            onChange={e => onChange({ ...value, note: e.target.value })}
-            placeholder="Document manager or HR review notes, readiness rationale, or return/reject feedback..."
-            rows={2}
-            disabled={isSelf}
-            className="srb-textarea"
-          />
-        </label>
-      </div>
+      {/* Stage 3: Management Review & Succession Decision Controls */}
+      {isReviewStep && (
+        <>
+          {/* Summary of Stage 2 Nomination Proposal if available */}
+          {(nominationData || value.timeline) && (
+            <div style={{ padding: '12px 16px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#4338ca', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={14} /> Stage 2 Nomination Submission
+              </div>
+              <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.5 }}>
+                Proposed Target: <strong>{nominationData?.targetPosition || value.targetPosition || 'Leadership Role'}</strong> · Proposed Timeline: <strong>{nominationData?.timeline || value.timeline || 'Ready Now'}</strong>
+              </div>
+              {(nominationData?.note || nominationEvent?.note) && (
+                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
+                  "{nominationData?.note || nominationEvent?.note}"
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="srb-review-card">
+            <div className="srb-review-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Stage 3: Management Review &amp; Succession Decision</span>
+              <span style={{ fontSize: 11, background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                HR &amp; Management Authority
+              </span>
+            </div>
+            <small className="srb-review-sub">
+              AI recommendations are decision-support only and never automatically promote employees. Authorized management review and decision are required.
+            </small>
+
+            {isSelf && (
+              <div className="srb-self-warning">
+                ⚠ You are viewing your own succession assessment. System policy prohibits employees from approving their own succession or modifying succession recommendations.
+              </div>
+            )}
+
+            <div className="srb-fields-grid">
+              <label className="srb-field-label">
+                Confirmed Target Position *
+                <select
+                  value={value.targetPosition || ''}
+                  onChange={e => onChange({ ...value, targetPosition: e.target.value })}
+                  disabled={isSelf}
+                  className="srb-select"
+                >
+                  <option value="">Select target system position…</option>
+                  {positions.map(p => (
+                    <option key={p.id} value={p.title}>
+                      {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="srb-field-label">
+                Effective Promotion Date *
+                <input
+                  type="date"
+                  value={value.effectiveDate || new Date().toISOString().slice(0, 10)}
+                  onChange={e => onChange({ ...value, effectiveDate: e.target.value })}
+                  disabled={isSelf}
+                  className="srb-input"
+                />
+              </label>
+            </div>
+
+            <label className="srb-field-label">
+              Review Decision *
+              <div className="srb-decision-row">
+                {[
+                  { key: 'approve', label: 'Approve Succession', color: '#10b981' },
+                  { key: 'return', label: 'Return for Revision', color: '#f59e0b' },
+                  { key: 'reject', label: 'Reject Nomination', color: '#ef4444' },
+                ].map(d => {
+                  const isActive = (value.decision || 'approve') === d.key
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      disabled={isSelf}
+                      onClick={() => onChange({ ...value, decision: d.key })}
+                      className={`srb-decision-btn srb-decision-btn--${d.key}${isActive ? ' srb-decision-btn--active' : ''}`}
+                      aria-pressed={isActive}
+                    >
+                      <span className="srb-decision-indicator">
+                        {isActive ? <Check size={13} strokeWidth={3} /> : <span className="srb-decision-dot" />}
+                      </span>
+                      <span>{d.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </label>
+
+            <label className="srb-field-label">
+              Review Notes &amp; Justification
+              <textarea
+                value={value.note || ''}
+                onChange={e => onChange({ ...value, note: e.target.value })}
+                placeholder="Document manager or HR review notes, readiness rationale, or return/reject feedback..."
+                rows={2}
+                disabled={isSelf}
+                className="srb-textarea"
+              />
+            </label>
+          </div>
+        </>
+      )}
+
+      {/* Stage 4: Approval Summary & Position Update Execution */}
+      {isApprovalStep && (
+        <div className="srb-review-card">
+          <div className="srb-review-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Stage 4: Succession Approval &amp; Position Update</span>
+            <span style={{ fontSize: 11, background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+              Ready for Execution
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, color: '#475569' }}>
+            Candidate <strong>{currentEmployee?.full_name}</strong> is authorized for promotion to <strong>{value.targetPosition || assessment?.recommendedPosition}</strong>, effective <strong>{value.effectiveDate || new Date().toISOString().slice(0, 10)}</strong>.
+          </p>
+          <div style={{ padding: '12px 14px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, fontSize: 12, color: '#065f46' }}>
+            ✓ <strong>13-Step Atomic Side Effects:</strong> Advancing this step updates the employee position, archives previous position history, records the succession decision, updates executive analytics, and sends notifications.
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -3061,7 +3261,7 @@ const BUILDERS = {
   talentPool: { Component: TalentPoolBuilder, initial: () => [] },
   nominations: { Component: NominationsBuilder, initial: () => [] },
   successionReview: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
-  successionAssessment: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
+  successionAssessment: { Component: SuccessionReviewBuilder, initial: () => ({ targetPosition: '', timeline: 'Ready Now', note: '', decision: 'nominate' }) },
   successionApproval: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
 }
 
@@ -3149,7 +3349,7 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
         </div>
       )}
       {builder ? (
-        <builder.Component value={value} onChange={onChange} role={role} people={people || []} events={events} subject={subject} workflow={workflow} />
+        <builder.Component value={value} onChange={onChange} role={role} people={people || []} events={events} subject={subject} workflow={workflow} formConfig={formConfig} />
       ) : (
         visibleFields.map(field => (
           <div className="form-field-wrap" key={field.name}>

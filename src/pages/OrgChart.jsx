@@ -283,26 +283,28 @@ export default function OrgChart() {
     setIsPanning(false)
   }
 
-  // Fetch Tree on mount
+  // Fetch Tree on mount + auto-refresh every 30 s so succession approvals are reflected live
+  const loadTree = async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const res = await api.orgTree()
+      setTree(res.tree || [])
+      setNodes(res.nodes || [])
+      setDepartments(res.departments || [])
+      setSummary(res.summary || null)
+    } catch {
+      // Handle error gracefully
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let alive = true
-    async function loadTree() {
-      setLoading(true)
-      try {
-        const res = await api.orgTree()
-        if (!alive) return
-        setTree(res.tree || [])
-        setNodes(res.nodes || [])
-        setDepartments(res.departments || [])
-        setSummary(res.summary || null)
-      } catch {
-        // Handle error gracefully
-      } finally {
-        if (alive) setLoading(false)
-      }
-    }
     loadTree()
-    return () => { alive = false }
+    // Silent background refresh every 30 s — picks up succession position updates
+    const interval = setInterval(() => { if (alive) loadTree(true) }, 30000)
+    return () => { alive = false; clearInterval(interval) }
   }, [])
 
   const toggleCollapse = (nodeId) => {
@@ -389,6 +391,15 @@ export default function OrgChart() {
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            className="org-btn-tool"
+            onClick={() => loadTree(false)}
+            title="Refresh org chart — picks up any new succession promotions"
+          >
+            <RotateCcw size={14} color="#513AB3" />
+            <span>Refresh Chart</span>
+          </button>
           <Link to="/succession" className="org-btn-tool" style={{ textDecoration: 'none' }}>
             <Crown size={14} color="#513AB3" />
             <span>Succession Planning</span>

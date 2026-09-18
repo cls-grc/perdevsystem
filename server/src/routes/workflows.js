@@ -460,7 +460,11 @@ router.post('/:id/advance', async (req, res, next) => {
           return { completed: true, stage: workflow.current_stage, workflow: completedWorkflow.rows[0], employee: writeBack.employee, scoreWriteBack: writeBack.scoreWriteBack, gapAssignments, metricsReady: false }
         }
       }
-      const update = await client.query('UPDATE workflows SET current_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [destination.key, workflow.id])
+      const metaPatch = input.data ? JSON.stringify(input.data.assessment ? { assessment: input.data.assessment, nomination: input.data } : { lastStepData: input.data }) : '{}'
+      const update = await client.query(
+        'UPDATE workflows SET current_stage=$1, updated_at=NOW(), metadata = COALESCE(metadata, \'{}\'::jsonb) || $3::jsonb WHERE id=$2 RETURNING *',
+        [destination.key, workflow.id, metaPatch]
+      )
       // Store the event under workflow.current_stage (the stage being completed/submitted)
       // so that CalibrationBuilder can find self_assessment data by searching stage='self_assessment'
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'advanced', req.user.sub, input.note || null, input.data])

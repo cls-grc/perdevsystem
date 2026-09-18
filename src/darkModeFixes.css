@@ -1296,24 +1296,88 @@
 }
 .srb-decision-row {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 6px;
 }
 .srb-decision-btn {
   flex: 1;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
-  border: 1px solid #cbd5e1;
+  border: 1.5px solid #cbd5e1;
   background: #ffffff;
   color: #64748b;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  position: relative;
+  user-select: none;
 }
 .srb-decision-btn:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #94a3b8;
+  color: #334155;
+  transform: translateY(-1px);
+}
+.srb-decision-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.srb-decision-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  display: block;
+}
+
+/* Light mode active states */
+.srb-decision-btn--active.srb-decision-btn--approve {
+  border-color: #10b981 !important;
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+}
+.srb-decision-btn--active.srb-decision-btn--approve .srb-decision-indicator {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.srb-decision-btn--active.srb-decision-btn--return {
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+  color: #92400e !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25), 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+}
+.srb-decision-btn--active.srb-decision-btn--return .srb-decision-indicator {
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #ffffff !important;
+}
+
+.srb-decision-btn--active.srb-decision-btn--reject {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25), 0 2px 8px rgba(239, 68, 68, 0.15) !important;
+}
+.srb-decision-btn--active.srb-decision-btn--reject .srb-decision-indicator {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
 }
 
 /* ===========================================================================
@@ -1453,15 +1517,56 @@
 .dark .srb-textarea::placeholder {
   color: #6d6980 !important;
 }
+/* Dark: inactive base state */
 .dark .srb-decision-btn {
-  background: #262436 !important;
-  border-color: #3e3a54 !important;
-  color: #94a3b8 !important;
+  background: #1e1d2a !important;
+  border-color: #3b3852 !important;
+  color: #71717a !important;
+  box-shadow: none !important;
 }
 .dark .srb-decision-btn:hover:not(:disabled) {
-  background: #322f46 !important;
-  border-color: #555073 !important;
-  color: #f0edfc !important;
+  background: #2d2b40 !important;
+  border-color: #605c80 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Dark: Approve active state */
+.dark .srb-decision-btn--active.srb-decision-btn--approve {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: #10b981 !important;
+  color: #6ee7b7 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), 0 2px 12px rgba(16, 185, 129, 0.25) !important;
+}
+.dark .srb-decision-btn--active.srb-decision-btn--approve .srb-decision-indicator {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+/* Dark: Return active state */
+.dark .srb-decision-btn--active.srb-decision-btn--return {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border-color: #f59e0b !important;
+  color: #fcd34d !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2), 0 2px 12px rgba(245, 158, 11, 0.25) !important;
+}
+.dark .srb-decision-btn--active.srb-decision-btn--return .srb-decision-indicator {
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #ffffff !important;
+}
+
+/* Dark: Reject active state */
+.dark .srb-decision-btn--active.srb-decision-btn--reject {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2), 0 2px 12px rgba(239, 68, 68, 0.25) !important;
+}
+.dark .srb-decision-btn--active.srb-decision-btn--reject .srb-decision-indicator {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
 }
 .dark .srb-loading-title {
   color: #e2e8f0 !important;

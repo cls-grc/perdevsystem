@@ -742,19 +742,19 @@ const succession = {
       ],
     },
     nominate: {
-      title: 'Candidate Assessment & AI Recommendation',
-      description: 'Review authorized employee profile, readiness scoring, and AI next position recommendation.',
-      builder: 'successionReview',
+      title: 'Candidate Nomination & AI Assessment',
+      description: 'Review authorized employee profile, readiness scoring, and submit candidate nomination proposal.',
+      builder: 'successionAssessment',
     },
     review_readiness: {
-      title: 'Review Readiness & Recommendations',
-      description: 'Human review of capability matches, skill gaps, and target position recommendation.',
+      title: 'Management Review & Succession Decision',
+      description: 'Authorized HR/Manager review of capability matches, nomination rationale, and formal decision.',
       builder: 'successionReview',
     },
     approved: {
-      title: 'Succession Approval & Position Update',
-      description: 'Authorize promotion, update employee position, and preserve position history.',
-      builder: 'successionReview',
+      title: 'Succession Approval & Position Update Execution',
+      description: 'Authorize promotion, execute position update, and preserve position history.',
+      builder: 'successionApproval',
     },
   },
   quickActions: [
