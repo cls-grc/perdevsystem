@@ -473,4 +473,130 @@ export async function generateInsights(context) {
   }
 }
 
+/**
+ * Generate AI-assisted Succession Planning Assessment and Critical Role Recommendation.
+ * Compares current employee profile with actual system target positions.
+ * AI is strictly restricted to recommending from the provided list of system positions.
+ */
+export async function generateAiSuccessionRecommendation({
+  employee,
+  readinessScore,
+  readinessBand,
+  performanceHistory = [],
+  competencyAssessments = [],
+  competencyGaps = [],
+  completedLearning = [],
+  trainingHistory = [],
+  targetPositions = [],
+}) {
+  if (!config.openRouterApiKey) {
+    throw new Error('OpenRouter API key is not configured; using deterministic fallback.')
+  }
+
+  const validTitles = targetPositions.map(p => p.title)
+  if (!validTitles.length) {
+    throw new Error('No target positions provided for succession comparison.')
+  }
+
+  const positionsSummary = targetPositions.map(p => {
+    const reqs = (p.required_competencies || []).map(c => `${c.competency} (Req: ${c.requiredScore}%)`).join(', ')
+    const learn = (p.required_learning || []).join(', ')
+    return `- Title: "${p.title}" | Dept: ${p.department} | Critical Role: ${p.is_critical ? 'YES' : 'NO'} | Required Competencies: [${reqs}] | Required Learning: [${learn}]`
+  }).join('\n')
+
+  const employeeComps = competencyAssessments.map(c => `- ${c.competency}: Current Score ${c.score}% (Benchmark: ${c.required_score}%)`).join('\n')
+  const learningSummary = completedLearning.map(l => `- ${l.title} (${l.category || 'General'})`).join('\n')
+  const trainingSummary = trainingHistory.map(t => `- ${t.title} (${t.attendance || 'Attended'})`).join('\n')
+
+  const systemPrompt = `You are an executive Hospitality HR Succession Planning Specialist for a luxury hotel and resort group.
+Your duty is to analyze employee capability evidence and recommend a NEXT POSITION or CRITICAL ROLE from actual authorized target roles.
+
+CRITICAL RULES:
+1. You must NEVER invent arbitrary position titles. You must ONLY choose from the provided list of Target Positions.
+2. The system has calculated the official readiness score (${readinessScore}%, ${readinessBand}). Do NOT replace or contradict this score.
+3. Compare the employee's current profile against the target position requirements to provide explainable matching and missing competencies.
+4. Return ONLY valid JSON with no markdown wrapping or extra prose.`
+
+  const userPrompt = `Evaluate this employee for succession and recommend the best next position:
+
+EMPLOYEE PROFILE:
+- Name: ${employee.fullName} (ID: ${employee.employeeNumber})
+- Current Position: ${employee.jobTitle}
+- Department: ${employee.department}
+- Official Readiness Score: ${readinessScore}% (${readinessBand})
+- Performance Score: ${employee.performanceScore}%
+- Competency Score: ${employee.competencyScore}%
+- Learning Progress: ${employee.learningProgress}%
+
+COMPETENCY ASSESSMENTS:
+${employeeComps || 'No individual competencies recorded.'}
+
+COMPLETED LEARNING MODULES:
+${learningSummary || 'No completed learning modules recorded.'}
+
+TRAINING PARTICIPATION:
+${trainingSummary || 'No formal training participation recorded.'}
+
+AVAILABLE TARGET SYSTEM POSITIONS (Choose strictly from this list):
+${positionsSummary}
+
+Return a JSON object with this exact structure:
+{
+  "readinessAssessment": "A 2-3 sentence executive assessment of the employee's succession readiness.",
+  "strengths": [
+    "Key strength 1 with data point",
+    "Key strength 2 with data point"
+  ],
+  "developmentGaps": [
+    "Key competency or capability gap to address"
+  ],
+  "recommendedPosition": "Exact title chosen from the provided target positions",
+  "recommendationReason": "Clear explainable reason why this specific position fits the candidate",
+  "matchingCompetencies": [
+    "Competency where employee meets or exceeds requirement"
+  ],
+  "missingCompetencies": [
+    "Competency where employee trails the target role requirement"
+  ],
+  "developmentRecommendations": [
+    "Actionable development recommendation 1",
+    "Actionable development recommendation 2"
+  ]
+}`
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.openRouterApiKey}`,
+      'HTTP-Referer': config.clientOrigin,
+      'X-Title': 'PerDevSys',
+    },
+    body: JSON.stringify({
+      model: config.openRouterModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 1500,
+    }),
+  })
+
+  if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`)
+  const data = await response.json()
+  const raw = data?.choices?.[0]?.message?.content || ''
+  const cleanJson = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
+  const parsed = JSON.parse(cleanJson)
+
+  // Strict validation: recommendedPosition must be in validTitles
+  if (parsed.recommendedPosition && !validTitles.some(t => t.toLowerCase() === parsed.recommendedPosition.toLowerCase())) {
+    console.warn(`[openrouter] AI suggested "${parsed.recommendedPosition}" which is not in target positions list.`)
+    parsed.recommendedPosition = null
+  }
+
+  return parsed
+}
+
+
 

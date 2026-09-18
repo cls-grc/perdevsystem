@@ -2733,6 +2733,359 @@ function NominationsBuilder({ value = [], onChange, people = [] }) {
   )
 }
 
+// ------------------------- Builder: Succession Review -----------------------
+
+function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, workflow, role }) {
+  const [loading, setLoading] = useState(false)
+  const [assessment, setAssessment] = useState(null)
+  const [positions, setPositions] = useState([])
+  const [fetchError, setFetchError] = useState('')
+
+  // Determine current subject employee
+  const currentEmployee = useMemo(() => {
+    if (subject?.id) return subject
+    if (workflow?.subject_employee_id) {
+      const found = people.find(p => p.id === workflow.subject_employee_id)
+      if (found) return found
+    }
+    if (value.employee) {
+      const found = people.find(p => p.full_name === value.employee || p.id === value.employeeId)
+      if (found) return found
+    }
+    return people[0] || null
+  }, [subject, workflow, value.employee, value.employeeId, people])
+
+  const targetEmpId = currentEmployee?.id || workflow?.subject_employee_id
+
+  // Check if current user is the subject employee
+  const currentUserId = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('pds-user') || '{}').employeeId
+    } catch {
+      return null
+    }
+  })()
+  const isSelf = Boolean(currentUserId && targetEmpId && currentUserId === targetEmpId)
+
+  // Fetch authorized data and assessment
+  useEffect(() => {
+    let mounted = true
+    if (!targetEmpId) return
+
+    setLoading(true)
+    setFetchError('')
+
+    Promise.all([
+      api.successionAssess(targetEmpId).catch(err => ({ error: err.message })),
+      api.successionPositions().catch(() => ({ positions: [] })),
+    ]).then(([assessRes, posRes]) => {
+      if (!mounted) return
+      setLoading(false)
+
+      if (assessRes.error) {
+        setFetchError(assessRes.error)
+        return
+      }
+
+      const assessData = assessRes.assessment || null
+      setAssessment(assessData)
+      setPositions(posRes.positions || [])
+
+      // Seed initial form values if not already user-set
+      if (assessData) {
+        const defaultTarget = value.targetPosition || assessData.recommendedPosition || (posRes.positions?.[0]?.title || '')
+        onChange({
+          ...value,
+          employeeId: targetEmpId,
+          employee: currentEmployee?.full_name || '',
+          targetPosition: defaultTarget,
+          readinessScore: assessData.readinessScore,
+          readinessBand: assessData.readinessBand,
+          recommendedPosition: assessData.recommendedPosition,
+          recommendationReason: assessData.recommendationReason,
+          decision: value.decision || 'approve',
+          effectiveDate: value.effectiveDate || new Date().toISOString().slice(0, 10),
+        })
+      }
+    })
+
+    return () => { mounted = false }
+  }, [targetEmpId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bandLabel = assessment?.readinessBand === 'ready_now'
+    ? 'Ready Now (Immediate)'
+    : assessment?.readinessBand === 'ready_in_1_2_years'
+    ? 'Ready in 1–2 Years'
+    : 'Development Needed'
+
+  const bandColor = assessment?.readinessBand === 'ready_now'
+    ? '#10b981'
+    : assessment?.readinessBand === 'ready_in_1_2_years'
+    ? '#3b82f6'
+    : '#f59e0b'
+
+  if (loading) {
+    return (
+      <div style={{ padding: '32px 20px', textAlign: 'center', color: '#64748b' }}>
+        <Sparkles size={24} style={{ animation: 'spin 2s linear infinite', color: '#6366f1', marginBottom: 8 }} />
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Retrieving authorized employee data & generating AI succession assessment…</p>
+        <small style={{ color: '#94a3b8' }}>Evaluating performance, competencies, and available system positions</small>
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div style={{ padding: '20px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, margin: '12px 0' }}>
+        <strong style={{ color: '#dc2626', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertTriangle size={15} /> Unable to load succession assessment
+        </strong>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: '#64748b' }}>{fetchError}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="builder succession-review-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* 1. Candidate Overview & Deterministic Readiness */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.05) 0%, rgba(139,92,246,0.05) 100%)',
+        border: '1px solid rgba(99,102,241,0.18)',
+        borderRadius: 14,
+        padding: '18px 20px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 16,
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>
+              {currentEmployee?.full_name || 'Selected Candidate'}
+            </span>
+            <span style={{ fontSize: 11, background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
+              {currentEmployee?.employee_number || 'ID'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12.5, color: '#64748b' }}>
+            Current Position: <strong style={{ color: '#334155' }}>{currentEmployee?.job_title || 'Staff'}</strong> · Department: <strong style={{ color: '#334155' }}>{currentEmployee?.department || 'Department'}</strong>
+          </div>
+        </div>
+
+        {/* Deterministic Readiness Gauge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 58, height: 58, borderRadius: '50%',
+            background: `${bandColor}15`, border: `2.5px solid ${bandColor}`,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 16, fontWeight: 900, color: bandColor, lineHeight: 1 }}>
+              {assessment?.readinessScore ?? currentEmployee?.readiness_score ?? 0}%
+            </span>
+            <small style={{ fontSize: 8.5, fontWeight: 700, color: bandColor, textTransform: 'uppercase', marginTop: 1 }}>Score</small>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Official Readiness</div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: bandColor }}>{bandLabel}</div>
+            <div style={{ fontSize: 10.5, color: '#94a3b8' }}>Formula: 50% Perf + 30% Comp + 20% Learn</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Insufficient Data Warning if applicable */}
+      {assessment?.sufficientData === false && (
+        <div style={{
+          padding: '14px 16px', background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10,
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#b45309', fontWeight: 700, fontSize: 12.5 }}>
+            <AlertTriangle size={15} /> Insufficient Data Notice
+          </div>
+          <p style={{ margin: 0, fontSize: 12, color: '#78350f' }}>{assessment.message}</p>
+          {assessment.missingInformation && assessment.missingInformation.length > 0 && (
+            <div style={{ fontSize: 11.5, color: '#92400e', marginTop: 2 }}>
+              Missing evidence: <strong>{assessment.missingInformation.join(', ')}</strong>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2. AI Next Position & Critical Role Recommendation */}
+      {assessment?.sufficientData !== false && (
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 14,
+          padding: '18px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800, color: '#4338ca' }}>
+              <Sparkles size={16} /> Recommended Next Position / Critical Role
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6366f1', background: '#eef2ff', padding: '3px 8px', borderRadius: 6 }}>
+              AI-Assisted & Grounded
+            </span>
+          </div>
+
+          <div style={{
+            padding: '12px 14px', background: 'rgba(99,102,241,0.04)',
+            borderLeft: '4px solid #6366f1', borderRadius: '0 8px 8px 0',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1e293b' }}>
+              {assessment?.recommendedPosition || 'Senior Role'}
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#475569', lineHeight: 1.45 }}>
+              {assessment?.recommendationReason}
+            </p>
+          </div>
+
+          {/* AI Readiness Assessment Overview */}
+          {assessment?.readinessAssessment && (
+            <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: 8 }}>
+              <strong style={{ color: '#1e293b' }}>Assessment Summary: </strong>
+              {assessment.readinessAssessment}
+            </div>
+          )}
+
+          {/* Competency Matches vs Gaps Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <Check size={13} /> Matching Competencies
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 14, fontSize: 11, color: '#065f46', lineHeight: 1.5 }}>
+                {(assessment?.matchingCompetencies || []).length > 0
+                  ? assessment.matchingCompetencies.map((m, i) => <li key={i}>{m}</li>)
+                  : <li>Baseline core service standards met.</li>}
+              </ul>
+            </div>
+
+            <div style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <AlertTriangle size={13} /> Competency Gaps
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 14, fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
+                {(assessment?.missingCompetencies || []).length > 0
+                  ? assessment.missingCompetencies.map((m, i) => <li key={i}>{m}</li>)
+                  : <li>No major critical skill gaps detected.</li>}
+              </ul>
+            </div>
+          </div>
+
+          {/* Recommended Development Actions */}
+          {assessment?.developmentRecommendations && assessment.developmentRecommendations.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Recommended Development Actions:</div>
+              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11.5, color: '#475569', lineHeight: 1.5 }}>
+                {assessment.developmentRecommendations.map((action, i) => (
+                  <li key={i}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Human Review & Decision Controls */}
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 14,
+        padding: '18px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+          Human Review & Decision
+        </div>
+        <small style={{ color: '#64748b', fontSize: 11 }}>
+          AI recommendations are decision-support only and never automatically promote employees. Authorized management review is required.
+        </small>
+
+        {isSelf && (
+          <div style={{ padding: '10px 12px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#dc2626', fontSize: 11.5, fontWeight: 600 }}>
+            ⚠ You are viewing your own succession assessment. System policy prohibits employees from approving their own succession or modifying succession recommendations.
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#334155' }}>
+            Confirmed Target Position *
+            <select
+              value={value.targetPosition || ''}
+              onChange={e => onChange({ ...value, targetPosition: e.target.value })}
+              disabled={isSelf}
+              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5 }}
+            >
+              <option value="">Select target system position…</option>
+              {positions.map(p => (
+                <option key={p.id} value={p.title}>
+                  {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#334155' }}>
+            Effective Promotion Date
+            <input
+              type="date"
+              value={value.effectiveDate || new Date().toISOString().slice(0, 10)}
+              onChange={e => onChange({ ...value, effectiveDate: e.target.value })}
+              disabled={isSelf}
+              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5 }}
+            />
+          </label>
+        </div>
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#334155' }}>
+          Review Decision *
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            {[
+              { key: 'approve', label: 'Approve Succession', color: '#10b981' },
+              { key: 'return', label: 'Return for Revision', color: '#f59e0b' },
+              { key: 'reject', label: 'Reject Nomination', color: '#ef4444' },
+            ].map(d => (
+              <button
+                key={d.key}
+                type="button"
+                disabled={isSelf}
+                onClick={() => onChange({ ...value, decision: d.key })}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isSelf ? 'not-allowed' : 'pointer',
+                  border: (value.decision || 'approve') === d.key ? `2px solid ${d.color}` : '1px solid #cbd5e1',
+                  background: (value.decision || 'approve') === d.key ? `${d.color}15` : '#ffffff',
+                  color: (value.decision || 'approve') === d.key ? d.color : '#64748b',
+                }}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#334155' }}>
+          Review Notes & Justification
+          <textarea
+            value={value.note || ''}
+            onChange={e => onChange({ ...value, note: e.target.value })}
+            placeholder="Document manager or HR review notes, readiness rationale, or return/reject feedback..."
+            rows={2}
+            disabled={isSelf}
+            style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 // ------------------------------- Form shell --------------------------------
 
 const BUILDERS = {
@@ -2750,6 +3103,9 @@ const BUILDERS = {
   attendance: { Component: AttendanceBuilder, initial: () => [] },
   talentPool: { Component: TalentPoolBuilder, initial: () => [] },
   nominations: { Component: NominationsBuilder, initial: () => [] },
+  successionReview: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
+  successionAssessment: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
+  successionApproval: { Component: SuccessionReviewBuilder, initial: () => ({ decision: 'approve', targetPosition: '', note: '' }) },
 }
 
 // Returns a fresh initial value for a step's form/builder so the workflow UI

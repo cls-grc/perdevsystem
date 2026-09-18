@@ -27,10 +27,10 @@ export const WORKFLOWS = {
     ['published', 'Publish analytics', ['hr']],
   ],
   succession: [
-    ['initiate', 'Initiate planning cycle', ['hr']],
-    ['nominate', 'Nominate candidates', ['supervisor']],
-    ['review_readiness', 'Review readiness assessments', ['hr']],
-    ['approved', 'Management approval', ['management']],
+    ['initiate', 'Initiate succession assessment', ['hr', 'supervisor', 'operations_manager']],
+    ['nominate', 'Candidate nomination & AI assessment', ['hr', 'supervisor', 'operations_manager']],
+    ['review_readiness', 'Review readiness & AI recommendations', ['hr', 'supervisor', 'management', 'operations_manager']],
+    ['approved', 'Management & HR approval', ['hr', 'management', 'supervisor', 'operations_manager']],
   ],
   recognition: [
     ['submitted', 'Submit nomination', ['employee', 'hr', 'supervisor']],

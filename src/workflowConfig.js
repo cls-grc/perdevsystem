@@ -734,36 +734,32 @@ const succession = {
   },
   stepForms: {
     initiate: {
-      title: 'Create succession cycle',
-      description: 'Set the planning cycle scope and critical roles.',
+      title: 'Select Candidate & Initiate Assessment',
+      description: 'Select an authorized employee to initiate their succession assessment cycle.',
       fields: [
-        { name: 'cycleTitle', label: 'Cycle title', type: 'text', required: true },
-        { name: 'scope', label: 'Scope', type: 'select', required: true, options: ['Department', 'Division', 'Organization'] },
-        { name: 'criticalRoles', label: 'Critical roles', type: 'text', required: true, hint: 'Comma-separated role titles' },
+        { name: 'employee', label: 'Candidate', type: 'employee', required: true },
+        { name: 'notes', label: 'Cycle notes', type: 'textarea', placeholder: 'Key objectives or business context for this succession cycle...' },
       ],
-    },
-    review_readiness: {
-      title: 'Select critical position',
-      description: 'Review the talent pool for the selected critical position.',
-      builder: 'talentPool',
     },
     nominate: {
-      title: 'Nominate candidates',
-      description: 'Nominate candidates from your department for succession.',
-      builder: 'nominations',
+      title: 'Candidate Assessment & AI Recommendation',
+      description: 'Review authorized employee profile, readiness scoring, and AI next position recommendation.',
+      builder: 'successionReview',
+    },
+    review_readiness: {
+      title: 'Review Readiness & Recommendations',
+      description: 'Human review of capability matches, skill gaps, and target position recommendation.',
+      builder: 'successionReview',
     },
     approved: {
-      title: 'Generate AI readiness analysis',
-      description: 'After HR review, generate the AI readiness report and management approval.',
-      aiOnly: true,
-      fields: [
-        { name: 'approvalDecision', label: 'Decision', type: 'select', required: true, options: ['Approve', 'Return for revision'] },
-      ],
+      title: 'Succession Approval & Position Update',
+      description: 'Authorize promotion, update employee position, and preserve position history.',
+      builder: 'successionReview',
     },
   },
   quickActions: [
-    { label: 'Start succession cycle', stage: 'initiate', roles: ['hr'] },
-    { label: 'Nominate candidate', stage: 'nominate', roles: ['supervisor'] },
+    { label: 'Start succession assessment', stage: 'initiate', roles: ['hr', 'supervisor', 'operations_manager'] },
+    { label: 'Review succession candidates', stage: 'review_readiness', roles: ['hr', 'supervisor', 'management', 'operations_manager'] },
   ],
 }
 

@@ -7,6 +7,7 @@ import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 import { getScopeFilter, verifyEmployeeAccess, verifyWorkflowAccess } from '../services/departmentScope.js'
 import { applyWorkflowScoreWriteBack, autoAssignGapLearning } from '../services/workflowCompletion.js'
+import { approveSuccessionTransaction } from '../services/successionService.js'
 
 const router = Router()
 const createSchema = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), subjectEmployeeId: z.string().uuid().nullable().optional(), title: z.string().min(3).max(140), dueDate: z.string().datetime().nullable().optional(), metadata: z.record(z.unknown()).default({}) })
@@ -395,6 +396,34 @@ router.post('/:id/advance', async (req, res, next) => {
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
       const destination = nextStage(workflow.module, workflow.current_stage, req.user.role, workflow.subject_employee_id, req.user.employeeId)
       if (!destination) {
+        if (workflow.module === 'succession') {
+          const form = (input.data?.formData && typeof input.data.formData === 'object') ? input.data.formData : input.data || {}
+          const targetPos = input.data?.targetPosition || form.targetPosition || form.recommendedPosition || form.targetRole || workflow.metadata?.recommendedPosition || workflow.metadata?.targetRole || form.selectedPosition
+          if (!targetPos) {
+            throw Object.assign(new Error('A valid target position must be specified to approve succession.'), { status: 400 })
+          }
+          const successionResult = await approveSuccessionTransaction(client, {
+            workflowId: workflow.id,
+            employeeId: workflow.subject_employee_id,
+            targetPosition: targetPos,
+            actorUser: req.user,
+            note: input.note || form.notes || 'Approved Succession',
+            effectiveDate: input.data?.effectiveDate || form.effectiveDate,
+          })
+
+          const completedWf = await client.query('SELECT * FROM workflows WHERE id = $1', [workflow.id])
+          return {
+            completed: true,
+            stage: workflow.current_stage,
+            workflow: completedWf.rows[0],
+            employee: successionResult.employee,
+            positionHistory: successionResult.positionHistory,
+            successionRecord: successionResult.successionRecord,
+            successionApproved: true,
+            metricsReady: true,
+          }
+        }
+
         const eventResult = await client.query('SELECT * FROM workflow_events WHERE workflow_id=$1 ORDER BY created_at ASC', [workflow.id])
         const writeBack = await applyWorkflowScoreWriteBack(client, workflow, eventResult.rows, input.data, input.scores, req.user.sub)
         const completionDetails = {
