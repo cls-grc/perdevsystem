@@ -948,4 +948,527 @@
   color: #c4b5fd !important;
 }
 
+/* ===========================================================================
+   SUCCESSION REVIEW BUILDER - LIGHT & DARK MODE PARITY
+   =========================================================================== */
+
+/* Base Layout & Containers */
+.srb-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.srb-loading {
+  padding: 36px 20px;
+  text-align: center;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.srb-loading-icon {
+  animation: spin 2s linear infinite;
+  color: #6366f1;
+}
+.srb-loading-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+}
+.srb-loading-sub {
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
+.srb-error-box {
+  padding: 18px 20px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.srb-error-title {
+  color: #dc2626;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.srb-error-msg {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* 1. Candidate Overview Card */
+.srb-candidate-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.srb-candidate-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.srb-candidate-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+.srb-candidate-badge {
+  font-size: 11px;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.srb-candidate-meta {
+  font-size: 12.5px;
+  color: #64748b;
+}
+.srb-candidate-meta strong {
+  color: #334155;
+}
+
+/* Readiness Gauge */
+.srb-readiness-gauge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.srb-readiness-ring {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.srb-readiness-score {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+.srb-readiness-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+.srb-readiness-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+.srb-readiness-band {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.srb-readiness-formula {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* Insufficient data */
+.srb-insufficient-box {
+  padding: 14px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.srb-insufficient-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b45309;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.srb-insufficient-msg {
+  margin: 0;
+  font-size: 12px;
+  color: #78350f;
+}
+.srb-insufficient-detail {
+  font-size: 11.5px;
+  color: #92400e;
+  margin-top: 2px;
+}
+
+/* 2. AI Next Position / Critical Role Card */
+.srb-ai-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.srb-ai-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.srb-ai-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #4338ca;
+}
+.srb-ai-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.srb-position-highlight {
+  padding: 12px 14px;
+  background: rgba(99, 102, 241, 0.04);
+  border-left: 4px solid #6366f1;
+  border-radius: 0 8px 8px 0;
+}
+.srb-position-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e293b;
+}
+.srb-position-reason {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}
+.srb-summary-box {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+.srb-summary-label {
+  color: #1e293b;
+  font-weight: 700;
+}
+.srb-comp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.srb-comp-matching {
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.srb-comp-gaps {
+  background: rgba(245, 158, 11, 0.04);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.srb-comp-heading {
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.srb-comp-heading--green { color: #059669; }
+.srb-comp-heading--amber { color: #d97706; }
+.srb-comp-list {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.srb-comp-list--green { color: #065f46; }
+.srb-comp-list--amber { color: #92400e; }
+
+.srb-dev-actions {
+  margin-top: 2px;
+}
+.srb-dev-actions-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 4px;
+}
+.srb-dev-actions-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+/* 3. Human Review & Decision Card */
+.srb-review-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.srb-review-heading {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.srb-review-sub {
+  color: #64748b;
+  font-size: 11px;
+}
+.srb-self-warning {
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.srb-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.srb-field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.srb-select,
+.srb-input,
+.srb-textarea {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 12.5px;
+  background: #ffffff;
+  color: #1e293b;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.srb-select:focus,
+.srb-input:focus,
+.srb-textarea:focus {
+  border-color: #8b5cf6;
+  outline: none;
+}
+.srb-decision-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.srb-decision-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+.srb-decision-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+/* ===========================================================================
+   DARK MODE OVERRIDES (.dark prefix)
+   =========================================================================== */
+.dark .srb-candidate-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+.dark .srb-candidate-name {
+  color: #f0edfc !important;
+}
+.dark .srb-candidate-badge {
+  background: #352b57 !important;
+  color: #c4b5fd !important;
+}
+.dark .srb-candidate-meta {
+  color: #a4a0b2 !important;
+}
+.dark .srb-candidate-meta strong {
+  color: #e2e8f0 !important;
+}
+.dark .srb-readiness-eyebrow {
+  color: #94a3b8 !important;
+}
+.dark .srb-readiness-formula {
+  color: #71717a !important;
+}
+
+.dark .srb-insufficient-box {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+.dark .srb-insufficient-title {
+  color: #fbbf24 !important;
+}
+.dark .srb-insufficient-msg {
+  color: #fef3c7 !important;
+}
+.dark .srb-insufficient-detail {
+  color: #fde68a !important;
+}
+
+.dark .srb-ai-card {
+  background: #1e1e2a !important;
+  border-color: #333348 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .srb-ai-card-title {
+  color: #a5b4fc !important;
+}
+.dark .srb-ai-badge {
+  background: #352b57 !important;
+  color: #c4b5fd !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+}
+.dark .srb-position-highlight {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-left-color: #8b5cf6 !important;
+}
+.dark .srb-position-title {
+  color: #f8fafc !important;
+}
+.dark .srb-position-reason {
+  color: #cbd5e1 !important;
+}
+.dark .srb-summary-box {
+  background: #262436 !important;
+  border-color: #38344e !important;
+  color: #cbd5e1 !important;
+}
+.dark .srb-summary-label {
+  color: #f0edfc !important;
+}
+.dark .srb-comp-matching {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+.dark .srb-comp-gaps {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+.dark .srb-comp-heading--green {
+  color: #34d399 !important;
+}
+.dark .srb-comp-heading--amber {
+  color: #fbbf24 !important;
+}
+.dark .srb-comp-list--green {
+  color: #a7f3d0 !important;
+}
+.dark .srb-comp-list--amber {
+  color: #fde68a !important;
+}
+.dark .srb-dev-actions-title {
+  color: #e2e8f0 !important;
+}
+.dark .srb-dev-actions-list {
+  color: #94a3b8 !important;
+}
+
+.dark .srb-review-card {
+  background: #1e1e2a !important;
+  border-color: #333348 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .srb-review-heading {
+  color: #f0edfc !important;
+}
+.dark .srb-review-sub {
+  color: #94a3b8 !important;
+}
+.dark .srb-self-warning {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #fca5a5 !important;
+}
+.dark .srb-field-label {
+  color: #cbd5e1 !important;
+}
+.dark .srb-select,
+.dark .srb-input,
+.dark .srb-textarea {
+  background: #262436 !important;
+  border-color: #3e3a54 !important;
+  color: #f0edfc !important;
+}
+.dark .srb-select option {
+  background: #1e1e2a !important;
+  color: #f0edfc !important;
+}
+.dark .srb-select:focus,
+.dark .srb-input:focus,
+.dark .srb-textarea:focus {
+  border-color: #8b5cf6 !important;
+}
+.dark .srb-textarea::placeholder {
+  color: #6d6980 !important;
+}
+.dark .srb-decision-btn {
+  background: #262436 !important;
+  border-color: #3e3a54 !important;
+  color: #94a3b8 !important;
+}
+.dark .srb-decision-btn:hover:not(:disabled) {
+  background: #322f46 !important;
+  border-color: #555073 !important;
+  color: #f0edfc !important;
+}
+.dark .srb-loading-title {
+  color: #e2e8f0 !important;
+}
+.dark .srb-loading-sub {
+  color: #71717a !important;
+}
+
+
 
