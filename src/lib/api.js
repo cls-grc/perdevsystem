@@ -1,5 +1,5 @@
 const BASE_URL = import.meta.env.VITE_API_URL || (
-  typeof window !== 'undefined' && window.location.hostname.includes('hostforgeplatforms.com')
+  typeof window !== 'undefined' && window.location.hostname.includes('hostforge')
     ? 'https://performance-development-api-horecaos.hostforgeplatforms.com'
     : ''
 )

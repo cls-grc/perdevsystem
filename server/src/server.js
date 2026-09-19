@@ -26,7 +26,7 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true)
     if (
-      origin.endsWith('.hostforgeplatforms.com') ||
+      origin.includes('hostforge') ||
       origin.endsWith('.vercel.app') ||
       origin.includes('localhost') ||
       origin === config.clientOrigin
