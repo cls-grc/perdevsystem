@@ -3291,13 +3291,13 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
   const [error, setError] = useState('')
   const [section, setSection] = useState(0)
 
-  if (!formConfig) return null
-  const builder = formConfig.builder ? BUILDERS[formConfig.builder] : null
-  const fields = formConfig.fields || []
-  const progressive = formConfig.progressive && !builder && fields.length > 0
+  const builder = formConfig?.builder ? BUILDERS[formConfig.builder] : null
+  const fields = formConfig?.fields || []
+  const progressive = formConfig?.progressive && !builder && fields.length > 0
   const visibleFields = progressive ? fields.filter(f => f.section === undefined || f.section === section) : fields
 
   const isRequiredFilled = useMemo(() => {
+    if (!formConfig) return false
     if (builder) {
       if (Array.isArray(value)) return value.length > 0
       if (formConfig.builder === 'trainingInvite') {
@@ -3332,6 +3332,8 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
     setError('')
     onChange(value, { submit: true })
   }
+
+  if (!formConfig) return null
 
   return (
     <form className="workflow-form" onSubmit={onSubmit}>

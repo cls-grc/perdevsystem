@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { CheckCircle } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Workflow history timeline. Renders a stage-by-stage audit trail derived from
