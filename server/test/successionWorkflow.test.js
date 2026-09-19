@@ -577,5 +577,5 @@ after(async () => {
     await query('DELETE FROM users WHERE employee_id = $1', [testEmployee.id])
     await query('DELETE FROM employees WHERE id = $1', [testEmployee.id])
   }
-  await pool.end()
+  try { await pool.end() } catch { /* ignore teardown errors */ }
 })
