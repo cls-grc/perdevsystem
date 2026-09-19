@@ -262,11 +262,11 @@ function App() {
     window.location.replace('/')
   }
 
-  // 10-minute session inactivity auto-logout (adjusted for defense & presentation)
+  // 5-minute session inactivity auto-logout
   useEffect(() => {
     if (!user) return
 
-    const TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+    const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
     const CHECK_INTERVAL_MS = 3000 // check every 3 seconds
 
     const updateActivity = () => {
@@ -291,7 +291,7 @@ function App() {
     const intervalId = setInterval(() => {
       const lastActivity = Number(localStorage.getItem('pds-last-activity') || Date.now())
       if (Date.now() - lastActivity >= TIMEOUT_MS) {
-        handleLogout('You have been logged out due to 10 minutes of inactivity.')
+        handleLogout('You have been logged out due to 5 minutes of inactivity.')
       }
     }, CHECK_INTERVAL_MS)
 

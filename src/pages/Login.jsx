@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import LoginIllustration from '../components/LoginIllustration'
-import { Key, Eye, EyeOff, Tag, AlertTriangle, CheckCircle, Clock, Lock, Info, Building2, Mail, Check } from 'lucide-react'
+import { Key, Eye, EyeOff, Tag, AlertTriangle, CheckCircle, CheckCircle2, DoorOpen, Clock, Lock, Info, Building2, Mail, Check } from 'lucide-react'
 
 export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
@@ -177,8 +177,11 @@ export default function Login({ onLogin, notice }) {
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
 
-      // Instantly transition to dashboard
-      onLogin(result.user)
+      // Trigger cinematic partition reveal animation (snappy 0.85s transition)
+      setIsLoggingInSuccess(true)
+      setTimeout(() => {
+        onLogin(result.user)
+      }, 850)
     } catch (requestError) {
       const errMsg = requestError.message || ''
       setError(errMsg)
@@ -207,7 +210,11 @@ export default function Login({ onLogin, notice }) {
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
 
-      onLogin(result.user)
+      // Trigger cinematic partition reveal animation (snappy 0.85s transition)
+      setIsLoggingInSuccess(true)
+      setTimeout(() => {
+        onLogin(result.user)
+      }, 850)
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -689,6 +696,37 @@ export default function Login({ onLogin, notice }) {
           </div>
         </div>
       </section>
+
+      {/* ── CINEMATIC PARTITION REVEAL OVERLAY (HOTEL & RESTAURANT PHOTO + TRANSLUCENT ACCEPTED BOX) ── */}
+      {isLoggingInSuccess && (
+        <div className="login-success-portal-curtain" aria-live="assertive">
+          <div className="login-success-zoom-stage">
+            <img
+              src="/horecaos_hotel_pool.jpg"
+              alt="HORECAOS Hotel & Restaurant"
+              className="login-success-hero-img"
+            />
+            <div className="login-success-light-sweep" />
+            <div className="login-success-lens-flare" />
+          </div>
+          <div className="login-success-hud-center">
+            <div className="login-success-hud-card">
+              <div className="login-success-icon-badge">
+                <CheckCircle2 size={34} color="#34d399" />
+              </div>
+              <div className="login-success-title">AUTHENTICATION ACCEPTED</div>
+              <div className="login-success-hotel-name">HORECAOS HOTEL & RESTAURANT</div>
+              <div className="login-success-sub-text">
+                <DoorOpen size={16} className="text-violet-accent" />
+                <span>Authentication accepted, logging in...</span>
+              </div>
+              <div className="login-success-progress-track">
+                <div className="login-success-progress-fill" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -74,12 +74,12 @@ const failedAttemptsMap = new Map()
 const LOCKOUT_DURATION_MS = 60 * 1000 // 1 minute for capstone demonstration
 const MAX_FAILED_ATTEMPTS = 3
 
-// Helper: generate access token (15min) + refresh token (7d)
+// Helper: generate access token (5min) + refresh token (7d)
 async function generateTokens(user, req) {
   const accessToken = jwt.sign(
     { sub: user.id, role: user.role, employeeId: user.employee_id, name: user.full_name, department: user.department, departmentId: user.department_id },
     config.jwtSecret,
-    { expiresIn: '15m' }
+    { expiresIn: '5m' }
   )
   const refreshToken = crypto.randomUUID()
   try {
@@ -310,7 +310,7 @@ router.post('/refresh', async (req, res, next) => {
       const newAccessToken = jwt.sign(
         { sub: session.user_id, role: session.role, employeeId: session.employee_id, name: session.full_name, department: session.department, departmentId: session.department_id },
         config.jwtSecret,
-        { expiresIn: '15m' }
+        { expiresIn: '5m' }
       )
       const newRefreshToken = crypto.randomUUID()
       const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
@@ -456,7 +456,7 @@ router.post('/register', async (req, res, next) => {
       const accessToken = jwt.sign(
         { sub: user.id, role: user.role, employeeId: user.employee_id, name: user.full_name },
         config.jwtSecret,
-        { expiresIn: '15m' }
+        { expiresIn: '5m' }
       )
       const refreshToken = crypto.randomUUID()
       try {

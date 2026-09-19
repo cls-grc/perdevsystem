@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Building2,
   Sparkles,
@@ -315,8 +316,8 @@ export default function LoginIllustration({
       </div>
 
 
-      {/* ── INTERACTIVE FULL IMAGE LIGHTBOX ─────────────────────────────────── */}
-      {previewHotel && (
+      {/* ── INTERACTIVE FULL IMAGE LIGHTBOX (PORTALED TO BODY) ──────────────── */}
+      {previewHotel && typeof document !== 'undefined' && createPortal(
         <div className="ref-modal-backdrop" onClick={() => setPreviewHotel(null)}>
           <div className="ref-modal-card" onClick={(e) => e.stopPropagation()}>
             <button
@@ -340,35 +341,8 @@ export default function LoginIllustration({
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── CINEMATIC LOGIN SUCCESS PORTAL ──────────────────────────────────── */}
-      {isLoggingInSuccess && (
-        <div className="login-success-portal-curtain">
-          <div className="login-success-zoom-stage">
-            <img src="/horecaos_hotel_fountain.jpg" alt="Hotel Entrance" className="login-success-hero-img" />
-            <div className="login-success-light-sweep" />
-            <div className="login-success-lens-flare" />
-          </div>
-          <div className="login-success-hud-center">
-            <div className="login-success-hud-ring" />
-            <div className="login-success-hud-card">
-              <div className="login-success-icon-badge">
-                <CheckCircle2 size={32} color="#34d399" />
-              </div>
-              <div className="login-success-title">AUTHENTICATION VERIFIED</div>
-              <div className="login-success-hotel-name">HORECAOS HOTEL AND RESTAURANT</div>
-              <div className="login-success-sub-text">
-                <DoorOpen size={14} className="text-violet-accent" />
-                <span>Opening Hotel Management System…</span>
-              </div>
-              <div className="login-success-progress-track">
-                <div className="login-success-progress-fill" />
-              </div>
-            </div>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
