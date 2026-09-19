@@ -1,6 +1,6 @@
 import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { pool, query, transaction } from '../src/db.js'
+import { query, transaction } from '../src/db.js'
 import {
   getAuthorizedEmployeeData,
   checkDataSufficiency,
