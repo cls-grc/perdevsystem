@@ -10,20 +10,6 @@ jobs:
   backend:
     name: Backend (test)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: perdevsys
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     defaults:
       run:
         working-directory: server
@@ -37,6 +23,11 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: server/package-lock.json
+      - name: Start PostgreSQL Service
+        run: |
+          sudo systemctl start postgresql.service || sudo systemctl start postgresql || sudo service postgresql start
+          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+          sudo -u postgres createdb -O postgres perdevsys || true
       - run: npm ci
       - run: npm run migrate
       - run: npm run seed
