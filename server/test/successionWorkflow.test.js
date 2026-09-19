@@ -184,23 +184,6 @@ before(async () => {
   testWorkflow = wfRes.rows[0]
 })
 
-after(async () => {
-  // Clean up all test data
-  if (testEmployee?.id) {
-    await query('DELETE FROM workflow_events WHERE workflow_id IN (SELECT id FROM workflows WHERE subject_employee_id = $1)', [testEmployee.id])
-    await query('DELETE FROM notifications WHERE workflow_id IN (SELECT id FROM workflows WHERE subject_employee_id = $1) OR user_id = $2', [testEmployee.id, securityEmployeeUser?.id])
-    await query('DELETE FROM activity_logs WHERE target_id IN (SELECT id::text FROM workflows WHERE subject_employee_id = $1) OR target_id = $1::text', [testEmployee.id])
-    await query('DELETE FROM succession_records WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM succession_profiles WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM position_history WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM learning_completions WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM competency_assessments WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM workflows WHERE subject_employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM users WHERE employee_id = $1', [testEmployee.id])
-    await query('DELETE FROM employees WHERE id = $1', [testEmployee.id])
-  }
-  await pool.end()
-})
 
 // Scenario 1: HR starts assessment
 test('Scenario 1: HR starts assessment across any department', async () => {
@@ -555,4 +538,21 @@ test('Scenario 22: Failed transaction rolls back all related changes atomically'
   // Verify rollback: position history count unchanged
   const postHistCount = await query('SELECT count(*)::int as count FROM position_history WHERE employee_id = $1', [testEmployee.id])
   assert.equal(postHistCount.rows[0].count, preSnapshotHistCount.rows[0].count, 'Position history count must roll back')
+})
+
+after(async () => {
+  // Clean up all test data
+  if (testEmployee?.id) {
+    await query('DELETE FROM workflow_events WHERE workflow_id IN (SELECT id FROM workflows WHERE subject_employee_id = $1)', [testEmployee.id])
+    await query('DELETE FROM notifications WHERE workflow_id IN (SELECT id FROM workflows WHERE subject_employee_id = $1) OR user_id = $2', [testEmployee.id, securityEmployeeUser?.id])
+    await query('DELETE FROM activity_logs WHERE target_id IN (SELECT id::text FROM workflows WHERE subject_employee_id = $1) OR target_id = $1::text', [testEmployee.id])
+    await query('DELETE FROM succession_records WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM succession_profiles WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM position_history WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM learning_completions WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM competency_assessments WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM workflows WHERE subject_employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM users WHERE employee_id = $1', [testEmployee.id])
+    await query('DELETE FROM employees WHERE id = $1', [testEmployee.id])
+  }
 })

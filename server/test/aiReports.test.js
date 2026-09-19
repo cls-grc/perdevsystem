@@ -1,11 +1,6 @@
-import test, { after } from 'node:test'
+import test from 'node:test'
 import assert from 'node:assert/strict'
 import { generateAI } from '../src/services/aiReports.js'
-import { pool } from '../src/db.js'
-
-// The pg pool is created when aiReports.js is imported; close it so the test
-// process can exit cleanly.
-after(async () => { await pool.end() })
 
 test('ai report generation produces structured module sections', async () => {
   const report = await generateAI('performance', { employee_count: 10, average_score: 74, active_count: 3, completed_count: 7 }, { top_name: 'Emily Thompson', top_score: 92, bottom_name: 'Jordan Williams', bottom_score: 55 })
