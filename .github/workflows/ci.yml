@@ -20,7 +20,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -38,16 +38,6 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - name: Verify Database Connection
-        run: |
-          node -e "
-            import('pg').then(async ({ default: pg }) => {
-              const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
-              await client.connect();
-              console.log('Database connected successfully!');
-              await client.end();
-            });
-          "
       - run: npm run migrate
       - run: npm run seed
       - run: npm test
