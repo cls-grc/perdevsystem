@@ -1,6 +1,6 @@
 import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { query, transaction } from '../src/db.js'
+import { pool, query, transaction } from '../src/db.js'
 import {
   getAuthorizedEmployeeData,
   checkDataSufficiency,
@@ -555,4 +555,5 @@ after(async () => {
     await query('DELETE FROM users WHERE employee_id = $1', [testEmployee.id])
     await query('DELETE FROM employees WHERE id = $1', [testEmployee.id])
   }
+  await pool.end()
 })
