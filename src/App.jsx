@@ -390,11 +390,11 @@ function App() {
   }
 
   // 5-minute session inactivity auto-logout — full per-second countdown from 5:00
-  useEffect(() => {
-    if (!user) return
+const TIMEOUT_MS = 5 * 60 * 1000  // 5 minutes total
+const WARNING_MS = 60 * 1000       // show modal at 60 s remaining
 
-    const TIMEOUT_MS = 5 * 60 * 1000  // 5 minutes total
-    const WARNING_MS = 60 * 1000       // show modal at 60 s remaining
+useEffect(() => {
+  if (!user) return
 
     const updateActivity = () => {
       localStorage.setItem('pds-last-activity', String(Date.now()))
@@ -500,7 +500,7 @@ function App() {
                 </div>
 
                 {/* Session countdown warning — appears 60s before auto-logout */}
-                {sessionSecondsLeft !== null && sessionSecondsLeft <= 60 && (
+                {sessionSecondsLeft !== null && sessionSecondsLeft <= WARNING_MS / 1000 && (
                   <SessionWarning
                     secondsLeft={sessionSecondsLeft}
                     onStay={() => {
