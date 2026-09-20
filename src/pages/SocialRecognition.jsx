@@ -3,10 +3,7 @@ import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import {
   Heart,
-  ThumbsUp,
   Trophy,
-  Star,
-  Flame,
   Award,
   Users,
   ShieldCheck,
@@ -21,7 +18,9 @@ import {
   Check,
   X,
   ChevronDown,
-  ChevronUp,
+  RefreshCw,
+  Flame,
+  Star,
 } from 'lucide-react'
 import '../recognitionWall.css'
 
@@ -49,6 +48,8 @@ export default function SocialRecognition() {
   const [pendingNominations, setPendingNominations] = useState([])
   const [pendingCounts, setPendingCounts] = useState({ awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 })
   const [leaderboard, setLeaderboard] = useState({ topStaff: [], topDepartments: [], coreValues: [] })
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [refreshingSpotlight, setRefreshingSpotlight] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedTag, setSelectedTag] = useState('ALL')
   const [commentOpen, setCommentOpen] = useState({})
@@ -78,11 +79,12 @@ export default function SocialRecognition() {
   const isSupervisor = userRole === 'supervisor'
   const isUpperUp = isHr || isSupervisor || userRole === 'management'
 
-  const loadData = async () => {
+  const loadData = async (monthOverride) => {
+    const activeMonth = monthOverride || selectedMonth
     try {
       const [feedRes, lbRes, staffRes, pendingRes] = await Promise.all([
         api.recognitionFeed().catch(() => ({ feed: [] })),
-        api.recognitionLeaderboard().catch(() => ({ topStaff: [], topDepartments: [], coreValues: [] })),
+        api.recognitionLeaderboard(activeMonth).catch(() => ({ topStaff: [], topDepartments: [], coreValues: [] })),
         api.workflowSubjects().catch(() => ({ employees: [] })),
         api.recognitionPending().catch(() => ({ pending: [], counts: { awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 } })),
       ])
@@ -104,6 +106,26 @@ export default function SocialRecognition() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Monthly spotlight refresh handler
+  const handleRefreshSpotlight = async () => {
+    setRefreshingSpotlight(true)
+    try {
+      const res = await api.refreshRecognitionLeaderboard(selectedMonth)
+      setLeaderboard(res)
+      setStatusNotice(`Monthly Staff Spotlight & Department Kudos refreshed for ${res.monthLabel || 'this month'}!`)
+      setTimeout(() => setStatusNotice(''), 4000)
+    } catch {
+      setStatusNotice('Unable to refresh monthly spotlight.')
+    } finally {
+      setRefreshingSpotlight(false)
+    }
+  }
+
+  const handleMonthChange = (newMonth) => {
+    setSelectedMonth(newMonth)
+    loadData(newMonth)
+  }
 
   // Reaction toggling (NO EMOJIS - pure icons)
   const handleReaction = async (postId, reactionType) => {
@@ -240,10 +262,17 @@ export default function SocialRecognition() {
     }
   }
 
-  const filteredFeed = feed.filter((item) => {
-    if (selectedTag === 'ALL') return true
-    return item.tag === selectedTag || item.coreValue === selectedTag
-  })
+  const filteredFeed = feed
+    .filter((item) => {
+      if (selectedTag === 'ALL') return true
+      return item.tag === selectedTag || item.coreValue === selectedTag
+    })
+    .sort((a, b) => {
+      const heartsA = a.reactions?.heart || 0
+      const heartsB = b.reactions?.heart || 0
+      if (heartsB !== heartsA) return heartsB - heartsA
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
 
   return (
     <div className="recognition-page-wrapper">
@@ -581,61 +610,28 @@ export default function SocialRecognition() {
                     {/* Message */}
                     <div className="post-message-body">{post.message}</div>
 
-                    {/* Icon Reaction Bar (STRICTLY ICONS, NO EMOJIS) */}
+                    {/* Icon Reaction Bar (STRICTLY HEART AND TROPHY/BADGE ONLY) */}
                     <div className="post-reaction-bar">
                       {/* 1. Heart */}
                       <button
                         type="button"
                         className={`reaction-icon-btn ${post.userReactions?.includes('heart') ? 'reacted' : ''}`}
                         onClick={() => handleReaction(post.id, 'heart')}
-                        title="Appreciate"
+                        title="Heart Appreciation (Boosts to Top of Merit Wall)"
                       >
                         <Heart size={14} />
                         <span>{post.reactions?.heart || 0}</span>
                       </button>
 
-                      {/* 2. Thumbs Up */}
-                      <button
-                        type="button"
-                        className={`reaction-icon-btn ${post.userReactions?.includes('thumbsUp') ? 'reacted' : ''}`}
-                        onClick={() => handleReaction(post.id, 'thumbsUp')}
-                        title="Great Job"
-                      >
-                        <ThumbsUp size={14} />
-                        <span>{post.reactions?.thumbsUp || 0}</span>
-                      </button>
-
-                      {/* 3. Trophy */}
+                      {/* 2. Trophy / Merit Badge */}
                       <button
                         type="button"
                         className={`reaction-icon-btn ${post.userReactions?.includes('trophy') ? 'reacted' : ''}`}
                         onClick={() => handleReaction(post.id, 'trophy')}
-                        title="Top Performance"
+                        title="Top Performance Award Trophy"
                       >
                         <Trophy size={14} />
                         <span>{post.reactions?.trophy || 0}</span>
-                      </button>
-
-                      {/* 4. Star */}
-                      <button
-                        type="button"
-                        className={`reaction-icon-btn ${post.userReactions?.includes('star') ? 'reacted' : ''}`}
-                        onClick={() => handleReaction(post.id, 'star')}
-                        title="Excellence"
-                      >
-                        <Star size={14} />
-                        <span>{post.reactions?.star || 0}</span>
-                      </button>
-
-                      {/* 5. Flame */}
-                      <button
-                        type="button"
-                        className={`reaction-icon-btn ${post.userReactions?.includes('flame') ? 'reacted' : ''}`}
-                        onClick={() => handleReaction(post.id, 'flame')}
-                        title="On Fire"
-                      >
-                        <Flame size={14} />
-                        <span>{post.reactions?.flame || 0}</span>
                       </button>
 
                       {/* Comments Count Toggle */}
@@ -694,10 +690,36 @@ export default function SocialRecognition() {
         <div className="recognition-sidebar-column">
           {/* Top Recognized Staff */}
           <div className="recognition-leaderboard-card">
-            <div className="leaderboard-title">
-              <Trophy size={18} color="#513AB3" />
-              <span>Monthly Staff Spotlight</span>
+            <div className="leaderboard-header-row">
+              <div className="leaderboard-title">
+                <Trophy size={18} color="#513AB3" />
+                <span>Monthly Staff Spotlight</span>
+              </div>
+              <button
+                type="button"
+                className="leaderboard-refresh-btn"
+                onClick={handleRefreshSpotlight}
+                disabled={refreshingSpotlight}
+                title="Refresh Monthly Staff Spotlight and Kudos"
+              >
+                <RefreshCw size={12} className={refreshingSpotlight ? 'animate-spin' : ''} />
+                <span>{refreshingSpotlight ? 'Refreshing…' : 'Refresh'}</span>
+              </button>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span className="leaderboard-month-badge">
+                <Clock size={11} /> {leaderboard.monthLabel || 'Current Month'}
+              </span>
+              <input
+                type="month"
+                className="leaderboard-month-select"
+                value={selectedMonth}
+                onChange={(e) => handleMonthChange(e.target.value)}
+                title="Select month to view spotlight"
+              />
+            </div>
+
             <div className="leaderboard-list">
               {leaderboard.topStaff?.map((staff, idx) => (
                 <div key={staff.name} className="leaderboard-item">
@@ -705,12 +727,18 @@ export default function SocialRecognition() {
                     <span className="rank-badge">{idx + 1}</span>
                     <div>
                       <div className="leaderboard-item-name">{staff.name}</div>
-                      <div className="leaderboard-item-sub">{staff.department}</div>
+                      <div className="leaderboard-item-sub">{staff.jobTitle ? `${staff.jobTitle} • ` : ''}{staff.department}</div>
                     </div>
                   </div>
-                  <div className="leaderboard-item-count">
-                    <Award size={13} />
-                    <span>{staff.count}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="leaderboard-item-count" title="Hearts Received" style={{ color: '#ec4899' }}>
+                      <Heart size={12} style={{ fill: '#ec4899', color: '#ec4899' }} />
+                      <span>{staff.heartsCount || 0}</span>
+                    </div>
+                    <div className="leaderboard-item-count" title="Total Kudos / Awards">
+                      <Award size={13} />
+                      <span>{staff.count}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -719,9 +747,14 @@ export default function SocialRecognition() {
 
           {/* Department Kudos Leaderboard */}
           <div className="recognition-leaderboard-card">
-            <div className="leaderboard-title">
-              <Building2 size={18} color="#513AB3" />
-              <span>Department Kudos</span>
+            <div className="leaderboard-header-row">
+              <div className="leaderboard-title">
+                <Building2 size={18} color="#513AB3" />
+                <span>Department Kudos</span>
+              </div>
+              <span className="leaderboard-month-badge">
+                {leaderboard.monthLabel || 'Monthly'}
+              </span>
             </div>
             <div className="leaderboard-list">
               {leaderboard.topDepartments?.map((dept) => (

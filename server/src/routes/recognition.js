@@ -25,8 +25,8 @@ const initialKudos = [
     coreValue: 'Guest Delight',
     tag: '#GuestDelight',
     message: 'Outstanding handling of VIP guest arrival during peak check-in rush yesterday. The guest specifically praised your warm welcome and attentiveness!',
-    reactions: { heart: 8, thumbsUp: 12, trophy: 6, star: 9, flame: 5 },
-    userReactions: ['heart', 'thumbsUp'],
+    reactions: { heart: 8, trophy: 6 },
+    userReactions: ['heart'],
     comments: [
       {
         id: 'c-1',
@@ -63,7 +63,7 @@ const initialKudos = [
     coreValue: 'Culinary Mastery',
     tag: '#CulinaryMastery',
     message: 'Flawless execution during the Saturday banquet event. Prepared over 180 course plates with zero timing delays and pristine plating quality.',
-    reactions: { heart: 5, thumbsUp: 14, trophy: 10, star: 7, flame: 8 },
+    reactions: { heart: 14, trophy: 10 },
     userReactions: ['trophy'],
     comments: [
       {
@@ -94,8 +94,8 @@ const initialKudos = [
     coreValue: 'Excellence in Hospitality',
     tag: '#ExcellenceInHospitality',
     message: 'Maintained a perfect 100% audit rating for room hygiene and turnaround time across the 4th floor executive suites all week.',
-    reactions: { heart: 11, thumbsUp: 9, trophy: 4, star: 8, flame: 3 },
-    userReactions: ['star'],
+    reactions: { heart: 11, trophy: 4 },
+    userReactions: ['heart'],
     comments: [],
     isOfficialAward: true,
     status: 'approved',
@@ -117,8 +117,8 @@ const initialKudos = [
     coreValue: 'Teamwork & Integrity',
     tag: '#Teamwork',
     message: 'Huge thanks for stepping in and supporting table cocktail service during the Friday night lounge rush without missing a beat!',
-    reactions: { heart: 6, thumbsUp: 11, trophy: 2, star: 4, flame: 7 },
-    userReactions: ['flame'],
+    reactions: { heart: 6, trophy: 2 },
+    userReactions: ['trophy'],
     comments: [],
     isOfficialAward: false,
     status: 'approved',
@@ -147,7 +147,7 @@ const commentSchema = z.object({
 })
 
 const reactSchema = z.object({
-  reaction: z.enum(['heart', 'thumbsUp', 'trophy', 'star', 'flame']),
+  reaction: z.enum(['heart', 'trophy', 'thumbsUp', 'star', 'flame']),
 })
 
 // GET /api/recognition/feed — fetch published/approved social feed
@@ -181,7 +181,7 @@ router.get('/feed', async (req, res, next) => {
         coreValue: 'Excellence in Hospitality',
         tag: '#ExcellenceInHospitality',
         message: row.metadata?.reason || row.title || 'Recognized through official hotel recognition program.',
-        reactions: { heart: 7, thumbsUp: 10, trophy: 5, star: 8, flame: 4 },
+        reactions: { heart: 7, trophy: 5 },
         userReactions: [],
         comments: [],
         isOfficialAward: true,
@@ -200,8 +200,13 @@ router.get('/feed', async (req, res, next) => {
       }
     })
 
-    // Sort by createdAt desc
-    combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    // Sort by hearts count desc, then createdAt desc (posts with more hearts rank top of the Merit Wall!)
+    combined.sort((a, b) => {
+      const heartsA = a.reactions?.heart || 0
+      const heartsB = b.reactions?.heart || 0
+      if (heartsB !== heartsA) return heartsB - heartsA
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
 
     res.json({ feed: combined })
   } catch (error) { next(error) }
@@ -274,7 +279,7 @@ router.post('/post', async (req, res, next) => {
       coreValue: input.coreValue,
       tag: input.tag.startsWith('#') ? input.tag : `#${input.tag}`,
       message: input.message,
-      reactions: { heart: 0, thumbsUp: 0, trophy: 0, star: 0, flame: 0 },
+      reactions: { heart: 0, trophy: 0 },
       userReactions: [],
       comments: [],
       isOfficialAward,
@@ -506,35 +511,132 @@ router.post('/:id/comment', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-// GET /api/recognition/leaderboard — monthly recognition statistics
-router.get('/leaderboard', async (_req, res, next) => {
+function formatMonthLabel(monthStr) {
   try {
-    const topStaff = [
-      { name: 'Maria Lopez', department: 'Front Office', jobTitle: 'Receptionist', count: 18, badgesCount: 6 },
-      { name: 'Andre Tan', department: 'Kitchen', jobTitle: 'Cook', count: 15, badgesCount: 5 },
-      { name: 'Rosa Martinez', department: 'Housekeeping', jobTitle: 'Housekeeping Staff', count: 14, badgesCount: 4 },
-      { name: 'James Wilson', department: 'Food & Beverage', jobTitle: 'Bartender', count: 12, badgesCount: 4 },
-      { name: 'Emily Thompson', department: 'Food & Beverage', jobTitle: 'Waitress', count: 10, badgesCount: 3 },
-    ]
+    const [y, m] = monthStr.split('-')
+    const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1)
+    return d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  } catch {
+    return 'Current Month'
+  }
+}
 
-    const topDepartments = [
-      { department: 'Front Office', totalKudos: 42, icon: 'hotel' },
-      { department: 'Kitchen', totalKudos: 38, icon: 'utensils' },
-      { department: 'Food & Beverage', totalKudos: 34, icon: 'coffee' },
-      { department: 'Housekeeping', totalKudos: 29, icon: 'sparkles' },
-      { department: 'Operations', totalKudos: 18, icon: 'settings' },
-    ]
+function calculateMonthlySpotlight(monthKey) {
+  const currentKey = monthKey || new Date().toISOString().slice(0, 7)
+  const monthLabel = formatMonthLabel(currentKey)
 
-    const coreValues = [
-      { tag: '#ExcellenceInHospitality', label: 'Excellence in Hospitality', count: 48, icon: 'award' },
-      { tag: '#GuestDelight', label: 'Guest Delight', count: 42, icon: 'star' },
-      { tag: '#Teamwork', label: 'Teamwork & Integrity', count: 36, icon: 'users' },
-      { tag: '#CulinaryMastery', label: 'Culinary Mastery', count: 28, icon: 'flame' },
-      { tag: '#SafetyFirst', label: 'Safety & Hygiene First', count: 22, icon: 'shield' },
-      { tag: '#Leadership', label: 'Leadership in Action', count: 19, icon: 'crown' },
-    ]
+  // Filter approved kudos for this month (or default sample if store is fresh)
+  const approved = kudosStore.filter(k => (!k.status || k.status === 'approved'))
 
-    res.json({ topStaff, topDepartments, coreValues })
+  // Aggregate by recipient
+  const staffMap = new Map()
+  // Baseline initial staff figures for rich display
+  const baseStaff = [
+    { name: 'Maria Lopez', department: 'Front Office', jobTitle: 'Receptionist', count: 12, heartsCount: 38, badgesCount: 6 },
+    { name: 'Andre Tan', department: 'Kitchen', jobTitle: 'Cook', count: 10, heartsCount: 29, badgesCount: 5 },
+    { name: 'Rosa Martinez', department: 'Housekeeping', jobTitle: 'Housekeeping Staff', count: 9, heartsCount: 24, badgesCount: 4 },
+    { name: 'James Wilson', department: 'Food & Beverage', jobTitle: 'Bartender', count: 8, heartsCount: 21, badgesCount: 4 },
+    { name: 'Emily Thompson', department: 'Food & Beverage', jobTitle: 'Waitress', count: 7, heartsCount: 18, badgesCount: 3 },
+  ]
+
+  baseStaff.forEach(s => staffMap.set(s.name, { ...s }))
+
+  // Aggregate live kudos
+  approved.forEach(k => {
+    // If post matches month or general pool
+    const kDate = (k.createdAt || '').slice(0, 7)
+    const matchesMonth = !kDate || kDate === currentKey
+
+    if (matchesMonth && k.recipientName) {
+      const existing = staffMap.get(k.recipientName) || {
+        name: k.recipientName,
+        department: k.recipientDepartment || 'Hospitality',
+        jobTitle: k.recipientJobTitle || 'Hotel Staff',
+        count: 0,
+        heartsCount: 0,
+        badgesCount: 0,
+      }
+      existing.count += 1
+      existing.heartsCount += (k.reactions?.heart || 0)
+      existing.badgesCount += 1
+      staffMap.set(k.recipientName, existing)
+    }
+  })
+
+  // Sort top staff: primary by heartsCount + count, descending
+  const topStaff = Array.from(staffMap.values())
+    .sort((a, b) => (b.heartsCount * 2 + b.count) - (a.heartsCount * 2 + a.count))
+    .slice(0, 5)
+
+  // Aggregate Department Kudos
+  const deptMap = new Map([
+    ['Front Office', { department: 'Front Office', totalKudos: 34, icon: 'hotel' }],
+    ['Kitchen', { department: 'Kitchen', totalKudos: 31, icon: 'utensils' }],
+    ['Food & Beverage', { department: 'Food & Beverage', totalKudos: 27, icon: 'coffee' }],
+    ['Housekeeping', { department: 'Housekeeping', totalKudos: 23, icon: 'sparkles' }],
+    ['Operations', { department: 'Operations', totalKudos: 15, icon: 'settings' }],
+  ])
+
+  approved.forEach(k => {
+    const dept = k.recipientDepartment
+    if (dept && deptMap.has(dept)) {
+      deptMap.get(dept).totalKudos += 1
+    } else if (dept) {
+      deptMap.set(dept, { department: dept, totalKudos: 1, icon: 'hotel' })
+    }
+  })
+
+  const topDepartments = Array.from(deptMap.values())
+    .sort((a, b) => b.totalKudos - a.totalKudos)
+
+  const coreValues = [
+    { tag: '#ExcellenceInHospitality', label: 'Excellence in Hospitality', count: 48, icon: 'award' },
+    { tag: '#GuestDelight', label: 'Guest Delight', count: 42, icon: 'star' },
+    { tag: '#Teamwork', label: 'Teamwork & Integrity', count: 36, icon: 'users' },
+    { tag: '#CulinaryMastery', label: 'Culinary Mastery', count: 28, icon: 'flame' },
+    { tag: '#SafetyFirst', label: 'Safety & Hygiene First', count: 22, icon: 'shield' },
+    { tag: '#Leadership', label: 'Leadership in Action', count: 19, icon: 'crown' },
+  ]
+
+  return {
+    monthKey: currentKey,
+    monthLabel,
+    topStaff,
+    topDepartments,
+    coreValues,
+    refreshedAt: new Date().toISOString(),
+  }
+}
+
+// GET /api/recognition/leaderboard — monthly recognition statistics with month filter
+router.get('/leaderboard', async (req, res, next) => {
+  try {
+    const monthKey = req.query.month || new Date().toISOString().slice(0, 7)
+    const result = calculateMonthlySpotlight(monthKey)
+    res.json(result)
+  } catch (error) { next(error) }
+})
+
+// POST /api/recognition/leaderboard/refresh — refresh monthly staff spotlight and department kudos
+router.post('/leaderboard/refresh', async (req, res, next) => {
+  try {
+    const monthKey = req.body.month || new Date().toISOString().slice(0, 7)
+    const result = calculateMonthlySpotlight(monthKey)
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'recognition.refresh_leaderboard',
+      category: 'recognition',
+      description: `${req.user.name} refreshed the Monthly Staff Spotlight and Department Kudos for ${result.monthLabel}`,
+      details: { monthKey },
+    })
+
+    res.json({
+      success: true,
+      message: `Monthly Staff Spotlight and Department Kudos refreshed for ${result.monthLabel}!`,
+      ...result,
+    })
   } catch (error) { next(error) }
 })
 

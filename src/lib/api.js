@@ -229,7 +229,8 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   rejectRecognition: (id, note = '') => request(`/api/recognition/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
   reactRecognition: (id, reaction) => request(`/api/recognition/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction }) }),
   commentRecognition: (id, text) => request(`/api/recognition/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) }),
-  recognitionLeaderboard: () => request('/api/recognition/leaderboard'),
+  recognitionLeaderboard: (month) => request(`/api/recognition/leaderboard${month ? `?month=${month}` : ''}`),
+  refreshRecognitionLeaderboard: (month) => request('/api/recognition/leaderboard/refresh', { method: 'POST', body: JSON.stringify({ month: month || new Date().toISOString().slice(0, 7) }) }),
 
   // CSV exports (client-side from fetched data — no extra endpoint needed)
   exportEmployeesCsv: async () => {
