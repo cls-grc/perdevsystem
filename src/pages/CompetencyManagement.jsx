@@ -168,7 +168,7 @@ function SkillGapProgressPanel() {
                     const linked = getLinkedAssignment(g.competency)
                     const progress = linked ? (Number(linked.progress) || 0) : null
                     const verified = linked?.is_completed
-                    const barColor = verified ? '#10b981' : progress >= 75 ? '#6366f1' : progress >= 40 ? '#f59e0b' : '#94a3b8'
+                    const barColor = verified ? '#10b981' : progress >= 75 ? '#111827' : progress >= 40 ? '#f59e0b' : '#94a3b8'
                     return (
                       <tr key={idx} className="sgp-row">
                         <td className="sgp-td sgp-td--name">{g.competency}</td>

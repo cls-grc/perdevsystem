@@ -105,12 +105,12 @@ export function exportCourseAsPdf(resource) {
     ? lessonRaw
         .split('\n')
         .map(line => {
-          if (/^### (.*)/.test(line)) return `<h4 style="margin:14px 0 4px;font-size:14px;color:#4338ca;">${line.replace(/^### /, '')}</h4>`
+          if (/^### (.*)/.test(line)) return `<h4 style="margin:14px 0 4px;font-size:14px;color:#111827;">${line.replace(/^### /, '')}</h4>`
           if (/^## (.*)/.test(line)) return `<h3 style="margin:16px 0 6px;font-size:16px;color:#3730a3;">${line.replace(/^## /, '')}</h3>`
           if (/^# (.*)/.test(line)) return `<h2 style="margin:20px 0 8px;font-size:18px;color:#1e1b4b;">${line.replace(/^# /, '')}</h2>`
           if (/^[-*] (.*)/.test(line)) return `<li style="margin-bottom:4px;">${line.replace(/^[-*] /, '')}</li>`
           if (/^\d+\. (.*)/.test(line)) return `<li style="margin-bottom:4px;">${line.replace(/^\d+\. /, '')}</li>`
-          if (/^> (.*)/.test(line)) return `<blockquote style="border-left:3px solid #7c3aed;padding:6px 12px;margin:8px 0;background:#f5f3ff;color:#5b21b6;font-style:italic;">${line.replace(/^> /, '')}</blockquote>`
+          if (/^> (.*)/.test(line)) return `<blockquote style="border-left:3px solid #111827;padding:6px 12px;margin:8px 0;background:#f3f4f6;color:#374151;font-style:italic;">${line.replace(/^> /, '')}</blockquote>`
           if (line.trim() === '') return `<div style="height:8px;"></div>`
           return `<p style="margin:0 0 6px;line-height:1.6;font-size:13px;color:#374151;">${line}</p>`
         })
@@ -126,14 +126,14 @@ export function exportCourseAsPdf(resource) {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; padding: 36px 44px; background: #fff; }
-        .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #6366f1; padding-bottom: 18px; margin-bottom: 22px; }
+        .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #111827; padding-bottom: 18px; margin-bottom: 22px; }
         .doc-header h1 { font-size: 22px; font-weight: 800; color: #1e1b4b; line-height: 1.25; margin-bottom: 4px; }
-        .doc-header .doc-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 20px; background: #e0e7ff; color: #4338ca; margin-right: 6px; }
+        .doc-header .doc-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 20px; background: #f3f4f6; color: #111827; margin-right: 6px; }
         .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 22px; }
         .meta-item small { display: block; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
         .meta-item b { font-size: 12.5px; color: #1e293b; }
         .section-block { margin-bottom: 20px; }
-        .section-block h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: #4f46e5; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 10px; }
+        .section-block h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 10px; }
         .section-block p { font-size: 13px; line-height: 1.65; color: #374151; }
         .objectives-list { padding-left: 18px; font-size: 13px; line-height: 1.7; color: #374151; }
         .lesson-container { background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px; padding: 16px 20px; }
@@ -158,7 +158,7 @@ export function exportCourseAsPdf(resource) {
           <p style="font-size:12px;color:#64748b;">Provider: ${provider} · Duration: ${duration}</p>
         </div>
         <div style="text-align:right;">
-          <b style="font-size:14px;color:#4f46e5;">PerDevSys</b>
+          <b style="font-size:14px;color:#111827;">PerDevSys</b>
           <div style="font-size:10px;color:#94a3b8;margin-top:2px;">Hospitality Learning & Development</div>
           <div style="font-size:10px;color:#94a3b8;">Printed: ${new Date().toLocaleDateString()}</div>
         </div>

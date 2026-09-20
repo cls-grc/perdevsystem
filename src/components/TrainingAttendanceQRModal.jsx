@@ -190,14 +190,14 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     printWin.document.write(
       '<!DOCTYPE html><html><head><title>' + session.title + ' — Training QR Pass</title>' +
       '<style>body { font-family: Inter, sans-serif; text-align: center; padding: 40px; color: #1e1b4b; }' +
-      '.header { border-bottom: 2px solid #6366f1; padding-bottom: 16px; margin-bottom: 24px; }' +
-      '.badge { display: inline-block; padding: 4px 12px; background: #e0e7ff; color: #4338ca; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }' +
+      '.header { border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 24px; }' +
+      '.badge { display: inline-block; padding: 4px 12px; background: #f3f4f6; color: #111827; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }' +
       '.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 400px; margin: 20px auto; background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 13px; text-align: left; }' +
-      '.qr-box { margin: 28px auto; padding: 20px; border: 2px dashed #6366f1; border-radius: 16px; display: inline-block; }' +
+      '.qr-box { margin: 28px auto; padding: 20px; border: 2px dashed #111827; border-radius: 16px; display: inline-block; }' +
       '</style></head><body>' +
       '<div class="header"><span class="badge">' + session.category + '</span><h1 style="margin-top:8px;">' + session.title + '</h1><p>PerDevSys Hospitality Training · Live Attendance</p></div>' +
       '<div class="meta"><div><strong>Venue:</strong> ' + session.venue + '</div><div><strong>Date:</strong> ' + String(session.start_date).slice(0, 10) + '</div><div><strong>Time:</strong> ' + session.start_time + '</div><div><strong>Trainer:</strong> ' + (session.trainer || 'HR Specialist') + '</div></div>' +
-      '<div class="qr-box"><div style="font-weight:700;margin-bottom:8px;font-size:12px;text-transform:uppercase;color:#4f46e5;">Scan to Check In</div><img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(sessionQrPayload) + '" width="220" height="220" /></div>' +
+      '<div class="qr-box"><div style="font-weight:700;margin-bottom:8px;font-size:12px;text-transform:uppercase;color:#111827;">Scan to Check In</div><img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(sessionQrPayload) + '" width="220" height="220" /></div>' +
       '<p>Open your mobile camera or employee app and scan to record attendance as <strong>PRESENT</strong>.</p>' +
       '</body></html>'
     )
@@ -384,7 +384,7 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
 
               <div className="qr-code-large-box">
                 <QRCodeImage value={sessionQrPayload} size={220} />
-                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Live Attendance Check-in QR
                 </div>
               </div>

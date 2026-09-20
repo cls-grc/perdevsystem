@@ -68,7 +68,7 @@ export default function EmailOutboxDrawer({ isOpen, onClose }) {
         <div className="outbox-head">
           <div>
             <div className="outbox-title-row">
-              <span className="outbox-icon"><Mail className="w-5 h-5 text-purple-600" /></span>
+              <span className="outbox-icon"><Mail className="w-5 h-5 text-gray-900" /></span>
               <h2>Live Email Outbox &amp; Delivery</h2>
               <span className="outbox-role-badge">HR / Management</span>
             </div>
@@ -80,7 +80,7 @@ export default function EmailOutboxDrawer({ isOpen, onClose }) {
             <button
               onClick={() => setShowTestForm(!showTestForm)}
               className="outbox-refresh-btn flex items-center gap-1"
-              style={{ background: '#7c3aed', color: '#fff', border: 'none' }}
+              style={{ background: '#111827', color: '#fff', border: 'none' }}
               title="Send a live test email"
             >
               <Send size={13} className="inline" /> Test SMTP
@@ -142,7 +142,7 @@ export default function EmailOutboxDrawer({ isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={sendingTest}
-                  style={{ padding: '5px 14px', borderRadius: 4, border: 'none', background: '#7c3aed', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
+                  style={{ padding: '5px 14px', borderRadius: 4, border: 'none', background: '#111827', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
                 >
                   {sendingTest ? 'Sending…' : 'Send Test Email'}
                 </button>
@@ -202,9 +202,9 @@ export default function EmailOutboxDrawer({ isOpen, onClose }) {
                   {expanded === email.id && (
                     <div className="outbox-card-details">
                       {email.previewUrl && (
-                        <div style={{ marginBottom: 10, padding: '8px 10px', background: '#ede9fe', borderRadius: 6, border: '1px solid #ddd6fe', fontSize: 12 }}>
-                          <span style={{ fontWeight: 600, color: '#5b21b6' }}>Real Sandbox Web Preview:</span>{' '}
-                          <a href={email.previewUrl} target="_blank" rel="noreferrer" style={{ color: '#7c3aed', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <div style={{ marginBottom: 10, padding: '8px 10px', background: '#f3f4f6', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 12 }}>
+                          <span style={{ fontWeight: 600, color: '#374151' }}>Real Sandbox Web Preview:</span>{' '}
+                          <a href={email.previewUrl} target="_blank" rel="noreferrer" style={{ color: '#111827', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             Open Live Rendered Email <ExternalLink size={12} />
                           </a>
                         </div>

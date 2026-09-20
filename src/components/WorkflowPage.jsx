@@ -9,7 +9,8 @@ import useDialogFocus from '../hooks/useDialogFocus'
 import { usePolling } from '../hooks/usePolling'
 import { api } from '../lib/api'
 import { configFor, computeModuleStats, STAGE_GUIDES, COMMENT_SUGGESTIONS, QUICK_DECISIONS, isApprovalStage } from '../workflowConfig'
-import { Check, CheckCircle, AlertTriangle, Zap, Sparkles, Pencil, ClipboardList, Clock, Info, Search, ChevronDown, User, X, Plus } from 'lucide-react'
+import { Check, CheckCircle, AlertTriangle, Zap, Sparkles, Pencil, ClipboardList, Clock, Info, Search, ChevronDown, User, X, Plus, TrendingUp, BookOpen, Calendar, Award, Crown } from 'lucide-react'
+import PageBanner from './PageBanner'
 
 // Error boundary — catches render errors in any step form so the entire page
 // doesn't go blank. Shows a recoverable error card instead.
@@ -988,28 +989,52 @@ const saveSchedule = async () => {
     ? Math.round(((normalizedStages.findIndex(s => s.key === current.key) + 1) / normalizedStages.length) * 100)
     : 0
 
+  const moduleIcon = (() => {
+    switch (moduleKey) {
+      case 'performance': return <TrendingUp className="w-5 h-5 text-white" />
+      case 'competency': return <Zap className="w-5 h-5 text-white" />
+      case 'learning': return <BookOpen className="w-5 h-5 text-white" />
+      case 'training': return <Calendar className="w-5 h-5 text-white" />
+      case 'recognition': return <Award className="w-5 h-5 text-white" />
+      case 'succession': return <Crown className="w-5 h-5 text-white" />
+      default: return <Sparkles className="w-5 h-5 text-white" />
+    }
+  })()
+
+  const bannerActions = (extraHeaderAction || roleAction || (canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager'))) ? (
+    <>
+      {canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager') && (
+        <button
+          className="saas-btn-secondary bulk-launch-header-btn"
+          type="button"
+          onClick={openBulkLauncher}
+          disabled={saving || bulkSaving}
+          title={`Launch a batch ${title.toLowerCase()} cycle for multiple employees`}
+        >
+          <Zap size={14} className="inline mr-1 text-amber-400" /> {moduleKey === 'performance' ? 'Launch Review Cycle' : moduleKey === 'competency' ? 'Launch Batch Plans' : moduleKey === 'succession' ? 'Launch Succession Batch' : 'Launch Batch Cycle'}
+        </button>
+      )}
+      {roleAction && (
+        <button
+          className="saas-btn-primary"
+          type="button"
+          onClick={handleHeaderAction}
+          disabled={saving}
+        >
+          {saving ? 'Creating...' : roleAction}
+        </button>
+      )}
+      {extraHeaderAction}
+    </>
+  ) : null
+
   return <main className="module-workspace">
-    <div className="module-heading">
-      <div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {(extraHeaderAction || roleAction || (canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager'))) && <div className="module-heading-actions">
-        {canStart && (role === 'hr' || role === 'supervisor' || role === 'operations_manager') && (
-          <button
-            className="module-secondary bulk-launch-header-btn"
-            type="button"
-            onClick={openBulkLauncher}
-            disabled={saving || bulkSaving}
-            title={`Launch a batch ${title.toLowerCase()} cycle for multiple employees`}
-          >
-            <Zap size={14} className="inline mr-1 text-amber-400" /> {moduleKey === 'performance' ? 'Launch Review Cycle' : moduleKey === 'competency' ? 'Launch Batch Plans' : moduleKey === 'succession' ? 'Launch Succession Batch' : 'Launch Batch Cycle'}
-          </button>
-        )}
-        {roleAction && <button className="module-primary" type="button" onClick={handleHeaderAction} disabled={saving}>{saving ? 'Creating...' : roleAction}</button>}
-        {extraHeaderAction}
-      </div>}
-    </div>
+    <PageBanner
+      title={title}
+      description={description}
+      icon={moduleIcon}
+      actions={bannerActions}
+    />
 
     {notice && <Notice notice={notice} type={noticeType} onDismiss={() => setNotice('')} />}
     {error && <div className="module-error" role="alert"><span>{error}</span><button onClick={() => { setError(''); void load() }}>Retry</button></div>}
@@ -1052,11 +1077,11 @@ const saveSchedule = async () => {
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                 }}
               >
-                <User size={13} style={{ color: '#7c3aed', flexShrink: 0 }} />
+                <User size={13} style={{ color: '#111827', flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
                   {workflow?.subject_name || workflow?.title || 'Select Employee'}
                 </span>
-                <span style={{ fontSize: 10, background: 'rgba(124,58,237,0.1)', color: '#7c3aed', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, background: '#f3f4f6', color: '#111827', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
                   {workflows.length} active
                 </span>
                 <ChevronDown size={13} style={{ color: '#64748b', flexShrink: 0, transform: workflowPickerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
@@ -1131,7 +1156,7 @@ const saveSchedule = async () => {
                             style={{
                               width: '100%', textAlign: 'left', padding: '8px 10px',
                               border: 'none', borderRadius: 6,
-                              background: isSelected ? 'rgba(124,58,237,0.08)' : 'transparent',
+                              background: isSelected ? '#f3f4f6' : 'transparent',
                               cursor: 'pointer', display: 'flex', alignItems: 'center',
                               justifyContent: 'space-between', gap: 8,
                             }}
@@ -1139,7 +1164,7 @@ const saveSchedule = async () => {
                             onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
                           >
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#6d28d9' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#111827' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {entry.subject_name || entry.title}
                               </div>
                               <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
@@ -1147,7 +1172,7 @@ const saveSchedule = async () => {
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stageLabel}</span>
                               </div>
                             </div>
-                            {isSelected && <Check size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />}
+                            {isSelected && <Check size={14} style={{ color: '#111827', flexShrink: 0 }} />}
                           </button>
                         )
                       })
@@ -1166,7 +1191,7 @@ const saveSchedule = async () => {
                         style={{
                           width: '100%',
                           padding: '7px 10px',
-                          background: '#7c3aed',
+                          background: '#111827',
                           color: '#ffffff',
                           border: 'none',
                           borderRadius: 6,
@@ -1179,8 +1204,8 @@ const saveSchedule = async () => {
                           gap: 6,
                           transition: 'background 0.15s',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#6d28d9' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#7c3aed' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#1f2937' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#111827' }}
                       >
                         <Plus size={13} />
                         <span>Evaluate another employee</span>
@@ -1316,8 +1341,8 @@ const saveSchedule = async () => {
                   </>
                 )
               ) : (
-                <div className="workflow-waiting-banner" style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ color: '#6366f1', flexShrink: 0 }}><Clock size={18} /></div>
+                <div className="workflow-waiting-banner" style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(17, 24, 39, 0.06)', border: '1px solid rgba(17, 24, 39, 0.18)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ color: '#111827', flexShrink: 0 }}><Clock size={18} /></div>
                   <div style={{ fontSize: 12 }}>
                     <b style={{ display: 'block', color: 'inherit', marginBottom: 2 }}>
                       Step in progress by {current?.roles?.map(r => r === 'hr' ? 'HR Admin' : r === 'supervisor' ? 'Supervisor' : r === 'employee' ? 'Employee' : r).join(' / ') || 'Reviewer'}

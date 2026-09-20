@@ -1,5 +1,5 @@
 /* ==========================================================================
-   HORECAOS HOTEL & RESTAURANT - SOCIAL RECOGNITION WALL (#513AB3 THEME)
+   HORECAOS HOTEL & RESTAURANT - SOCIAL RECOGNITION WALL (#111827 THEME)
    ========================================================================== */
 
 .recognition-page-wrapper {
@@ -83,7 +83,7 @@
 }
 
 .recognition-tab-btn.active {
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(81, 58, 179, 0.3);
 }
@@ -95,7 +95,7 @@
   gap: 8px;
   padding: 10px 20px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #513AB3 0%, #7054e3 100%);
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
   color: #ffffff;
   font-size: 13.5px;
   font-weight: 800;
@@ -106,7 +106,7 @@
 }
 
 .btn-give-recognition:hover {
-  background: linear-gradient(135deg, #432e98 0%, #513AB3 100%);
+  background: linear-gradient(135deg, #374151 0%, #111827 100%);
   transform: translateY(-1.5px);
   box-shadow: 0 8px 20px rgba(81, 58, 179, 0.45);
 }
@@ -157,8 +157,8 @@
 
 .value-filter-pill:hover,
 .value-filter-pill.active {
-  background: #513AB3;
-  border-color: #513AB3;
+  background: #111827;
+  border-color: #111827;
   color: #ffffff;
 }
 
@@ -201,7 +201,7 @@
   padding: 3px 10px;
   border-radius: 999px;
   background: rgba(81, 58, 179, 0.12);
-  color: #513AB3;
+  color: #111827;
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -210,7 +210,7 @@
 :root.dark .post-official-ribbon,
 .dark .post-official-ribbon {
   background: rgba(167, 139, 250, 0.18);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 /* Post Header */
@@ -225,7 +225,7 @@
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #513AB3 0%, #7054e3 100%);
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -294,12 +294,12 @@
   gap: 4px;
   font-size: 11.5px;
   font-weight: 700;
-  color: #513AB3;
+  color: #111827;
 }
 
 :root.dark .post-hashtag-chip,
 .dark .post-hashtag-chip {
-  color: #a78bfa;
+  color: #6b7280;
 }
 
 /* Message Box */
@@ -311,7 +311,7 @@
   padding: 12px 16px;
   background: #f8fafc;
   border-radius: 14px;
-  border-left: 3px solid #513AB3;
+  border-left: 3px solid #111827;
 }
 
 :root.dark .post-message-body,
@@ -365,15 +365,15 @@
 
 .reaction-icon-btn.reacted {
   background: rgba(81, 58, 179, 0.1);
-  border-color: #513AB3;
-  color: #513AB3;
+  border-color: #111827;
+  color: #111827;
 }
 
 :root.dark .reaction-icon-btn.reacted,
 .dark .reaction-icon-btn.reacted {
   background: rgba(167, 139, 250, 0.15);
-  border-color: #a78bfa;
-  color: #c4b5fd;
+  border-color: #6b7280;
+  color: #d1d5db;
 }
 
 /* Comments Section */
@@ -461,7 +461,7 @@
 .comment-send-btn {
   padding: 8px 16px;
   border-radius: 999px;
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   border: none;
   font-size: 12px;
@@ -518,7 +518,7 @@
   gap: 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #513AB3;
+  color: #111827;
   background: rgba(81, 58, 179, 0.08);
   border: 1px solid rgba(81, 58, 179, 0.2);
   padding: 2px 8px;
@@ -527,7 +527,7 @@
 
 :root.dark .leaderboard-month-badge,
 .dark .leaderboard-month-badge {
-  color: #c4b5fd;
+  color: #d1d5db;
   background: rgba(167, 139, 250, 0.12);
   border-color: rgba(167, 139, 250, 0.25);
 }
@@ -539,7 +539,7 @@
   padding: 4px 9px;
   font-size: 11.5px;
   font-weight: 700;
-  color: #513AB3;
+  color: #111827;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -551,12 +551,12 @@
 .dark .leaderboard-refresh-btn {
   background: rgba(15, 23, 42, 0.6);
   border-color: rgba(255, 255, 255, 0.12);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 .leaderboard-refresh-btn:hover {
   background: rgba(81, 58, 179, 0.1);
-  border-color: #513AB3;
+  border-color: #111827;
   transform: translateY(-1px);
 }
 
@@ -659,7 +659,7 @@
   font-size: 11.5px;
   font-weight: 700;
   color: #ffffff;
-  background: #513AB3;
+  background: #111827;
   border: none;
   border-radius: 999px;
   cursor: pointer;
@@ -667,7 +667,7 @@
 }
 
 .leaderboard-empty-action-btn:hover {
-  background: #432e98;
+  background: #374151;
   transform: translateY(-1px);
 }
 
@@ -739,13 +739,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #513AB3;
+  color: #111827;
   font-weight: 800;
 }
 
 :root.dark .leaderboard-item-count,
 .dark .leaderboard-item-count {
-  color: #a78bfa;
+  color: #6b7280;
 }
 
 .rank-badge {
@@ -753,7 +753,7 @@
   height: 22px;
   border-radius: 50%;
   background: rgba(81, 58, 179, 0.1);
-  color: #513AB3;
+  color: #111827;
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -764,7 +764,7 @@
 :root.dark .rank-badge,
 .dark .rank-badge {
   background: rgba(167, 139, 250, 0.2);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 /* ==========================================================================
@@ -787,7 +787,7 @@
 }
 
 .recognition-composer-card:focus-within {
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 8px 24px rgba(81, 58, 179, 0.12);
 }
 
@@ -843,7 +843,7 @@
 }
 
 .composer-textarea:focus {
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 0 0 3px rgba(81, 58, 179, 0.18);
 }
 
@@ -963,7 +963,7 @@
 
 .recog-select:focus,
 .recog-textarea:focus {
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 0 0 3px rgba(81, 58, 179, 0.18);
 }
 
@@ -1023,7 +1023,7 @@
 
 .pending-count-badge {
   background: rgba(81, 58, 179, 0.12);
-  color: #513AB3;
+  color: #111827;
   padding: 2px 8px;
   border-radius: 20px;
   font-size: 11px;
@@ -1033,7 +1033,7 @@
 :root.dark .pending-count-badge,
 .dark .pending-count-badge {
   background: rgba(167, 139, 250, 0.2);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 .pending-nominations-grid {
@@ -1060,7 +1060,7 @@
 }
 
 .pending-nomination-card:hover {
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 4px 14px rgba(81, 58, 179, 0.1);
 }
 
@@ -1128,14 +1128,14 @@
 
 .step-pill.current {
   background: rgba(81, 58, 179, 0.15);
-  color: #513AB3;
+  color: #111827;
   border: 1px solid rgba(81, 58, 179, 0.3);
 }
 
 :root.dark .step-pill.current,
 .dark .step-pill.current {
   background: rgba(167, 139, 250, 0.2);
-  color: #c4b5fd;
+  color: #d1d5db;
   border-color: rgba(167, 139, 250, 0.4);
 }
 
@@ -1196,7 +1196,7 @@
   padding: 7px 12px;
   border-radius: 8px;
   border: none;
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
@@ -1242,7 +1242,7 @@
   border-radius: 999px;
   border: 1px solid rgba(81, 58, 179, 0.3);
   background: rgba(81, 58, 179, 0.08);
-  color: #513AB3;
+  color: #111827;
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
@@ -1253,17 +1253,17 @@
 .dark .ai-insights-toggle-btn {
   background: rgba(167, 139, 250, 0.15);
   border-color: rgba(167, 139, 250, 0.3);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 .ai-insights-toggle-btn:hover {
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(81, 58, 179, 0.2);
 }
 
 :root.dark .ai-insights-toggle-btn:hover {
-  background: #7c3aed;
+  background: #111827;
   color: #ffffff;
 }
 

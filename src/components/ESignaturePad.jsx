@@ -184,9 +184,9 @@ export default function ESignaturePad({ value, onChange, onFileNameChange, fileN
               />
               <button
                 type="button"
-                className={`esign-color-dot ${penColor === '#513AB3' ? 'active' : ''}`}
-                style={{ backgroundColor: '#513AB3' }}
-                onClick={() => handleColorChange('#513AB3')}
+                className={`esign-color-dot ${penColor === '#111827' ? 'active' : ''}`}
+                style={{ backgroundColor: '#111827' }}
+                onClick={() => handleColorChange('#111827')}
                 title="Royal Purple Ink"
               />
             </div>

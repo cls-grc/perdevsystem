@@ -271,7 +271,7 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
               onClick={generate}
               disabled={generating}
               style={{
-                background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                background: 'linear-gradient(135deg, #111827 0%, #1f2937 100%)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
@@ -283,7 +283,7 @@ export default function ModuleAIInsights({ module, stage, workflowId }) {
                 alignItems: 'center',
                 gap: '6px',
                 width: 'auto',
-                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
+                boxShadow: '0 4px 12px rgba(17,24,39,0.25)',
                 transition: 'all 0.2s ease',
               }}
             >

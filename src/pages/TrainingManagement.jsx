@@ -469,7 +469,7 @@ export default function TrainingManagement() {
           <button
             type="button"
             className="session-action-btn"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#ffffff', border: 'none', padding: '8px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, boxShadow: '0 2px 10px rgba(99,102,241,0.25)' }}
+            style={{ background: '#111827', color: '#ffffff', border: 'none', padding: '8px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, boxShadow: '0 2px 10px rgba(17, 24, 39, 0.25)' }}
             onClick={() => {
               setEmployeeQRInitialTab('my_badge')
               setShowEmployeeQRModal(true)
@@ -536,7 +536,7 @@ export default function TrainingManagement() {
       {activeTab === 'active' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'inline-flex', background: 'rgba(99, 102, 241, 0.08)', padding: 3, borderRadius: 8, gap: 4 }}>
+            <div style={{ display: 'inline-flex', background: 'rgba(17, 24, 39, 0.08)', padding: 3, borderRadius: 8, gap: 4 }}>
               <button
                 type="button"
                 className={`view-toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}
@@ -692,7 +692,7 @@ export default function TrainingManagement() {
                           <button
                             type="button"
                             className="session-action-btn"
-                            style={{ background: 'rgba(99, 102, 241, 0.08)', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                            style={{ background: 'rgba(17, 24, 39, 0.08)', color: '#111827', borderColor: 'rgba(17, 24, 39, 0.3)' }}
                             onClick={() => {
                               setQrSessionTarget(session)
                               setShowQRModal(true)
@@ -867,7 +867,7 @@ export default function TrainingManagement() {
                       <div className="overview-sessions-list">
                         {overviewUpcoming.map(s => (
                           <div key={s.id} className="overview-session-row">
-                            <div className="overview-session-badge" style={{ background: '#f0edff', color: '#5f48c5' }}>
+                            <div className="overview-session-badge" style={{ background: '#f3f4f6', color: '#111827' }}>
                               {String(s.start_date).slice(5, 10)}
                             </div>
                             <div className="overview-session-info">
@@ -938,7 +938,7 @@ export default function TrainingManagement() {
                           <div key={c.category} className="overview-cat-row">
                             <span className="overview-cat-name">{c.category}</span>
                             <div className="overview-cat-bar-wrap">
-                              <div className="overview-cat-bar" style={{ width: `${Math.max(pct, 4)}%`, background: '#5f48c5' }} />
+                              <div className="overview-cat-bar" style={{ width: `${Math.max(pct, 4)}%`, background: '#111827' }} />
                             </div>
                             <span className="overview-cat-count">{c.count} <small>({c.completed} done)</small></span>
                           </div>
@@ -1155,7 +1155,7 @@ export default function TrainingManagement() {
                   <button
                     type="button"
                     className="session-action-btn"
-                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#ffffff', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}
+                    style={{ background: '#111827', color: '#ffffff', border: 'none', boxShadow: '0 2px 8px rgba(17, 24, 39, 0.3)' }}
                     onClick={() => {
                       setQrSessionTarget(selectedSessionDetail)
                       setShowQRModal(true)
@@ -1287,8 +1287,8 @@ export default function TrainingManagement() {
                                   style={{
                                     flex: 1,
                                     padding: '6px 0',
-                                    border: selected ? '1px solid #5f48c5' : '1px solid #d1d5db',
-                                    background: selected ? '#5f48c5' : '#ffffff',
+                                    border: selected ? '1px solid #111827' : '1px solid #d1d5db',
+                                    background: selected ? '#111827' : '#ffffff',
                                     color: selected ? '#ffffff' : '#374151',
                                     borderRadius: 6,
                                     fontSize: 12,

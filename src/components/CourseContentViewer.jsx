@@ -211,7 +211,7 @@ export default function CourseContentViewer({ resource, onClose }) {
             <div className="ccv-pdf-panel">
               <div className="ccv-pdf-toolbar">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <FileText size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />
+                  <FileText size={14} style={{ color: '#111827', flexShrink: 0 }} />
                   <span className="ccv-pdf-name" style={{ fontWeight: 700, color: 'inherit' }}>
                     {resource.title} — Official Training Document
                   </span>
@@ -283,7 +283,7 @@ export default function CourseContentViewer({ resource, onClose }) {
                       Curriculum & Lesson Material
                     </h4>
                     {isAiProvided && (
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#3b82f6', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <Sparkles size={11} /> AI Generated
                       </span>
                     )}

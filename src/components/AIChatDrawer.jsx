@@ -67,7 +67,7 @@ function renderFormattedContent(text = '') {
     if (listMatch) {
       return (
         <div key={lineIdx} style={{ paddingLeft: 8, margin: '4px 0', display: 'flex', gap: 6 }}>
-          <span style={{ fontWeight: 700, color: '#654bd2', minWidth: 16 }}>{listMatch[2]}</span>
+          <span style={{ fontWeight: 700, color: '#111827', minWidth: 16 }}>{listMatch[2]}</span>
           <span style={{ flex: 1 }}>{parseInlineBold(listMatch[3])}</span>
         </div>
       )
@@ -189,10 +189,10 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
         gap: 8,
         padding: '10px 18px',
         borderRadius: 28,
-        background: 'linear-gradient(135deg, #654bd2 0%, #402b98 100%)',
+        background: 'linear-gradient(135deg, #111827 0%, #402b98 100%)',
         color: '#ffffff',
         border: '1.5px solid rgba(255, 255, 255, 0.25)',
-        boxShadow: '0 8px 24px rgba(101, 75, 210, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)',
+        boxShadow: '0 8px 24px rgba(17, 24, 39, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)',
         cursor: 'pointer',
         fontSize: 13,
         fontWeight: 600,
@@ -201,11 +201,11 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
-        e.currentTarget.style.boxShadow = '0 12px 30px rgba(101, 75, 210, 0.55), 0 4px 12px rgba(0, 0, 0, 0.2)'
+        e.currentTarget.style.boxShadow = '0 12px 30px rgba(17, 24, 39, 0.55), 0 4px 12px rgba(0, 0, 0, 0.2)'
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = '0 8px 24px rgba(101, 75, 210, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(17, 24, 39, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
       }}
     >
       <Sparkles size={16} className="inline-block" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' }} />
@@ -300,7 +300,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Sparkles size={18} className="text-purple-300" />
+                <Sparkles size={18} className="text-gray-400" />
                 <h2 style={{ margin: 0, fontSize: 16, color: '#fff', fontWeight: 700 }}>AI Assistant Chatbox</h2>
                 {isMaximized && (
                   <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, color: '#d8d1f7' }}>
@@ -348,7 +348,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                 title={isMaximized ? 'Restore standard width' : 'Maximize window for larger view'}
                 aria-label={isMaximized ? 'Restore' : 'Maximize'}
                 style={{
-                  background: isMaximized ? 'rgba(101, 75, 210, 0.4)' : 'rgba(255, 255, 255, 0.1)',
+                  background: isMaximized ? 'rgba(17, 24, 39, 0.4)' : 'rgba(255, 255, 255, 0.1)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   borderRadius: 6,
                   color: '#e2dff0',
@@ -362,7 +362,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                   transition: 'background 0.15s ease',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isMaximized ? 'rgba(101, 75, 210, 0.4)' : 'rgba(255, 255, 255, 0.1)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isMaximized ? 'rgba(17, 24, 39, 0.4)' : 'rgba(255, 255, 255, 0.1)' }}
               >
                 {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
@@ -415,7 +415,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
           alignItems: 'center',
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={12} /> Authorized Access Active</span>
-          <span style={{ fontWeight: 600, color: '#654bd2' }}>{dataContextSummary || 'Analytics Context Active'}</span>
+          <span style={{ fontWeight: 600, color: '#111827' }}>{dataContextSummary || 'Analytics Context Active'}</span>
         </div>
 
         {/* Messages Body */}
@@ -437,7 +437,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                 maxWidth: '85%',
                 padding: '10px 14px',
                 borderRadius: m.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                background: m.role === 'user' ? '#654bd2' : '#ffffff',
+                background: m.role === 'user' ? '#111827' : '#ffffff',
                 color: m.role === 'user' ? '#ffffff' : '#282631',
                 boxShadow: '0 2px 8px rgba(40,34,70,0.04)',
                 border: m.role === 'user' ? 'none' : '1px solid #ecebf0',
@@ -447,7 +447,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
             >
               {m.role === 'assistant' && (
                 <div style={{ fontSize: 10, color: '#8e8b95', marginBottom: 4, fontWeight: 700, display: 'flex', gap: 6 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Sparkles size={10} className="text-purple-500" /> AI ASSISTANT</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Sparkles size={10} className="text-gray-700" /> AI ASSISTANT</span>
                   {m.summary && <span>· {m.summary}</span>}
                 </div>
               )}
@@ -468,7 +468,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
               alignItems: 'center',
               gap: 5,
             }}>
-              <Sparkles size={12} className="text-purple-400" /> Analyzing available data & generating response…
+              <Sparkles size={12} className="text-white" /> Analyzing available data & generating response…
             </div>
           )}
 
@@ -499,7 +499,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
                   borderRadius: 16,
                   border: '1px solid #e4e1f5',
                   background: '#f8f6ff',
-                  color: '#654bd2',
+                  color: '#111827',
                   fontSize: 10,
                   cursor: 'pointer',
                   fontWeight: 500,
@@ -546,7 +546,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
             style={{
               padding: '9px 16px',
               borderRadius: 8,
-              background: '#654bd2',
+              background: '#111827',
               color: '#fff',
               border: 'none',
               fontWeight: 600,

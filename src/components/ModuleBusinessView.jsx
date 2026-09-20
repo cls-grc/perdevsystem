@@ -165,7 +165,7 @@ function PerformanceBusiness({ data, workflows, completedWorkflows, breakdown })
           </button>
         </div>
         <span style={{ fontSize: 12, color: '#64748b' }}>
-          Avg Hotel Performance: <b style={{ color: '#513AB3' }}>{PCT(avg)}</b>
+          Avg Hotel Performance: <b style={{ color: '#111827' }}>{PCT(avg)}</b>
         </span>
       </div>
 
@@ -294,7 +294,7 @@ function CompetencyBusiness({ data, workflows, completedWorkflows, breakdown }) 
         }}>
           {/* Role Benchmark Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 280px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#513AB3', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#111827', whiteSpace: 'nowrap' }}>
               Role Standard:
             </span>
             <select

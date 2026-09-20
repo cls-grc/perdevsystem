@@ -32,6 +32,10 @@ async function request(path, options = {}, _retried = false) {
   // For login and register, never send an Authorization header — the endpoint is public.
   const isAuthEndpoint = path.startsWith('/api/auth/') && (path.includes('/login') || path.includes('/register'))
   const token = isAuthEndpoint ? null : localStorage.getItem('pds-token')
+  if (!isAuthEndpoint && !token) {
+    window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: 'Your session has expired. Please sign in again.' } }))
+    throw new Error('Authentication is required.')
+  }
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
@@ -44,6 +48,9 @@ async function request(path, options = {}, _retried = false) {
     if (newToken) {
       return request(path, options, true)
     }
+    localStorage.removeItem('pds-token')
+    localStorage.removeItem('pds-refresh-token')
+    window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: body.error || 'Your session has expired. Please sign in again.' } }))
     throw new Error(body.error || 'Your session has expired. Please sign in again.')
   }
   if (!response.ok) throw new Error(body.error || 'Request failed. Please check that the backend is running on port 4000 and try again.')

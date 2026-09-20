@@ -203,7 +203,7 @@ export default function CertificateVerification() {
                 <span>Date awarded<br /><b>{formatDate(cert.issuedDate)}</b></span>
                 <div className="certificate-qr-container">
                   <QRCodeImage value={verifyUrl} size={90} />
-                  <small style={{ fontSize: 7, color: '#654bd2', marginTop: 2, display: 'block' }}>VERIFY ONLINE</small>
+                  <small style={{ fontSize: 7, color: '#111827', marginTop: 2, display: 'block' }}>VERIFY ONLINE</small>
                 </div>
                 <span>
                   {cert.signatureUrl && <img className="certificate-signature" src={cert.signatureUrl} alt="Authorized signature" />}

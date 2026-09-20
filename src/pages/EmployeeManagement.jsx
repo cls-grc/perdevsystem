@@ -4,8 +4,9 @@ import { api } from '../lib/api'
 import { downloadCsv } from '../lib/exportUtils'
 import {
   Download, CheckCircle, ShieldCheck, Zap, Eye, EyeOff,
-  TrendingUp, TrendingDown, Minus, Award, AlertCircle, BarChart3, Clock, Target, Calendar, User, Briefcase, ChevronRight, X
+  TrendingUp, TrendingDown, Minus, Award, AlertCircle, BarChart3, Clock, Target, Calendar, User, Users, Briefcase, ChevronRight, X
 } from 'lucide-react'
+import PageBanner from '../components/PageBanner'
 
 const roleLabels = { employee: 'Employee', supervisor: 'Supervisor', management: 'Management', hr: 'HR', operations_manager: 'Ops Manager' }
 
@@ -233,21 +234,21 @@ export default function EmployeeManagement() {
 
   return (
     <main className="er-workspace">
-      <div className="er-heading">
-        <div>
-          <p className="eyebrow">HR Administration</p>
-          <h1>Employee Records</h1>
-          <p>Manage the employee lifecycle, organizational assignments, and system access.</p>
-        </div>
-        <div className="er-heading-actions">
-          <button className="module-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export all employee records to CSV">
-            <Download className="w-4 h-4 inline" />
-            <span>Export CSV</span>
-          </button>
-          <button className="module-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>
-          <button className="module-primary" onClick={() => { resetForm(); setShowForm(true) }}>+ Add employee</button>
-        </div>
-      </div>
+      <PageBanner
+        title="Employee Records"
+        description="Manage the employee lifecycle, organizational assignments, and system access."
+        icon={<Users className="w-5 h-5 text-white" />}
+        actions={
+          <>
+            <button className="saas-btn-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export all employee records to CSV">
+              <Download className="w-4 h-4 inline" />
+              <span>Export CSV</span>
+            </button>
+            <button className="saas-btn-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>
+            <button className="saas-btn-primary" onClick={() => { resetForm(); setShowForm(true) }} style={{ background: '#111827', color: '#ffffff', border: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(17,24,39,0.35)' }}>+ Add employee</button>
+          </>
+        }
+      />
 
       {notice && <p className="module-notice"><CheckCircle className="w-4 h-4 inline mr-1 text-emerald-500" /> {notice}</p>}
       {error && <p className="module-error">{error}</p>}
@@ -368,8 +369,8 @@ export default function EmployeeManagement() {
                 {!editId && (
                   <>
                     <div className="er-full" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, marginTop: 8 }}>
-                      <b style={{ fontSize: 13, color: '#a855f7', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <ShieldCheck className="w-4 h-4 text-purple-400" />
+                      <b style={{ fontSize: 13, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <ShieldCheck className="w-4 h-4 text-white" />
                         <span>User Login Account &amp; RBAC Access</span>
                       </b>
                       <small style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
@@ -407,7 +408,7 @@ export default function EmployeeManagement() {
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: '#a855f7',
+                            color: '#111827',
                             fontSize: 11,
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -439,7 +440,7 @@ export default function EmployeeManagement() {
                             top: '50%',
                             transform: 'translateY(-50%)',
                             background: showEmpPass ? '#f3e8ff' : '#f1f5f9',
-                            color: showEmpPass ? '#7c3aed' : '#475569',
+                            color: showEmpPass ? '#111827' : '#475569',
                             border: showEmpPass ? '1px solid #c084fc' : '1px solid #cbd5e1',
                             borderRadius: 6,
                             padding: '3px 8px',
@@ -556,7 +557,7 @@ export default function EmployeeManagement() {
                 <div className="er-history-kpi-card">
                   <div className="kpi-tag-label">Performance Score</div>
                   <div className="kpi-val-row">
-                    <span className="kpi-big-val text-purple-600 dark:text-purple-400">{currentPerf}%</span>
+                    <span className="kpi-big-val text-gray-900 dark:text-white">{currentPerf}%</span>
                     <span className={`kpi-trend-pill ${perfDelta > 0 ? 'positive' : perfDelta < 0 ? 'negative' : 'neutral'}`}>
                       {perfDelta > 0 ? <TrendingUp size={12} /> : perfDelta < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
                       <span>{perfDelta > 0 ? `+${perfDelta}%` : perfDelta < 0 ? `${perfDelta}%` : 'Stable'}</span>
@@ -574,7 +575,7 @@ export default function EmployeeManagement() {
                 <div className="er-history-kpi-card">
                   <div className="kpi-tag-label">Competency Score</div>
                   <div className="kpi-val-row">
-                    <span className="kpi-big-val text-indigo-600 dark:text-indigo-400">{currentComp}%</span>
+                    <span className="kpi-big-val text-blue-600 dark:text-blue-400">{currentComp}%</span>
                     <span className={`kpi-trend-pill ${compDelta > 0 ? 'positive' : compDelta < 0 ? 'negative' : 'neutral'}`}>
                       {compDelta > 0 ? <TrendingUp size={12} /> : compDelta < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
                       <span>{compDelta > 0 ? `+${compDelta}%` : compDelta < 0 ? `${compDelta}%` : 'Stable'}</span>
@@ -609,7 +610,7 @@ export default function EmployeeManagement() {
                 <div className="er-chart-top">
                   <div>
                     <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
-                      <BarChart3 size={14} className="text-purple-500" />
+                      <BarChart3 size={14} className="text-gray-700" />
                       <span>Historical Progression &amp; Score Trends</span>
                     </h3>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0">Time-series tracking recorded across performance workflows and reviews</p>
@@ -634,15 +635,15 @@ export default function EmployeeManagement() {
                     <text x="462" y="55" fill="#f59e0b" fontSize="8" fontWeight="600">80%</text>
 
                     {/* Path curves */}
-                    {perfPath && <path d={perfPath} fill="none" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
-                    {compPath && <path d={compPath} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {perfPath && <path d={perfPath} fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {compPath && <path d={compPath} fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
                     {learnPath && <path d={learnPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
 
                     {/* Data Point Circles */}
                     {chartPoints.map((pt, idx) => (
                       <g key={idx}>
-                        <circle cx={pt.x} cy={pt.yPerf} r="4" fill="#a855f7" stroke="#ffffff" strokeWidth="1.5" />
-                        <circle cx={pt.x} cy={pt.yComp} r="4" fill="#6366f1" stroke="#ffffff" strokeWidth="1.5" />
+                        <circle cx={pt.x} cy={pt.yPerf} r="4" fill="#111827" stroke="#ffffff" strokeWidth="1.5" />
+                        <circle cx={pt.x} cy={pt.yComp} r="4" fill="#111827" stroke="#ffffff" strokeWidth="1.5" />
                         <circle cx={pt.x} cy={pt.yLearn} r="4" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
                       </g>
                     ))}
@@ -736,8 +737,8 @@ export default function EmployeeManagement() {
                                 </div>
                                 <small className="text-slate-400 text-[9px]">{new Date(row.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
                               </td>
-                              <td><span className="er-score text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30">{p}%</span></td>
-                              <td><span className="er-score text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">{c}%</span></td>
+                              <td><span className="er-score text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/30">{p}%</span></td>
+                              <td><span className="er-score text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30">{c}%</span></td>
                               <td><span className="er-score text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30">{row.learning_progress || 0}%</span></td>
                               <td>
                                 <span className={`er-status ${isCompliant ? 'active' : 'inactive'}`}>

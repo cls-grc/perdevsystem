@@ -1,5 +1,5 @@
 /* ==========================================================================
-   HORECAOS HOTEL & RESTAURANT - VISUAL ORG CHART (#513AB3 THEME)
+   HORECAOS HOTEL & RESTAURANT - VISUAL ORG CHART (#111827 THEME)
    ========================================================================== */
 
 .org-chart-page-container {
@@ -85,12 +85,12 @@
   flex-shrink: 0;
 }
 
-.icon-wrap-violet { background: rgba(81, 58, 179, 0.1); color: #513AB3; }
+.icon-wrap-violet { background: rgba(17, 24, 39, 0.1); color: #111827; }
 .icon-wrap-emerald { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .icon-wrap-amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 .icon-wrap-rose { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 
-:root.dark .icon-wrap-violet { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+:root.dark .icon-wrap-violet { background: rgba(17, 24, 39, 0.2); color: #d1d5db; }
 :root.dark .icon-wrap-emerald { background: rgba(52, 211, 153, 0.15); color: #34d399; }
 :root.dark .icon-wrap-amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 :root.dark .icon-wrap-rose { background: rgba(248, 113, 113, 0.15); color: #f87171; }
@@ -220,8 +220,8 @@
 }
 
 .org-btn-tool:hover {
-  background: #513AB3;
-  border-color: #513AB3;
+  background: #111827;
+  border-color: #111827;
   color: #ffffff;
 }
 
@@ -245,7 +245,7 @@
 .org-zoom-slider {
   width: 90px;
   height: 5px;
-  accent-color: #513AB3;
+  accent-color: #111827;
   cursor: pointer;
 }
 
@@ -395,24 +395,24 @@
 
 .org-node-card:hover {
   transform: translateY(-4px) scale(1.02);
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 12px 28px rgba(81, 58, 179, 0.18);
 }
 
 :root.dark .org-node-card:hover,
 .dark .org-node-card:hover {
-  border-color: #7054e3;
+  border-color: #1f2937;
   box-shadow: 0 12px 30px rgba(112, 84, 227, 0.25);
 }
 
 .org-node-card.selected-node {
-  border-color: #513AB3;
+  border-color: #111827;
   box-shadow: 0 0 0 3px rgba(81, 58, 179, 0.25), 0 12px 28px rgba(81, 58, 179, 0.2);
 }
 
 :root.dark .org-node-card.selected-node,
 .dark .org-node-card.selected-node {
-  border-color: #a78bfa;
+  border-color: #6b7280;
   box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3), 0 12px 28px rgba(81, 58, 179, 0.35);
 }
 
@@ -437,13 +437,13 @@
   border-radius: 0 0 4px 4px;
 }
 
-.bar-executive { background: #8b5cf6; }
+.bar-executive { background: #4b5563; }
 .bar-frontoffice { background: #3b82f6; }
 .bar-housekeeping { background: #ec4899; }
 .bar-foodbeverage { background: #f59e0b; }
 .bar-kitchen { background: #ef4444; }
 .bar-operations { background: #10b981; }
-.bar-hr { background: #513AB3; }
+.bar-hr { background: #111827; }
 
 .org-node-header {
   display: flex;
@@ -456,7 +456,7 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #513AB3 0%, #7054e3 100%);
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -505,13 +505,13 @@
   font-weight: 700;
   margin-bottom: 8px;
   background: rgba(81, 58, 179, 0.08);
-  color: #513AB3;
+  color: #111827;
 }
 
 :root.dark .org-node-dept-tag,
 .dark .org-node-dept-tag {
   background: rgba(167, 139, 250, 0.15);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 /* Node Metrics Strip */
@@ -596,13 +596,13 @@
 
 .badge-dev-needed {
   background: rgba(81, 58, 179, 0.1);
-  color: #513AB3;
+  color: #111827;
 }
 
 :root.dark .badge-dev-needed,
 .dark .badge-dev-needed {
   background: rgba(167, 139, 250, 0.18);
-  color: #c4b5fd;
+  color: #d1d5db;
 }
 
 /* Expand / Collapse Subordinates Button */
@@ -614,7 +614,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -633,7 +633,7 @@
 }
 
 .org-node-toggle-btn:hover {
-  background: #7054e3;
+  background: #1f2937;
   transform: translateX(-50%) scale(1.15);
 }
 
@@ -804,7 +804,7 @@
   width: 54px;
   height: 54px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #513AB3 0%, #7054e3 100%);
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -938,7 +938,7 @@
 .org-comp-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #513AB3, #7054e3);
+  background: linear-gradient(90deg, #111827, #1f2937);
   transition: width 0.6s ease;
 }
 
@@ -988,7 +988,7 @@
   gap: 6px;
   padding: 10px 14px;
   border-radius: 999px;
-  background: #513AB3;
+  background: #111827;
   color: #ffffff;
   font-size: 12.5px;
   font-weight: 700;
@@ -999,7 +999,7 @@
 }
 
 .org-drawer-action-btn:hover {
-  background: #432e98;
+  background: #374151;
   transform: translateY(-1px);
 }
 

@@ -37,8 +37,8 @@ const NINE_BOX_MATRIX = [
     desc: 'Solid performer with exceptional leadership potential. Ready for stretch assignments.',
     perfRange: 'Medium',
     potRange: 'High',
-    color: '#8b5cf6',
-    bgLight: 'rgba(139, 92, 246, 0.1)',
+    color: '#4b5563',
+    bgLight: 'rgba(17, 24, 39, 0.1)',
     icon: TrendingUp,
   },
   {
@@ -78,8 +78,8 @@ const NINE_BOX_MATRIX = [
     desc: 'Reliable contributor delivering consistent quality in daily hotel operations.',
     perfRange: 'Medium',
     potRange: 'Medium',
-    color: '#6366f1',
-    bgLight: 'rgba(99, 102, 241, 0.1)',
+    color: '#111827',
+    bgLight: 'rgba(17, 24, 39, 0.1)',
     icon: Users,
   },
   {
@@ -132,7 +132,7 @@ const NINE_BOX_MATRIX = [
     desc: 'Master of current craft and veteran hospitality anchor with deep institutional knowledge.',
     perfRange: 'High',
     potRange: 'Low',
-    color: '#513AB3',
+    color: '#111827',
     bgLight: 'rgba(81, 58, 179, 0.1)',
     icon: Zap,
   },
@@ -210,8 +210,8 @@ export default function InteractiveTalentGrid({ employees = [], onSelectEmployee
       <div className="talent-grid-toolbar">
         <div className="talent-grid-controls">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Filter size={14} color="#513AB3" />
-            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#513AB3' }}>
+            <Filter size={14} color="#111827" />
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#111827' }}>
               Filter:
             </span>
           </div>
@@ -341,7 +341,7 @@ export default function InteractiveTalentGrid({ employees = [], onSelectEmployee
               </>
             ) : (
               <>
-                <Users size={16} color="#513AB3" />
+                <Users size={16} color="#111827" />
                 <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>
                   All Categorized Staff ({activeStaffList.length})
                 </h4>

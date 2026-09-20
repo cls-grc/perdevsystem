@@ -132,7 +132,7 @@ button { touch-action: manipulation; }
     display: inline-block !important;
     font-size: 8.5px !important;
     font-weight: 800 !important;
-    color: #6366f1 !important;
+    color: #111827 !important;
     letter-spacing: 0.08em !important;
   }
 
@@ -216,15 +216,15 @@ button { touch-action: manipulation; }
   }
   .mobile-nav-drawer .nav-item:hover {
     background: #f1f5f9 !important;
-    color: #4f46e5 !important;
+    color: #111827 !important;
   }
-  .mobile-nav-drawer .nav-item:hover .nav-icon-wrap { color: #4f46e5 !important; }
+  .mobile-nav-drawer .nav-item:hover .nav-icon-wrap { color: #111827 !important; }
 
   .mobile-nav-drawer .nav-item.nav-active {
-    background: #6366f1 !important;
+    background: #111827 !important;
     color: #ffffff !important;
     font-weight: 700 !important;
-    box-shadow: 0 3px 10px rgba(99, 102, 241, 0.35) !important;
+    box-shadow: 0 3px 10px rgba(17, 24, 39, 0.35) !important;
   }
   .mobile-nav-drawer .nav-item.nav-active .nav-icon-wrap {
     color: #ffffff !important;
@@ -240,11 +240,11 @@ button { touch-action: manipulation; }
     color: #94a3b8 !important;
   }
   .dark .mobile-nav-drawer .nav-item:hover {
-    background: rgba(99, 102, 241, 0.14) !important;
-    color: #c4b5fd !important;
+    background: rgba(17, 24, 39, 0.14) !important;
+    color: #d1d5db !important;
   }
   .dark .mobile-nav-drawer .nav-item.nav-active {
-    background: #6366f1 !important;
+    background: #111827 !important;
     color: #ffffff !important;
   }
 

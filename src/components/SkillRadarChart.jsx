@@ -11,7 +11,7 @@ export const LEVEL_SCORES = {
 export const LEVEL_COLORS = {
   Foundation: '#94a3b8',
   Developing: '#f59e0b',
-  Proficient: '#6366f1',
+  Proficient: '#111827',
   Expert: '#10b981',
 }
 
@@ -129,7 +129,7 @@ export default function SkillRadarChart({
 
   if (count === 0) {
     return (
-      <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 13, background: 'rgba(99, 102, 241, 0.04)', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+      <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 13, background: 'rgba(17, 24, 39, 0.04)', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
         <Target size={28} style={{ opacity: 0.4, margin: '0 auto 8px', display: 'block' }} />
         <b>No Competency Benchmarks Selected</b>
         <p style={{ margin: '4px 0 0', fontSize: 12 }}>Select a position benchmark template to generate the skill spider web radar chart.</p>
@@ -154,7 +154,7 @@ export default function SkillRadarChart({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sparkles size={16} style={{ color: '#8b5cf6' }} />
+            <Sparkles size={16} style={{ color: '#4b5563' }} />
             <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
               Skill Spider Web · {roleName}
             </h4>
@@ -167,8 +167,8 @@ export default function SkillRadarChart({
         {/* Legend */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, fontWeight: 600 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 10, height: 3, borderRadius: 2, background: '#7c3aed', display: 'inline-block' }} />
-            <span style={{ color: '#7c3aed' }}>Target Benchmark</span>
+            <span style={{ width: 10, height: 3, borderRadius: 2, background: '#111827', display: 'inline-block' }} />
+            <span style={{ color: '#111827' }}>Target Benchmark</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 10, height: 3, borderRadius: 2, background: '#10b981', display: 'inline-block' }} />
@@ -188,8 +188,8 @@ export default function SkillRadarChart({
           >
             <defs>
               <radialGradient id="radarTargetGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.08" />
+                <stop offset="0%" stopColor="#111827" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#4b5563" stopOpacity="0.08" />
               </radialGradient>
               <radialGradient id="radarActualGlow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
@@ -256,7 +256,7 @@ export default function SkillRadarChart({
                   y1={center}
                   x2={x}
                   y2={y}
-                  stroke={isHovered ? '#8b5cf6' : 'rgba(148, 163, 184, 0.3)'}
+                  stroke={isHovered ? '#4b5563' : 'rgba(148, 163, 184, 0.3)'}
                   strokeWidth={isHovered ? 1.5 : 1}
                 />
               )
@@ -267,7 +267,7 @@ export default function SkillRadarChart({
               <polygon
                 points={targetPoints}
                 fill="url(#radarTargetGlow)"
-                stroke="#7c3aed"
+                stroke="#111827"
                 strokeWidth="2"
                 strokeDasharray="4 3"
                 style={{ transition: 'all 0.3s ease' }}
@@ -294,7 +294,7 @@ export default function SkillRadarChart({
                   cx={x}
                   cy={y}
                   r="3"
-                  fill="#7c3aed"
+                  fill="#111827"
                   stroke="#ffffff"
                   strokeWidth="1.2"
                   style={{ pointerEvents: 'none' }}
@@ -365,7 +365,7 @@ export default function SkillRadarChart({
                     y={firstLineY}
                     fontSize={isHovered || isSelected ? '10' : '9'}
                     fontWeight={isHovered || isSelected ? '800' : '700'}
-                    fill={isHovered || isSelected ? '#8b5cf6' : 'currentColor'}
+                    fill={isHovered || isSelected ? '#4b5563' : 'currentColor'}
                     textAnchor={textAnchor}
                     dominantBaseline="auto"
                   >
@@ -394,12 +394,12 @@ export default function SkillRadarChart({
           {/* Key KPI Badge Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div style={{
-              background: 'rgba(124, 58, 237, 0.08)',
-              border: '1px solid rgba(124, 58, 237, 0.2)',
+              background: 'rgba(17,24,39,0.08)',
+              border: '1px solid rgba(17,24,39,0.2)',
               borderRadius: 10,
               padding: '8px 10px',
             }}>
-              <small style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#8b5cf6' }}>
+              <small style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#4b5563' }}>
                 Benchmark Match
               </small>
               <div style={{ fontSize: 17, fontWeight: 800, color: summary.matchPct >= 90 ? '#10b981' : summary.matchPct >= 75 ? '#f59e0b' : '#ef4444' }}>
@@ -437,7 +437,7 @@ export default function SkillRadarChart({
               padding: '10px 12px',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: LEVEL_COLORS[activeItem.level] || '#6366f1', color: '#fff' }}>
+                <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: LEVEL_COLORS[activeItem.level] || '#111827', color: '#fff' }}>
                   Required: {activeItem.level} ({activeItem.target}%)
                 </span>
                 <span style={{ fontSize: 10.5, fontWeight: 700, color: activeItem.isMet ? '#10b981' : '#f59e0b', display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -457,7 +457,7 @@ export default function SkillRadarChart({
                   <span>Benchmark: <b>{activeItem.target}%</b></span>
                 </div>
                 <div style={{ height: 5, width: '100%', background: 'rgba(148, 163, 184, 0.2)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                  <div style={{ position: 'absolute', left: `${activeItem.target}%`, top: 0, bottom: 0, width: 2, background: '#7c3aed', zIndex: 2 }} />
+                  <div style={{ position: 'absolute', left: `${activeItem.target}%`, top: 0, bottom: 0, width: 2, background: '#111827', zIndex: 2 }} />
                   <div style={{ height: '100%', width: `${activeItem.actual}%`, background: activeItem.isMet ? '#10b981' : '#f59e0b', borderRadius: 3 }} />
                 </div>
               </div>
@@ -495,7 +495,7 @@ export default function SkillRadarChart({
                       key={d.name}
                       style={{
                         borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
-                        background: isHovered || isSelected ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
+                        background: isHovered || isSelected ? 'rgba(17,24,39,0.08)' : 'transparent',
                         cursor: 'pointer',
                       }}
                       onMouseEnter={() => setHoveredIdx(i)}
@@ -515,13 +515,13 @@ export default function SkillRadarChart({
                           padding: '1px 5px',
                           borderRadius: 3,
                           background: `${LEVEL_COLORS[d.level]}20`,
-                          color: LEVEL_COLORS[d.level] || '#6366f1',
+                          color: LEVEL_COLORS[d.level] || '#111827',
                           border: `1px solid ${LEVEL_COLORS[d.level]}40`,
                         }}>
                           {d.level}
                         </span>
                       </td>
-                      <td style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 700, color: '#8b5cf6' }}>
+                      <td style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 700, color: '#4b5563' }}>
                         {d.target}%
                       </td>
                       <td style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 700, color: d.isMet ? '#10b981' : '#f59e0b' }}>

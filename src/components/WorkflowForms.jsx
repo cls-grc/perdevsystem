@@ -238,7 +238,7 @@ function KpiBuilder({ value = [], onChange }) {
           {isWeightValid ? <><CheckCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Total Weight: 100%</> : `Total Weight: ${totalWeight}% (Must be 100%)`}
         </span>
         {value.length > 0 && (
-          <button type="button" className="btn-auto-distribute" onClick={autoDistribute} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
+          <button type="button" className="btn-auto-distribute" onClick={autoDistribute} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#f3f4f6', color: '#111827', cursor: 'pointer' }}>
             <Sparkles size={12} /> Auto-Distribute 100% Evenly
           </button>
         )}
@@ -333,7 +333,7 @@ function KpiLibraryBuilder({ value = [], onChange }) {
                 type="button" 
                 className="btn-auto-distribute" 
                 onClick={autoDistribute}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #c7d2fe', background: '#f3f4f6', color: '#111827', cursor: 'pointer' }}
               >
                 <Sparkles size={12} /> Auto-Distribute 100% Evenly
               </button>
@@ -751,7 +751,7 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
 
   const getPerformanceBadge = (pct) => {
     if (pct >= 90) return { label: 'Excellent (Role Model)', color: '#10b981', bg: '#ecfdf5' }
-    if (pct >= 80) return { label: 'Good (Exceeds Standards)', color: '#4f46e5', bg: '#eef2ff' }
+    if (pct >= 80) return { label: 'Good (Exceeds Standards)', color: '#111827', bg: '#f3f4f6' }
     if (pct >= 70) return { label: 'Satisfactory (Meets Standards)', color: '#0284c7', bg: '#f0f9ff' }
     if (pct >= 60) return { label: 'Fair (Needs Improvement)', color: '#d97706', bg: '#fffbeb' }
     return { label: 'Poor (Critical Action Required)', color: '#ef4444', bg: '#fef2f2' }
@@ -1105,7 +1105,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [], subject, workfl
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="calib-feedback-box" style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <b style={{ color: '#4338ca', fontSize: 12 }}>Employee Self-Identified Strengths</b>
+              <b style={{ color: '#111827', fontSize: 12 }}>Employee Self-Identified Strengths</b>
               <p style={{ fontSize: 12, margin: '6px 0 0', color: '#475569' }}>
                 {empData.strengths || 'No specific strengths entered.'}
               </p>
@@ -1429,13 +1429,13 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
 
         {/* AI Progress Bar */}
         {autoAssigning && (
-          <div style={{ margin: '6px 0 2px', background: 'rgba(124,58,237,0.08)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(124,58,237,0.18)' }}>
+          <div style={{ margin: '6px 0 2px', background: 'rgba(17,24,39,0.08)', borderRadius: 8, padding: '8px 12px', border: '1px solid rgba(17,24,39,0.18)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>AI is assigning development plans…</span>
-              <span style={{ fontSize: 11, color: '#7c3aed' }}>{autoProgress}%</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#111827' }}>AI is assigning development plans…</span>
+              <span style={{ fontSize: 11, color: '#111827' }}>{autoProgress}%</span>
             </div>
-            <div style={{ height: 5, background: 'rgba(124,58,237,0.15)', borderRadius: 3 }}>
-              <div style={{ height: '100%', width: `${autoProgress}%`, background: 'linear-gradient(90deg, #7c3aed, #10b981)', borderRadius: 3, transition: 'width 0.3s ease' }} />
+            <div style={{ height: 5, background: 'rgba(17,24,39,0.15)', borderRadius: 3 }}>
+              <div style={{ height: '100%', width: `${autoProgress}%`, background: 'linear-gradient(90deg, #111827, #10b981)', borderRadius: 3, transition: 'width 0.3s ease' }} />
             </div>
           </div>
         )}
@@ -1491,7 +1491,7 @@ function SkillGapPlanBuilder({ value, onChange, role, people = [], subject }) {
                     <span className="gap-competency">{comp}</span>
                     {assignedMap[comp]
                       ? <span className="gap-pill assigned-pill"><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Course assigned</span>
-                      : <span className="gap-pill" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', borderColor: 'rgba(99, 102, 241, 0.3)' }}>Elective</span>
+                      : <span className="gap-pill" style={{ background: 'rgba(17, 24, 39, 0.15)', color: '#9ca3af', borderColor: 'rgba(17, 24, 39, 0.3)' }}>Elective</span>
                     }
                   </div>
                   <div className="gap-card-foot" style={{ marginTop: '8px' }}>
@@ -1648,21 +1648,21 @@ function BrowseLibraryPanel({ selectedCompetency, assignedMap, assigning, onAssi
   })
 
   return (
-    <div className="browse-library-panel" style={{ marginTop: 12, border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, overflow: 'hidden' }}>
+    <div className="browse-library-panel" style={{ marginTop: 12, border: '1px solid rgba(17, 24, 39, 0.2)', borderRadius: 10, overflow: 'hidden' }}>
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '9px 14px', background: expanded ? 'rgba(99,102,241,0.08)' : 'rgba(248,250,252,0.9)',
-          border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#4338ca',
-          borderBottom: expanded ? '1px solid rgba(99,102,241,0.15)' : 'none',
+          padding: '9px 14px', background: expanded ? 'rgba(17, 24, 39, 0.08)' : 'rgba(248,250,252,0.9)',
+          border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#111827',
+          borderBottom: expanded ? '1px solid rgba(17, 24, 39, 0.15)' : 'none',
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Search size={13} /> Browse Full Course Library for "{selectedCompetency}"
         </span>
-        <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 600 }}>{expanded ? '▲ Hide' : '▼ Show'}</span>
+        <span style={{ fontSize: 10, color: '#111827', fontWeight: 600 }}>{expanded ? '▲ Hide' : '▼ Show'}</span>
       </button>
 
       {expanded && (
@@ -1691,7 +1691,7 @@ function BrowseLibraryPanel({ selectedCompetency, assignedMap, assigning, onAssi
                     {(course.competencies || []).length > 0 && (
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                         {course.competencies.map(c => (
-                          <span key={c} style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed' }}>{c}</span>
+                          <span key={c} style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#f3f4f6', color: '#111827' }}>{c}</span>
                         ))}
                       </div>
                     )}
@@ -1702,7 +1702,7 @@ function BrowseLibraryPanel({ selectedCompetency, assignedMap, assigning, onAssi
                     onClick={() => onAssign(course)}
                     style={{
                       flexShrink: 0, padding: '5px 10px', fontSize: 10, fontWeight: 700, borderRadius: 6, border: 'none',
-                      background: isAssigned ? '#d1fae5' : 'linear-gradient(135deg,#7c3aed,#6366f1)',
+                      background: isAssigned ? '#d1fae5' : 'linear-gradient(135deg,#111827,#111827)',
                       color: isAssigned ? '#065f46' : '#fff', cursor: isAssigned ? 'default' : 'pointer', whiteSpace: 'nowrap',
                     }}
                   >
@@ -1761,7 +1761,7 @@ function CompetencyTemplateBuilder({ value = [], onChange }) {
   }
 
   const totalWeight = value.reduce((s, r) => s + Number(r.weight || 0), 0)
-  const levelColor = lvl => ({ Foundation: '#8a8792', Developing: '#b06948', Proficient: '#5d49be', Expert: '#31965b' }[lvl] || '#5d49be')
+  const levelColor = lvl => ({ Foundation: '#8a8792', Developing: '#b06948', Proficient: '#111827', Expert: '#31965b' }[lvl] || '#111827')
 
   return (
     <div className="builder competency-template-builder" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1813,7 +1813,7 @@ function CompetencyTemplateBuilder({ value = [], onChange }) {
                     alignItems: 'center',
                     padding: '8px 10px',
                     borderBottom: '1px solid rgba(148, 163, 184, 0.15)',
-                    background: selectedSkill === row.competency ? 'rgba(124, 58, 237, 0.05)' : 'transparent',
+                    background: selectedSkill === row.competency ? 'rgba(17,24,39,0.05)' : 'transparent',
                     borderRadius: 6,
                   }}
                   onClick={() => setSelectedSkill(row.competency)}
@@ -2153,12 +2153,12 @@ function ResourcesBuilder({ value = [], onChange, subject, people = [], workflow
 
       {/* Role & Department Context Notice */}
       {employeeDept && (
-        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(124, 58, 237, 0.05)', borderRadius: 8, border: '1px solid rgba(124, 58, 237, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-          <div style={{ fontSize: 11, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(17,24,39,0.05)', borderRadius: 8, border: '1px solid rgba(17,24,39,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ fontSize: 11, color: '#1f2937', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Sparkles size={13} />
             <span>Showing modules relevant to <b>{employeeName}</b> ({employeeJob || 'Staff'} · {employeeDept})</span>
           </div>
-          <small style={{ fontSize: 10, color: '#7c3aed', fontWeight: 600 }}>Strict Department &amp; Role Filter Active</small>
+          <small style={{ fontSize: 10, color: '#111827', fontWeight: 600 }}>Strict Department &amp; Role Filter Active</small>
         </div>
       )}
 
@@ -2339,14 +2339,14 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
 
       {/* Session Preview Badge */}
       {selectedSess && (
-        <div style={{ background: '#f0edff', border: '1px solid #d5cefc', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#f3f4f6', border: '1px solid #d5cefc', padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <b style={{ color: '#5f48c5', fontSize: 14 }}>{selectedSess.title}</b>
+            <b style={{ color: '#111827', fontSize: 14 }}>{selectedSess.title}</b>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {selectedSess.venue}</span> • <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={13} /> {String(selectedSess.start_date).slice(0, 10)}</span> • <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={13} /> {selectedSess.registered_count || 0}/{selectedSess.capacity} capacity</span>
             </div>
           </div>
-          <span style={{ background: '#5f48c5', color: '#fff', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{selectedSess.category}</span>
+          <span style={{ background: '#111827', color: '#fff', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{selectedSess.category}</span>
         </div>
       )}
 
@@ -2359,7 +2359,7 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
           {filteredEmployees.length > 0 && (
             <button
               type="button"
-              style={{ background: 'transparent', border: 'none', color: '#5f48c5', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               onClick={() => {
                 const allIds = filteredEmployees.map(p => p.id)
                 const nextIds = [...new Set([...selectedEmpIds, ...allIds])]
@@ -2405,7 +2405,7 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
                   padding: '8px 12px',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  background: checked ? '#f0edff' : '#ffffff',
+                  background: checked ? '#f3f4f6' : '#ffffff',
                   border: checked ? '1px solid #c4b8f3' : '1px solid #f3f4f6',
                   transition: 'all 0.15s ease',
                 }}
@@ -2516,7 +2516,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
             {isEmployee ? 'Track your study progress and update your completion status.' : 'Review learner completion against assigned competency development plans.'}
           </span>
         </div>
-        {loading && <small style={{ color: '#8b5cf6', fontSize: 11 }}>Syncing progress…</small>}
+        {loading && <small style={{ color: '#4b5563', fontSize: 11 }}>Syncing progress…</small>}
       </div>
 
       {/* Real database assignments list */}
@@ -2539,7 +2539,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                 <div>
                   <b style={{ fontSize: 12.5, color: 'inherit' }}>{a.resource_title}</b>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(17, 24, 39, 0.1)', color: '#111827' }}>
                       {a.category || 'Skill Development'}
                     </span>
                     {a.duration_hours && (
@@ -2606,7 +2606,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                     style={{
                       height: '100%',
                       width: `${a.progress || 0}%`,
-                      background: Number(a.progress) >= 100 ? '#10b981' : 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                      background: Number(a.progress) >= 100 ? '#10b981' : 'linear-gradient(90deg, #4b5563, #111827)',
                       borderRadius: 5,
                       transition: 'width 0.2s ease',
                     }}
@@ -2638,9 +2638,9 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
                       fontSize: 10,
                       fontWeight: Math.round(Number(a.progress || 0)) === pct ? 700 : 500,
                       borderRadius: 4,
-                      border: Math.round(Number(a.progress || 0)) === pct ? '1px solid #6366f1' : '1px solid #cbd5e1',
-                      background: Math.round(Number(a.progress || 0)) === pct ? '#ede9fe' : '#ffffff',
-                      color: Math.round(Number(a.progress || 0)) === pct ? '#4f46e5' : '#475569',
+                      border: Math.round(Number(a.progress || 0)) === pct ? '1px solid #111827' : '1px solid #cbd5e1',
+                      background: Math.round(Number(a.progress || 0)) === pct ? '#f3f4f6' : '#ffffff',
+                      color: Math.round(Number(a.progress || 0)) === pct ? '#111827' : '#475569',
                       cursor: updatingId === a.id ? 'wait' : 'pointer',
                     }}
                   >
@@ -2652,7 +2652,7 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
           ))}
         </div>
       ) : (
-        <div style={{ padding: '16px', borderRadius: 10, background: 'rgba(99,102,241,0.04)', border: '1px dashed rgba(99,102,241,0.2)', textAlign: 'center' }}>
+        <div style={{ padding: '16px', borderRadius: 10, background: 'rgba(17, 24, 39, 0.04)', border: '1px dashed rgba(17, 24, 39, 0.2)', textAlign: 'center' }}>
           <p style={{ margin: '0 0 4px', fontSize: 12.5, fontWeight: 600, color: 'inherit' }}>
             No development courses assigned yet.
           </p>
@@ -2937,7 +2937,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
                   type="button"
                   onClick={runAiAnalysis}
                   disabled={analyzing || isSelf}
-                  style={{ fontSize: 11, background: 'transparent', border: '1px solid rgba(99,102,241,0.3)', color: '#6366f1', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}
+                  style={{ fontSize: 11, background: 'transparent', border: '1px solid rgba(17, 24, 39, 0.3)', color: '#111827', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}
                   title="Re-run AI analysis if employee data changed"
                 >
                   ↻ Re-analyze with AI
@@ -3002,7 +3002,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
       ) : (
         /* If assessment not yet generated: Show on-demand analysis action box */
         <div className="srb-ai-card" style={{ textAlign: 'center', padding: '24px 20px', borderStyle: 'dashed' }}>
-          <div style={{ display: 'inline-flex', padding: 12, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', color: '#6366f1', marginBottom: 10 }}>
+          <div style={{ display: 'inline-flex', padding: 12, borderRadius: '50%', background: 'rgba(17, 24, 39, 0.1)', color: '#111827', marginBottom: 10 }}>
             <Sparkles size={24} />
           </div>
           <div className="srb-review-heading" style={{ fontSize: 14, marginBottom: 4 }}>
@@ -3024,11 +3024,11 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
               borderRadius: 8,
               fontSize: 12.5,
               fontWeight: 700,
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              background: 'linear-gradient(135deg, #111827 0%, #4b5563 100%)',
               color: '#ffffff',
               border: 0,
               cursor: isSelf ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 10px rgba(99,102,241,0.25)',
+              boxShadow: '0 2px 10px rgba(17, 24, 39, 0.25)',
             }}
           >
             <Sparkles size={15} />
@@ -3047,7 +3047,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         <div className="srb-review-card srb-nomination-card">
           <div className="srb-review-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Stage 2: Candidate Nomination &amp; Proposal</span>
-            <span style={{ fontSize: 11, background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+            <span style={{ fontSize: 11, background: '#f3f4f6', color: '#111827', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
               Nominator Form
             </span>
           </div>
@@ -3106,7 +3106,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
             />
           </label>
 
-          <div style={{ padding: '10px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, fontSize: 11.5, color: '#4338ca' }}>
+          <div style={{ padding: '10px 14px', background: 'rgba(17, 24, 39, 0.06)', border: '1px solid rgba(17, 24, 39, 0.2)', borderRadius: 8, fontSize: 11.5, color: '#111827' }}>
             ℹ <strong>Next Step:</strong> Completing this step records the candidate's nomination and advances to <strong>Stage 3 (Review Readiness &amp; Decision)</strong> for Authorized Management &amp; HR Review.
           </div>
         </div>
@@ -3117,8 +3117,8 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         <>
           {/* Summary of Stage 2 Nomination Proposal if available */}
           {(nominationData || value.timeline) && (
-            <div style={{ padding: '12px 16px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#4338ca', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ padding: '12px 16px', background: 'rgba(17, 24, 39, 0.05)', border: '1px solid rgba(17, 24, 39, 0.2)', borderRadius: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Sparkles size={14} /> Stage 2 Nomination Submission
               </div>
               <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.5 }}>

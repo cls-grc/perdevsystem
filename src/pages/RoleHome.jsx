@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { Icon } from '../components/Sidebar'
 import AnimatedNumber from '../components/AnimatedNumber'
 import { BookOpen, Target, CheckCircle, ArrowRight, Sparkles, Clock } from 'lucide-react'
+import PageBanner from '../components/PageBanner'
 
 const pct = value => `${Math.round(Number(value || 0))}%`
 const getRole = () => {
@@ -203,18 +204,12 @@ export default function RoleHome({ role, name }) {
 
   return (
     <main className="role-home saas-role-home">
-      <div className="role-home-head">
-        <div>
-          <h1>{title}</h1>
-          <p>
-            {description}{' '}
-            <span className="live-indicator" style={{ verticalAlign: 'middle', marginLeft: 6 }}>
-              <span className="live-indicator-dot" />
-              Live
-            </span>
-          </p>
-        </div>
-      </div>
+      <PageBanner
+        title={title}
+        subtitle={`${description}`}
+        badge={userRole ? userRole.replace(/_/g, ' ').toUpperCase() : 'DASHBOARD'}
+        icon={<Target className="w-5 h-5 text-white" />}
+      />
 
       {error && (
         <div className="role-home-error" role="alert">
@@ -262,7 +257,7 @@ export default function RoleHome({ role, name }) {
         <section className="role-home-dev-plans" style={{ marginTop: 24, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(124,58,237,0.1)', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(17,24,39,0.1)', color: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <BookOpen size={16} />
               </div>
               <div>
@@ -279,7 +274,7 @@ export default function RoleHome({ role, name }) {
               onClick={() => navigate('/learning')}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                background: 'none', border: 'none', color: '#7c3aed',
+                background: 'none', border: 'none', color: '#111827',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 8px',
               }}
             >
@@ -308,7 +303,7 @@ export default function RoleHome({ role, name }) {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
                     <div>
-                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: 'rgba(99,102,241,0.1)', color: '#6366f1', textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: 'rgba(17, 24, 39, 0.1)', color: '#111827', textTransform: 'uppercase' }}>
                         {a.category || 'Skill Development'}
                       </span>
                       <h4 style={{ margin: '6px 0 2px', fontSize: 13, fontWeight: 700, color: 'inherit' }}>
@@ -321,8 +316,8 @@ export default function RoleHome({ role, name }) {
                     <span
                       style={{
                         fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                        background: a.status === 'completed' ? 'rgba(16,185,129,0.1)' : a.status === 'studying' ? 'rgba(99,102,241,0.1)' : 'rgba(245,158,11,0.1)',
-                        color: a.status === 'completed' ? '#059669' : a.status === 'studying' ? '#6366f1' : '#d97706',
+                        background: a.status === 'completed' ? 'rgba(16,185,129,0.1)' : a.status === 'studying' ? 'rgba(17, 24, 39, 0.1)' : 'rgba(245,158,11,0.1)',
+                        color: a.status === 'completed' ? '#059669' : a.status === 'studying' ? '#111827' : '#d97706',
                       }}
                     >
                       {a.status ? a.status.replace('_', ' ') : 'Not started'}
@@ -348,7 +343,7 @@ export default function RoleHome({ role, name }) {
                       <div
                         style={{
                           height: '100%', width: `${a.progress || 0}%`,
-                          background: a.progress >= 100 ? '#10b981' : 'linear-gradient(90deg, #7c3aed, #6366f1)',
+                          background: a.progress >= 100 ? '#10b981' : 'linear-gradient(90deg, #111827, #111827)',
                           borderRadius: 3,
                         }}
                       />
@@ -358,7 +353,7 @@ export default function RoleHome({ role, name }) {
               ))}
             </div>
           ) : (
-            <div style={{ padding: '18px', borderRadius: 12, background: 'rgba(99,102,241,0.03)', border: '1px dashed rgba(99,102,241,0.2)', textAlign: 'center' }}>
+            <div style={{ padding: '18px', borderRadius: 12, background: 'rgba(17, 24, 39, 0.03)', border: '1px dashed rgba(17, 24, 39, 0.2)', textAlign: 'center' }}>
               <p style={{ margin: '0 0 4px', fontSize: 12.5, fontWeight: 600 }}>No development plans assigned yet.</p>
               <small style={{ color: '#64748b' }}>When HR or your supervisor assigns a learning course or development plan, it will appear here.</small>
             </div>

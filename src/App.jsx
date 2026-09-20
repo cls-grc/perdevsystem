@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import React, { lazy, Suspense, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import Header from './components/Header'
+import SessionWarning from './components/SessionWarning'
 import LiveToast from './components/LiveToast'
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { api } from './lib/api'
@@ -38,6 +40,61 @@ const OrgChart = lazy(() => import('./pages/OrgChart'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const Register = lazy(() => import('./pages/Register'))
 const AIChatDrawer = lazy(() => import('./components/AIChatDrawer'))
+
+// Global React Error Boundary to catch any rendering errors and prevent blank screens
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('App runtime error caught by boundary:', error, errorInfo)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#f8fafc', color: '#0f172a', fontFamily: 'sans-serif' }}>
+          <div style={{ maxWidth: 540, width: '100%', background: '#ffffff', borderRadius: 16, padding: 32, boxShadow: '0 10px 25px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px', color: '#ef4444' }}>Rendering Issue Detected</h2>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
+              The application encountered a component error while rendering:
+            </p>
+            <pre style={{ background: '#f1f5f9', padding: 12, borderRadius: 8, fontSize: 12, overflowX: 'auto', color: '#334155', marginBottom: 20, fontFamily: 'monospace' }}>
+              {this.state.error?.message || String(this.state.error)}
+            </pre>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, error: null })
+                  window.location.reload()
+                }}
+                style={{ flex: 1, padding: '10px 16px', background: '#111827', color: '#ffffff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Reload View
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('pds-token')
+                  localStorage.removeItem('pds-user')
+                  window.location.replace('/')
+                }}
+                style={{ padding: '10px 16px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Return to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Dimension-locked page skeleton matching rendered module geometry
 function PageSkeleton() {
@@ -180,7 +237,13 @@ function ModuleRoutes({ user }) {
 
 function App() {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pds-user') || 'null') } catch { return null }
+    try {
+      const token = localStorage.getItem('pds-token')
+      if (!token) return null
+      return JSON.parse(localStorage.getItem('pds-user') || 'null')
+    } catch {
+      return null
+    }
   })
   const [dark, setDark] = useState(() => {
     try {
@@ -192,6 +255,28 @@ function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiChatOpen, setAiChatOpen] = useState(false)
   const [sessionNotice, setSessionNotice] = useState('')
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(null) // null = hidden
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('pds-sidebar-collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pds-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false')
+    } catch (err) { void err }
+  }, [sidebarCollapsed])
+
+  useEffect(() => {
+    const handleExpired = (e) => {
+      handleLogout(e.detail?.message || 'Your session has expired. Please sign in again.')
+    }
+    window.addEventListener('pds:session-expired', handleExpired)
+    return () => window.removeEventListener('pds:session-expired', handleExpired)
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
@@ -204,6 +289,48 @@ function App() {
       localStorage.setItem('pds-theme', dark ? 'dark' : 'light')
     } catch (err) { void err }
   }, [dark])
+
+  // View Transitions API toggle — smooth circular ripple (FleetOps-style)
+  const handleThemeToggle = (e) => {
+    // Ripple origin: centre of the toggle button
+    const rect = e?.currentTarget?.getBoundingClientRect?.()
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const y = rect ? rect.top  + rect.height / 2 : window.innerHeight / 2
+
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth  - x),
+      Math.max(y, window.innerHeight - y)
+    )
+
+    // Fallback for browsers without View Transitions API
+    if (!document.startViewTransition) {
+      setDark((s) => !s)
+      return
+    }
+
+    // flushSync forces React to update the DOM synchronously inside the callback,
+    // so the API captures the correct before → after snapshots
+    const transition = document.startViewTransition(() => {
+      flushSync(() => setDark((s) => !s))
+    })
+
+    // Once both snapshots are ready, run the clip-path circle animation
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`,
+          ],
+        },
+        {
+          duration: 450,
+          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',  // Material-style smooth
+          pseudoElement: '::view-transition-new(root)',
+        }
+      )
+    })
+  }
 
   // Sync user profile on mount to ensure avatarUrl is up-to-date
   useEffect(() => {
@@ -262,12 +389,12 @@ function App() {
     window.location.replace('/')
   }
 
-  // 5-minute session inactivity auto-logout
+  // 5-minute session inactivity auto-logout — full per-second countdown from 5:00
   useEffect(() => {
     if (!user) return
 
-    const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
-    const CHECK_INTERVAL_MS = 3000 // check every 3 seconds
+    const TIMEOUT_MS = 5 * 60 * 1000  // 5 minutes total
+    const WARNING_MS = 60 * 1000       // show modal at 60 s remaining
 
     const updateActivity = () => {
       localStorage.setItem('pds-last-activity', String(Date.now()))
@@ -275,28 +402,37 @@ function App() {
 
     // Set initial activity timestamp on mount / login
     updateActivity()
+    setSessionSecondsLeft(TIMEOUT_MS / 1000) // start at 5:00
 
     let lastRecorded = Date.now()
     const handleUserActivity = () => {
       const now = Date.now()
-      if (now - lastRecorded > 1000) {
+      // Reset activity on deliberate actions (click, keypress, touch)
+      if (now - lastRecorded > 2000) {
         lastRecorded = now
         updateActivity()
       }
     }
 
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
-    events.forEach((event) => window.addEventListener(event, handleUserActivity, { passive: true }))
+    const events = ['click', 'keydown', 'touchstart']
+    events.forEach((ev) => window.addEventListener(ev, handleUserActivity, { passive: true }))
 
+    // Tick every second — always track full countdown from 5:00 → 0:00
     const intervalId = setInterval(() => {
       const lastActivity = Number(localStorage.getItem('pds-last-activity') || Date.now())
-      if (Date.now() - lastActivity >= TIMEOUT_MS) {
+      const elapsed    = Date.now() - lastActivity
+      const remaining  = Math.max(0, TIMEOUT_MS - elapsed)
+      const secs       = Math.ceil(remaining / 1000)
+
+      setSessionSecondsLeft(secs) // always update — drives topbar pill + modal
+
+      if (remaining <= 0) {
         handleLogout('You have been logged out due to 5 minutes of inactivity.')
       }
-    }, CHECK_INTERVAL_MS)
+    }, 1000)
 
     return () => {
-      events.forEach((event) => window.removeEventListener(event, handleUserActivity))
+      events.forEach((ev) => window.removeEventListener(ev, handleUserActivity))
       clearInterval(intervalId)
     }
   }, [user])
@@ -334,21 +470,47 @@ function App() {
                 notice={sessionNotice}
               />
             ) : (
-              <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
-                <Sidebar key={`sb-${user.id}`} user={user} onLogout={handleLogout} onOpenAiChat={() => setAiChatOpen(true)} />
-                <div className="flex-1 min-h-screen flex flex-col fixed-main">
-                  <Header
-                    key={`hdr-${user.id}`}
+              <ErrorBoundary>
+                <div className="min-h-screen flex text-gray-800 dark:text-gray-100">
+                  <Sidebar
+                    key={`sb-${user.id}`}
                     user={user}
-                    onToggle={() => setDark((s) => !s)}
-                    dark={dark}
-                    onOpenMobileNav={() => setMobileNavOpen(true)}
+                    onLogout={handleLogout}
                     onOpenAiChat={() => setAiChatOpen(true)}
+                    collapsed={sidebarCollapsed}
+                    onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
                   />
-                  <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-                  <ModuleRoutes user={user} />
+                  <div className={`flex-1 min-h-screen flex flex-col fixed-main ${sidebarCollapsed ? 'sidebar-collapsed-main' : ''}`}>
+                    <Header
+                      key={`hdr-${user.id}`}
+                      user={user}
+                      onToggle={handleThemeToggle}
+                      dark={dark}
+                      onOpenMobileNav={() => setMobileNavOpen(true)}
+                      onOpenAiChat={() => setAiChatOpen(true)}
+                      sessionSecondsLeft={sessionSecondsLeft}
+                      onResetSession={() => {
+                        localStorage.setItem('pds-last-activity', String(Date.now()))
+                        setSessionSecondsLeft(TIMEOUT_MS / 1000)
+                      }}
+                    />
+                    <MobileNav user={user} onLogout={handleLogout} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+                    <ModuleRoutes user={user} />
+                  </div>
                 </div>
-              </div>
+
+                {/* Session countdown warning — appears 60s before auto-logout */}
+                {sessionSecondsLeft !== null && sessionSecondsLeft <= 60 && (
+                  <SessionWarning
+                    secondsLeft={sessionSecondsLeft}
+                    onStay={() => {
+                      localStorage.setItem('pds-last-activity', String(Date.now()))
+                      setSessionSecondsLeft(TIMEOUT_MS / 1000)
+                    }}
+                    onLogout={() => handleLogout('You chose to log out.')}
+                  />
+                )}
+              </ErrorBoundary>
             )
           }
         />

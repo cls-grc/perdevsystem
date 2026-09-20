@@ -232,7 +232,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
                 <span className="avatar avatar-lia" style={{ width: 44, height: 44, fontSize: 15, fontWeight: 800 }}>{initials}</span>
                 <div style={{ flex: 1 }}>
                   <b style={{ display: 'block', fontSize: 16, color: '#1e1b4b' }}>{user.name}</b>
-                  <small style={{ color: '#6366f1', fontWeight: 700, fontSize: 12 }}>
+                  <small style={{ color: '#111827', fontWeight: 700, fontSize: 12 }}>
                     ID: {user.employeeNumber || user.employee_number || 'E001'} · {(user.role || '').toUpperCase()}
                   </small>
                 </div>
@@ -243,7 +243,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
 
               <div className="qr-code-large-box" style={{ margin: '0 auto 12px', padding: 16 }}>
                 <QRCodeImage value={badgePayload} size={200} />
-                <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 800, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Employee Badge QR
                 </div>
               </div>
@@ -257,7 +257,7 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
 
               <button
                 type="button"
-                style={{ marginTop: 14, width: '100%', background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.25)', padding: '9px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                style={{ marginTop: 14, width: '100%', background: 'rgba(17, 24, 39, 0.08)', color: '#111827', border: '1px solid rgba(17, 24, 39, 0.25)', padding: '9px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                 onClick={() => setActiveTab('scan_session')}
               >
                 <Camera size={14} /> Or scan the training room session QR →

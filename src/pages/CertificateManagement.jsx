@@ -5,7 +5,8 @@ import useDialogFocus from '../hooks/useDialogFocus'
 import { api } from '../lib/api'
 import QRCodeImage from '../components/QRCodeImage'
 import ESignaturePad from '../components/ESignaturePad'
-import { CheckCircle, AlertTriangle, Pencil, Trash2, X } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Pencil, Trash2, X, Award } from 'lucide-react'
+import PageBanner from '../components/PageBanner'
 
 const defaults = { name: 'Employee of the Month', certificateTitle: 'Certificate of Excellence', subtitle: 'Employee of the Month', organizationName: 'PerDevSys Hospitality', bodyText: 'This certificate is proudly awarded to {{employee_name}} in recognition of outstanding contribution and excellence.', signatoryName: 'Ava Reyes', signatoryPosition: 'HR Business Partner', validityDays: '' }
 const date = value => value ? new Date(value).toLocaleDateString() : '—'
@@ -342,22 +343,22 @@ export default function CertificateManagement({ embedded = false }) {
   @page { size: landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #fcfbff; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; }
-  .cert-container { width: 100vw; height: 100vh; padding: 44px 56px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: linear-gradient(135deg, #fcfbff 0%, #f4f0ff 100%); border: 3px solid #654bd2; box-sizing: border-box; position: relative; }
+  .cert-container { width: 100vw; height: 100vh; padding: 44px 56px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: linear-gradient(135deg, #fcfbff 0%, #f4f0ff 100%); border: 3px solid #111827; box-sizing: border-box; position: relative; }
   .logo { position: absolute; left: 44px; top: 40px; max-width: 100px; max-height: 70px; object-fit: contain; }
-  .seal { position: absolute; right: 44px; top: 40px; width: 64px; height: 64px; display: grid; place-items: center; border: 2px solid #654bd2; border-radius: 50%; color: #654bd2; font-size: 15px; font-weight: 800; background: rgba(239,235,255,0.9); }
+  .seal { position: absolute; right: 44px; top: 40px; width: 64px; height: 64px; display: grid; place-items: center; border: 2px solid #111827; border-radius: 50%; color: #111827; font-size: 15px; font-weight: 800; background: rgba(239,235,255,0.9); }
   .org { font-size: 13px; color: #7c778a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
   h2 { font-size: 32px; color: #282631; letter-spacing: -0.5px; font-weight: 800; margin-bottom: 4px; }
-  em { font-size: 16px; color: #654bd2; font-style: normal; font-weight: 600; }
+  em { font-size: 16px; color: #111827; font-style: normal; font-weight: 600; }
   .pres-text { font-size: 14px; color: #7c778a; margin: 20px 0 6px; }
-  h1 { font-size: 38px; color: #654bd2; font-weight: 800; letter-spacing: -0.5px; }
-  .rule { width: 100px; height: 3px; background: linear-gradient(90deg, #654bd2, #9b89f5); margin: 10px auto 14px; border-radius: 2px; }
+  h1 { font-size: 38px; color: #111827; font-weight: 800; letter-spacing: -0.5px; }
+  .rule { width: 100px; height: 3px; background: linear-gradient(90deg, #111827, #9b89f5); margin: 10px auto 14px; border-radius: 2px; }
   .body { font-size: 15px; line-height: 1.65; color: #4a4656; max-width: 700px; margin: 0 auto; }
   .foot { width: 85%; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; font-size: 13px; color: #7c778a; text-align: left; }
   .foot b { display: block; color: #282631; font-size: 14px; font-weight: 700; margin-top: 3px; }
   .foot small { display: block; font-size: 11px; color: #888; margin-top: 1px; }
   .qr { text-align: center; display: flex; flex-direction: column; align-items: center; }
-  .qr img { width: 95px; height: 95px; border-radius: 4px; border: 1px solid #e4e1f7; background: #fff; }
-  .qr small { font-size: 8.5px; color: #654bd2; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px; }
+  .qr img { width: 95px; height: 95px; border-radius: 4px; border: 1px solid #e5e7eb; background: #fff; }
+  .qr small { font-size: 8.5px; color: #111827; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px; }
   .sig { display: block; max-width: 140px; max-height: 48px; object-fit: contain; margin-bottom: 4px; }
   footer { position: absolute; bottom: 16px; width: 100%; text-align: center; font-size: 11px; color: #9b97a6; letter-spacing: 0.5px; }
 </style>
@@ -459,7 +460,7 @@ export default function CertificateManagement({ embedded = false }) {
                 <span className={`certificate-status ${c.status}`}>{c.status}</span>
                 <h3>{hr ? c.employee_name : c.certificate_title}</h3>
                 <p>{c.certificate_number || date(c.awarded_at)}</p>
-                <p style={{fontSize:'8px', color:'#7254e5', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p>
+                <p style={{fontSize:'8px', color:'#111827', margin:'2px 0 6px', fontFamily:'monospace'}}>Code: {c.verification_code || 'N/A'}</p>
                 <button onClick={() => print(c)}>Print</button>
                 <button className="certificate-download-btn" onClick={() => downloadPdf(c)}>Download PDF</button>
                 <button type="button" className="certificate-download-btn" onClick={() => copyVerificationLink(c)}>Copy Link</button>
@@ -525,13 +526,11 @@ export default function CertificateManagement({ embedded = false }) {
 
   if (!hr) return (
     <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}>
-      <header className="certificate-heading">
-        <div>
-          <p className="eyebrow">{operationsManager ? 'Certificate monitoring' : 'My achievements'}</p>
-          <h1>{operationsManager ? 'Certificate management' : 'My Certificates'}</h1>
-          <span>{operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}</span>
-        </div>
-      </header>
+      <PageBanner
+        title={operationsManager ? 'Certificate Management' : 'My Certificates'}
+        description={operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}
+        icon={<Award className="w-5 h-5 text-white" />}
+      />
       <section className="certificate-archive">
         <div className="certificate-archive-inner"><h2>Issued certificates</h2>{archiveControls}</div>
         {gallery}
@@ -541,14 +540,16 @@ export default function CertificateManagement({ embedded = false }) {
 
   return (
     <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}>
-      <header className="certificate-heading">
-        <div>
-          <p className="eyebrow">Performance Management</p>
-          <h1>Certificate Management</h1>
-          <span>Create trusted recognition and achievement certificates from a guided issuance workflow.</span>
-        </div>
-        <button onClick={openCreateForm}>+ Create template</button>
-      </header>
+      <PageBanner
+        title="Certificate Management"
+        description="Create trusted recognition and achievement certificates from a guided issuance workflow."
+        icon={<Award className="w-5 h-5 text-white" />}
+        actions={
+          <button className="saas-btn-primary" onClick={openCreateForm} style={{ background: '#111827', color: '#ffffff', border: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(17,24,39,0.35)' }}>
+            + Create template
+          </button>
+        }
+      />
 
       {notice && <p className="certificate-notice"><CheckCircle className="inline w-4 h-4 mr-1 text-emerald-500" /> {notice}</p>}
       {error && <p className="certificate-error"><AlertTriangle className="inline w-4 h-4 mr-1 text-amber-500" /> {error}</p>}

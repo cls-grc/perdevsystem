@@ -94,7 +94,7 @@ export default function TwoFactorModal({ onClose }) {
             <button
               onClick={startSetup}
               disabled={loading}
-              style={{ width: '100%', padding: '11px 16px', borderRadius: 8, border: 'none', background: '#7254e5', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              style={{ width: '100%', padding: '11px 16px', borderRadius: 8, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
               <KeyRound size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} /> Set Up Google Authenticator
             </button>
@@ -117,7 +117,7 @@ export default function TwoFactorModal({ onClose }) {
                   style={{ width: 200, height: 200, border: '4px solid #f0ebff', borderRadius: 12 }}
                 />
               )}
-              <div style={{ marginTop: 10, background: '#f5f3ff', borderRadius: 8, padding: '7px 12px' }}>
+              <div style={{ marginTop: 10, background: '#f9fafb', borderRadius: 8, padding: '7px 12px' }}>
                 <p style={{ margin: '0 0 2px', fontSize: 10, color: '#888' }}>Or enter this key manually in the app:</p>
                 <code style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#5e3fd2', wordBreak: 'break-all' }}>{secret}</code>
               </div>
@@ -168,7 +168,7 @@ export default function TwoFactorModal({ onClose }) {
             </div>
             <button
               onClick={onClose}
-              style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', background: '#7254e5', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              style={{ width: '100%', padding: 11, borderRadius: 8, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
               Done — I&apos;ve saved my backup codes
             </button>

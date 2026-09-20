@@ -296,7 +296,7 @@ export default function LearningManagement() {
         ...(hr ? [['ai', 'AI Insights']] : []),
       ].map(([key, label]) => (
         <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-          {key === 'recommendations' ? <><Sparkles className="inline w-3.5 h-3.5 mr-1 text-purple-500" /> {label}</> : key === 'gaps' ? <><Target className="inline w-3.5 h-3.5 mr-1" /> {label}</> : label}
+          {key === 'recommendations' ? <><Sparkles className="inline w-3.5 h-3.5 mr-1 text-gray-700" /> {label}</> : key === 'gaps' ? <><Target className="inline w-3.5 h-3.5 mr-1" /> {label}</> : label}
         </button>
       ))}
     </nav>
@@ -304,8 +304,8 @@ export default function LearningManagement() {
     {tab === 'library' && (
       <section className="learning-section">
         {employee && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(124, 58, 237, 0.06)', borderRadius: 10, border: '1px solid rgba(124, 58, 237, 0.16)', marginBottom: 14, fontSize: 11, color: '#6d28d9' }}>
-            <Sparkles size={15} className="text-purple-600 flex-shrink-0" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(17,24,39,0.06)', borderRadius: 10, border: '1px solid rgba(17,24,39,0.16)', marginBottom: 14, fontSize: 11, color: '#1f2937' }}>
+            <Sparkles size={15} className="text-gray-900 flex-shrink-0" />
             <span>
               <strong>Personalized Course Library:</strong> Showing courses recommended for your role and assigned development plan.
             </span>
@@ -378,8 +378,8 @@ export default function LearningManagement() {
       <section className="learning-section">
 
         {/* Header banner */}
-        <div className="completion-note" style={{ background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.06), rgba(99, 102, 241, 0.04))', borderColor: 'rgba(124, 58, 237, 0.18)', marginBottom: 16 }}>
-          <b style={{ color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="completion-note" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.06), rgba(17, 24, 39, 0.04))', borderColor: 'rgba(17,24,39,0.18)', marginBottom: 16 }}>
+          <b style={{ color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={16} /> Gap-Based Learning Recommendations
           </b>
           <p style={{ marginTop: 4, marginBottom: 0 }}>
@@ -430,7 +430,7 @@ export default function LearningManagement() {
               <b>{recommendationsData.employee?.name}</b> has not yet been evaluated in Competency Management.
               HR must first complete <b>Stage 1: Define Competency Requirements</b> in the Skill Development module to generate personalized gap-based course recommendations.
             </p>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', background: '#f3e8ff', padding: '6px 14px', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#111827', background: '#f3e8ff', padding: '6px 14px', borderRadius: 8 }}>
               Go to: Skill Development → Start Workflow → Define Competency Requirements
             </div>
           </div>
@@ -474,10 +474,10 @@ export default function LearningManagement() {
                 type="button"
                 className="module-primary"
                 style={{
-                  background: 'linear-gradient(135deg, #7c3aed, #6366f1)',
+                  background: 'linear-gradient(135deg, #111827, #111827)',
                   border: 'none',
                   color: '#ffffff',
-                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                  boxShadow: '0 4px 14px rgba(17,24,39,0.3)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
@@ -498,7 +498,7 @@ export default function LearningManagement() {
                 const hasPdf = !!(resource.pdf_url || resource.pdfUrl) || /\.pdf(\?.*)?$/i.test(resource.url || '') || (resource.url || '').includes('drive.google.com')
                 const hasLesson = !!(resource.lesson_content || resource.lessonContent)
                 return (
-                  <article className="course-card" key={resource.id} style={{ borderColor: '#ddd6fe', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.05)' }}>
+                  <article className="course-card" key={resource.id} style={{ borderColor: '#e5e7eb', boxShadow: '0 4px 15px rgba(17,24,39,0.05)' }}>
                     <div className="course-top">
                       <span className={`course-badge ${resource.provider_type}`}>{resource.provider_type === 'internal' ? 'Internal' : 'External'}</span>
                       {resource.is_completed || resource.assignment_status === 'completed' || Number(resource.assignment_progress) >= 100 ? (
@@ -540,13 +540,13 @@ export default function LearningManagement() {
                           <CheckCircle size={14} /> Completed
                         </span>
                       ) : resource.assignment_status ? (
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6366f1', marginLeft: 'auto' }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#111827', marginLeft: 'auto' }}>
                           In Progress ({Math.round(Number(resource.assignment_progress || 0))}%)
                         </span>
                       ) : canAssign && (
                         <button
                           type="button"
-                          style={{ marginLeft: 'auto', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 10, fontWeight: 700 }}
+                          style={{ marginLeft: 'auto', background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 10, fontWeight: 700 }}
                           onClick={() => {
                             setAssignResource(resource)
                             if (selectedEmpId) setAssignIds([selectedEmpId])
@@ -891,13 +891,13 @@ export default function LearningManagement() {
           {/* Header */}
           <div className="er-history-header">
             <div className="er-history-user">
-              <div className="er-history-avatar" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+              <div className="er-history-avatar" style={{ background: 'linear-gradient(135deg, #111827, #111827)' }}>
                 <Sparkles size={20} />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <h2 style={{ fontSize: 17, fontWeight: 800 }}>AI Competency Development Plan</h2>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(124,58,237,0.1)', color: '#7c3aed' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(17,24,39,0.1)', color: '#111827' }}>
                     AI Generated
                   </span>
                 </div>
@@ -912,8 +912,8 @@ export default function LearningManagement() {
           </div>
 
           {/* Plan Summary Card */}
-          <div style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.06), rgba(99,102,241,0.04))', border: '1px solid rgba(124,58,237,0.18)', borderRadius: 12, padding: 16, marginBottom: 18 }}>
-            <h4 style={{ margin: '0 0 6px', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.06), rgba(17, 24, 39, 0.04))', border: '1px solid rgba(17,24,39,0.18)', borderRadius: 12, padding: 16, marginBottom: 18 }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: 12.5, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Zap size={14} /> Executive Strategy Overview
             </h4>
             <p style={{ margin: '0 0 8px', fontSize: 11.5, lineHeight: 1.5, color: '#334155' }}>
@@ -926,7 +926,7 @@ export default function LearningManagement() {
 
           {/* Gap-by-Gap Breakdown Cards */}
           <h4 style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Target size={14} className="text-purple-600" />
+            <Target size={14} className="text-gray-900" />
             <span>Targeted Gap Resolution Pathways ({(aiPlan.gapPlans || []).length})</span>
           </h4>
 
@@ -944,7 +944,7 @@ export default function LearningManagement() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#f3e8ff', color: '#7c3aed', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 800 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#f3e8ff', color: '#111827', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 800 }}>
                       {idx + 1}
                     </span>
                     <b style={{ fontSize: 13, color: '#0f172a' }}>{gp.competency}</b>
@@ -981,7 +981,7 @@ export default function LearningManagement() {
                   </small>
                   <button
                     type="button"
-                    style={{ background: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ background: '#111827', color: '#ffffff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
                     onClick={() => {
                       setPlanModalOpen(false)
                       setTab('library')
@@ -996,7 +996,7 @@ export default function LearningManagement() {
 
           {/* Supervisor Guidance */}
           {aiPlan.supervisorNotes && (
-            <div style={{ marginTop: 16, background: '#fcfbff', border: '1px dashed #c4b5fd', borderRadius: 10, padding: 12 }}>
+            <div style={{ marginTop: 16, background: '#fcfbff', border: '1px dashed #d1d5db', borderRadius: 10, padding: 12 }}>
               <b style={{ fontSize: 10.5, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Award size={13} /> Supervisor Coaching Guidance
               </b>

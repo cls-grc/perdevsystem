@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import LoginIllustration from '../components/LoginIllustration'
-import { Key, Eye, EyeOff, Tag, AlertTriangle, CheckCircle, CheckCircle2, DoorOpen, Clock, Lock, Info, Building2, Mail, Check } from 'lucide-react'
+import { Key, Eye, EyeOff, Tag, AlertTriangle, CheckCircle, CheckCircle2, DoorOpen, Clock, Lock, Info, Building2, Mail, Check, ArrowRight, ShieldCheck, RotateCcw, Smartphone } from 'lucide-react'
 
 export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
@@ -69,6 +69,10 @@ export default function Login({ onLogin, notice }) {
   const [is2FA, setIs2FA] = useState(false)
   const [tempToken, setTempToken] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
+  // OTP digit boxes (6 individual inputs)
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
+  const otpRefs = useRef([])
+  const [rememberDevice, setRememberDevice] = useState(false)
 
   // Login Success State (Triggers Cinematic Entrance Transition)
   const [isLoggingInSuccess, setIsLoggingInSuccess] = useState(false)
@@ -81,6 +85,16 @@ export default function Login({ onLogin, notice }) {
       if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
     }
   }, [])
+
+  // Auto-focus first OTP digit when 2FA mode activates
+  useEffect(() => {
+    if (is2FA) {
+      const timer = setTimeout(() => {
+        otpRefs.current[0]?.focus()
+      }, 120)
+      return () => clearTimeout(timer)
+    }
+  }, [is2FA])
 
   // Lockout countdown timer
   useEffect(() => {
@@ -198,14 +212,15 @@ export default function Login({ onLogin, notice }) {
 
   const submit2FA = async (event) => {
     event.preventDefault()
-    if (!twoFactorCode || twoFactorCode.length < 6 || isLoggingInSuccess) {
+    const code = otpDigits.join('')
+    if (code.length < 6 || isLoggingInSuccess) {
       setError('Please enter your 6-digit Google Authenticator code.')
       return
     }
     setLoading(true)
     setError('')
     try {
-      const result = await api.verify2FA(tempToken, twoFactorCode)
+      const result = await api.verify2FA(tempToken, code)
       localStorage.setItem('pds-token', result.token)
       if (result.refreshToken) localStorage.setItem('pds-refresh-token', result.refreshToken)
       localStorage.setItem('pds-user', JSON.stringify(result.user))
@@ -217,6 +232,9 @@ export default function Login({ onLogin, notice }) {
       }, 850)
     } catch (requestError) {
       setError(requestError.message)
+      // Clear digits on wrong code
+      setOtpDigits(['', '', '', '', '', ''])
+      setTimeout(() => { otpRefs.current[0]?.focus() }, 50)
     } finally {
       setLoading(false)
     }
@@ -226,7 +244,44 @@ export default function Login({ onLogin, notice }) {
     setIs2FA(false)
     setTempToken('')
     setTwoFactorCode('')
+    setOtpDigits(['', '', '', '', '', ''])
+    setRememberDevice(false)
     setError('')
+  }
+
+  // Handle single OTP digit input with auto-advance
+  const handleOtpDigit = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1)
+    const next = [...otpDigits]
+    next[index] = digit
+    setOtpDigits(next)
+    // Update the combined twoFactorCode for compatibility
+    setTwoFactorCode(next.join(''))
+    if (digit && index < 5) {
+      otpRefs.current[index + 1]?.focus()
+    }
+  }
+
+  // Handle backspace to move to previous box
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus()
+    }
+    if (e.key === 'ArrowLeft' && index > 0) otpRefs.current[index - 1]?.focus()
+    if (e.key === 'ArrowRight' && index < 5) otpRefs.current[index + 1]?.focus()
+  }
+
+  // Paste support — fill all 6 boxes from clipboard
+  const handleOtpPaste = (e) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!pasted) return
+    const next = ['', '', '', '', '', '']
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i]
+    setOtpDigits(next)
+    setTwoFactorCode(next.join(''))
+    const focusIdx = Math.min(pasted.length, 5)
+    otpRefs.current[focusIdx]?.focus()
   }
 
   const handleForgotPassword = async (e) => {
@@ -320,379 +375,439 @@ export default function Login({ onLogin, notice }) {
         <LoginIllustration isLoggingInSuccess={isLoggingInSuccess} />
       </section>
 
-      {/* RIGHT SIDE: Clean Modern Form */}
-      <section className="login-form-column" aria-label="Sign In to HORECAOS Hotel & Restaurant System">
+      {/* RIGHT SIDE: Clean Modern Executive Form */}
+      <section className="login-form-column" aria-label="Sign In to PerDevSys">
         <div className="login-card-container">
           {/* ================================================================ */}
           {/* 1. TWO-FACTOR AUTHENTICATION VIEW                                */}
           {/* ================================================================ */}
           {is2FA ? (
-            <form className="login-card ref-card" onSubmit={submit2FA}>
-              <div className="login-brand-header">
-                <div className="login-brand-icon">
-                  <Building2 size={24} color="#ffffff" />
-                </div>
-                <div className="login-brand-text">
-                  <span className="brand-per">HORECA</span>
-                  <span className="brand-dev">OS</span>
-                  <span className="brand-sub-chip">Two-Factor Auth</span>
-                </div>
-              </div>
+            <form className="login-card ref-card tfa-card" onSubmit={submit2FA}>
+              <div className="ref-card-inner">
+                {/* ── Close button ── */}
+                <button
+                  type="button"
+                  className="tfa-close-btn"
+                  onClick={cancel2FA}
+                  disabled={loading || isLoggingInSuccess}
+                  aria-label="Back to sign in"
+                >
+                  ✕
+                </button>
 
-              <h1 className="ref-form-title">VERIFY ACCESS</h1>
-              <p className="ref-form-sub">
-                Enter your 6-digit Google Authenticator code for{' '}
-                <strong style={{ color: '#513AB3' }}>{email}</strong>.
-              </p>
-
-              {error && (
-                <div className="login-error">
-                  <AlertTriangle size={16} />
-                  <span>{error}</span>
+                {/* ── Lock Icon with blue check badge & halo ── */}
+                <div className="tfa-icon-wrap">
+                  <div className="tfa-icon-halo" aria-hidden="true" />
+                  <div className="tfa-icon-shield">
+                    <Lock size={24} color="#ffffff" strokeWidth={2.2} />
+                  </div>
+                  <div className="tfa-icon-badge">
+                    <Check size={11} color="#ffffff" strokeWidth={3} />
+                  </div>
                 </div>
-              )}
 
-              <div className="ref-field-group">
-                <label className="ref-label">Authenticator Code</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Key size={18} /></span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoFocus
-                    value={twoFactorCode}
-                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\s+/g, '').slice(0, 10))}
-                    placeholder="000000"
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      textAlign: 'center',
-                      letterSpacing: 6,
-                      fontFamily: 'monospace',
-                    }}
-                    required
-                  />
-                </div>
-              </div>
+                {/* ── Title & description ── */}
+                <h1 className="tfa-title">Two-Factor Authentication</h1>
+                <p className="tfa-desc">
+                  Enter the 6-digit code from your authenticator app<br />
+                  to continue to PerDevSys.
+                </p>
 
-              <button
-                type="submit"
-                className={`ref-action-btn ${isLoggingInSuccess ? 'btn-success-active' : ''}`}
-                disabled={loading || twoFactorCode.length < 6 || isLoggingInSuccess}
-              >
-                {isLoggingInSuccess ? (
-                  <>
-                    <Check size={18} />
-                    <span>Access Granted…</span>
-                  </>
-                ) : (
-                  <span>{loading ? 'Verifying…' : 'Sign In'}</span>
+                {/* ── Error banner ── */}
+                {error && (
+                  <div className="login-error" style={{ marginBottom: 14 }}>
+                    <AlertTriangle size={15} />
+                    <span>{error}</span>
+                  </div>
                 )}
-              </button>
 
-              <button
-                type="button"
-                className="ref-secondary-btn"
-                onClick={cancel2FA}
-                disabled={loading || isLoggingInSuccess}
-              >
-                ← Back to Sign In
-              </button>
+                {/* ── 6 Individual OTP Digit Boxes ── */}
+                <div className={`tfa-otp-row ${error ? 'has-error' : ''}`}>
+                  {otpDigits.map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={el => { otpRefs.current[i] = el }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      className={`tfa-otp-box ${digit ? 'tfa-otp-box--filled' : ''}`}
+                      value={digit}
+                      autoFocus={i === 0}
+                      onChange={e => handleOtpDigit(i, e.target.value)}
+                      onKeyDown={e => handleOtpKeyDown(i, e)}
+                      onPaste={i === 0 ? handleOtpPaste : undefined}
+                      disabled={loading || isLoggingInSuccess}
+                      autoComplete="one-time-code"
+                      aria-label={`Digit ${i + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* ── Hint text with phone icon ── */}
+                <div className="tfa-hint">
+                  <Smartphone size={14} className="tfa-hint-icon" />
+                  <span>Open your authenticator app (e.g. Google Authenticator, Authy, or Microsoft Authenticator) and enter the code.</span>
+                </div>
+
+                {/* ── Remember device checkbox ── */}
+                <label className="tfa-remember">
+                  <input
+                    type="checkbox"
+                    checked={rememberDevice}
+                    onChange={e => setRememberDevice(e.target.checked)}
+                    disabled={loading || isLoggingInSuccess}
+                    className="tfa-remember-checkbox"
+                  />
+                  <span>Remember this device for 30 days</span>
+                  <span className="tfa-remember-info" title="You won't be asked for a code on this device for 30 days">
+                    <Info size={13} />
+                  </span>
+                </label>
+
+                {/* ── Submit button (auto-submits when 6 digits filled) ── */}
+                <button
+                  type="submit"
+                  className={`ref-action-btn tfa-submit-btn ${isLoggingInSuccess ? 'btn-success-active' : ''}`}
+                  disabled={loading || otpDigits.join('').length < 6 || isLoggingInSuccess}
+                  style={{ marginTop: 18 }}
+                >
+                  {isLoggingInSuccess ? (
+                    <>
+                      <Check size={16} />
+                      <span>Access Granted…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{loading ? 'Verifying…' : 'Verify & Sign In'}</span>
+                      <span className="ref-action-btn-circle" aria-hidden="true">
+                        <ArrowRight size={16} strokeWidth={2} />
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* ── Having trouble divider ── */}
+                <div className="tfa-trouble-divider">
+                  <span>Having trouble?</span>
+                </div>
+
+                {/* ── Recovery code button ── */}
+                <button
+                  type="button"
+                  className="tfa-recovery-btn"
+                  onClick={cancel2FA}
+                  disabled={loading || isLoggingInSuccess}
+                >
+                  <RotateCcw size={15} />
+                  <span>Use a recovery code instead</span>
+                </button>
+              </div>
             </form>
           ) : mode === 'forgot' ? (
             /* ================================================================ */
             /* 2. FORGOT PASSWORD VIEW                                          */
             /* ================================================================ */
             <form className="login-card ref-card" onSubmit={handleForgotPassword}>
-              <div className="login-brand-header">
-                <div className="login-brand-icon">
-                  <Building2 size={24} color="#ffffff" />
+              <div className="ref-card-inner">
+                <div className="login-card-header">
+                  <h1 className="ref-form-title">Reset your password</h1>
+                  <p className="ref-form-sub">Enter your registered email to receive password reset instructions.</p>
                 </div>
-                <div className="login-brand-text">
-                  <span className="brand-per">HORECA</span>
-                  <span className="brand-dev">OS</span>
-                  <span className="brand-sub-chip">Reset</span>
+
+                {error && (
+                  <div className="login-error">
+                    <AlertTriangle size={15} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="login-notice">
+                    <CheckCircle size={15} />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <div className="ref-field-group">
+                  <label className="ref-label">Email</label>
+                  <div className="ref-input-wrap">
+                    <Mail className="ref-input-icon" size={16} />
+                    <input
+                      type="email"
+                      className="ref-input-control"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="ref-action-btn" disabled={loading}>
+                  <span>{loading ? 'Sending…' : 'Send Instructions'}</span>
+                  <span className="ref-action-btn-circle" aria-hidden="true">
+                    <ArrowRight size={16} />
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="ref-secondary-btn"
+                  onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
+                  disabled={loading}
+                >
+                  ← Back to Sign In
+                </button>
+
+                <div className="login-security-badge">
+                  <ShieldCheck size={14} />
+                  <span>Protected by PerDevSys role-based security</span>
                 </div>
               </div>
-
-              <h1 className="ref-form-title">FORGOT PASSWORD</h1>
-              <p className="ref-form-sub">Enter your hotel staff email to receive password reset instructions.</p>
-
-              {error && (
-                <div className="login-error">
-                  <AlertTriangle size={16} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {successMsg && (
-                <div className="login-notice">
-                  <CheckCircle size={16} />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              <div className="ref-field-group">
-                <label className="ref-label">E-mail</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Mail size={18} /></span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your enterprise email"
-                    autoComplete="email"
-                    required
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="ref-action-btn" disabled={loading}>
-                <span>{loading ? 'Sending…' : 'Send Instructions'}</span>
-              </button>
-
-              <button
-                type="button"
-                className="ref-secondary-btn"
-                onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
-                disabled={loading}
-              >
-                ← Back to Sign In
-              </button>
             </form>
           ) : mode === 'reset' ? (
             /* ================================================================ */
             /* 3. RESET PASSWORD VIEW                                          */
             /* ================================================================ */
             <form className="login-card ref-card" onSubmit={handleResetPassword}>
-              <div className="login-brand-header">
-                <div className="login-brand-icon">
-                  <Building2 size={24} color="#ffffff" />
+              <div className="ref-card-inner">
+                <div className="login-card-header">
+                  <h1 className="ref-form-title">Set new password</h1>
+                  <p className="ref-form-sub">Create a secure password for your executive account.</p>
                 </div>
-                <div className="login-brand-text">
-                  <span className="brand-per">HORECA</span>
-                  <span className="brand-dev">OS</span>
-                  <span className="brand-sub-chip">Security</span>
+
+                {error && (
+                  <div className="login-error">
+                    <AlertTriangle size={15} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="login-notice">
+                    <Info size={15} />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <div className="ref-field-group">
+                  <label className="ref-label">Reset Verification Token</label>
+                  <div className="ref-input-wrap">
+                    <Tag className="ref-input-icon" size={16} />
+                    <input
+                      type="text"
+                      className="ref-input-control"
+                      value={resetToken}
+                      onChange={(e) => setResetToken(e.target.value)}
+                      placeholder="Paste reset token here"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="ref-field-group">
+                  <label className="ref-label">New Password</label>
+                  <div className="ref-input-wrap">
+                    <Lock className="ref-input-icon" size={16} />
+                    <input
+                      type={showResetPass ? 'text' : 'password'}
+                      className="ref-input-control"
+                      style={{ paddingRight: 46 }}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min. 8 characters)"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="ref-peek-btn"
+                      onClick={handleToggleShowResetPassword}
+                      title={showResetPass ? `Visible for ${resetSecondsLeft}s` : 'Show password for 5 seconds'}
+                      tabIndex={0}
+                      aria-label={showResetPass ? 'Hide password' : 'Show password'}
+                    >
+                      {showResetPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="ref-field-group">
+                  <label className="ref-label">Confirm Password</label>
+                  <div className="ref-input-wrap">
+                    <Lock className="ref-input-icon" size={16} />
+                    <input
+                      type={showResetPass ? 'text' : 'password'}
+                      className="ref-input-control"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="ref-action-btn" disabled={loading}>
+                  <span>{loading ? 'Updating…' : 'Update & Sign In'}</span>
+                  <span className="ref-action-btn-circle" aria-hidden="true">
+                    <ArrowRight size={16} />
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="ref-secondary-btn"
+                  onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
+                  disabled={loading}
+                >
+                  ← Back to Sign In
+                </button>
+
+                <div className="login-security-badge">
+                  <ShieldCheck size={14} />
+                  <span>Protected by PerDevSys role-based security</span>
                 </div>
               </div>
-
-              <h1 className="ref-form-title">SET NEW PASSWORD</h1>
-              <p className="ref-form-sub">Create a secure password for your hotel & restaurant account.</p>
-
-              {error && (
-                <div className="login-error">
-                  <AlertTriangle size={16} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {successMsg && (
-                <div className="login-notice">
-                  <Info size={16} />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              <div className="ref-field-group">
-                <label className="ref-label">Reset Verification Token</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Tag size={18} /></span>
-                  <input
-                    type="text"
-                    value={resetToken}
-                    onChange={(e) => setResetToken(e.target.value)}
-                    placeholder="Paste reset token here"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="ref-field-group">
-                <label className="ref-label">New Password</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Lock size={18} /></span>
-                  <input
-                    type={showResetPass ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className={`ref-peek-btn${showResetPass ? ' active' : ''}`}
-                    onClick={handleToggleShowResetPassword}
-                    title={showResetPass ? `Visible for ${resetSecondsLeft}s` : 'Show password for 5 seconds'}
-                    tabIndex={0}
-                  >
-                    {showResetPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    <span>{showResetPass ? `${resetSecondsLeft}s` : 'Show'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="ref-field-group">
-                <label className="ref-label">Confirm Password</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Lock size={18} /></span>
-                  <input
-                    type={showResetPass ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="ref-action-btn" disabled={loading}>
-                <span>{loading ? 'Updating…' : 'Update & Sign In'}</span>
-              </button>
-
-              <button
-                type="button"
-                className="ref-secondary-btn"
-                onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
-                disabled={loading}
-              >
-                ← Back to Sign In
-              </button>
             </form>
           ) : (
             /* ================================================================ */
-            /* 4. STANDARD LOGIN VIEW                                           */
+            /* 4. STANDARD LOGIN VIEW (Matches Reference Screenshot 1)          */
             /* ================================================================ */
             <form className="login-card ref-card" onSubmit={submit}>
-              {/* Brand Header */}
-              <div className="login-brand-header">
-                <div className="login-brand-icon">
-                  <Building2 size={24} color="#ffffff" />
+              <div className="ref-card-inner">
+                {/* Header */}
+                <div className="login-card-header">
+                  <h2 className="ref-form-title">Welcome back</h2>
+                  <p className="ref-form-sub">Enter your credentials to access the system.</p>
                 </div>
-                <div className="login-brand-text">
-                  <span className="brand-per">HORECA</span>
-                  <span className="brand-dev">OS</span>
-                  <span className="brand-sub-chip">Hotel & Restaurant</span>
-                </div>
-              </div>
 
-              {/* Title */}
-              <h1 className="ref-form-title">SIGN IN NOW</h1>
-              <p className="ref-form-sub">Sign in to your HORECAOS Hotel & Restaurant System account</p>
+                {/* Notice Banners */}
+                {displayNotice && !error && !successMsg && (
+                  <div className="login-notice">
+                    <Clock size={15} />
+                    <span>{displayNotice}</span>
+                  </div>
+                )}
 
-              {/* Notice Banners */}
-              {displayNotice && !error && !successMsg && (
-                <div className="login-notice">
-                  <Clock size={16} />
-                  <span>{displayNotice}</span>
-                </div>
-              )}
+                {successMsg && (
+                  <div className="login-notice">
+                    <CheckCircle size={15} />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
 
-              {successMsg && (
-                <div className="login-notice">
-                  <CheckCircle size={16} />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              {lockoutSeconds > 0 && (
-                <div className="login-lockout-banner">
-                  <Lock size={20} />
-                  <div>
-                    <div style={{ fontWeight: 700 }}>Account temporarily locked.</div>
-                    <div style={{ fontSize: 11.5, marginTop: 2 }}>
-                      Please wait <strong>{lockoutSeconds}s</strong> before trying again.
+                {lockoutSeconds > 0 && (
+                  <div className="login-lockout-banner">
+                    <Lock size={18} />
+                    <div>
+                      <div style={{ fontWeight: 700 }}>Account temporarily locked.</div>
+                      <div style={{ fontSize: 11.5, marginTop: 2 }}>
+                        Please wait <strong>{lockoutSeconds}s</strong> before trying again.
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {error && lockoutSeconds === 0 && (
-                <div className="login-error">
-                  <AlertTriangle size={16} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* 1. E-mail Input Field */}
-              <div className="ref-field-group">
-                <label className="ref-label">E-mail</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Mail size={18} /></span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="Enter your email"
-                    autoComplete="email"
-                    required
-                    disabled={loading || isLoggingInSuccess}
-                  />
-                </div>
-              </div>
-
-              {/* 2. Password Input Field */}
-              <div className="ref-field-group">
-                <label className="ref-label">Password</label>
-                <div className="ref-input-box">
-                  <span className="ref-input-icon"><Lock size={18} /></span>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                    required
-                    disabled={loading || isLoggingInSuccess}
-                  />
-                  {/* Password Peek Toggle */}
-                  <button
-                    type="button"
-                    className={`ref-peek-btn${showPassword ? ' active' : ''}`}
-                    onClick={handleToggleShowPassword}
-                    title={showPassword ? `Visible for ${secondsLeft}s (auto-hides)` : 'Show password for 5 seconds'}
-                    tabIndex={0}
-                    disabled={isLoggingInSuccess}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    <span>{showPassword ? `${secondsLeft}s` : 'Show'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 3. Forgot Password Link */}
-              <div className="ref-forgot-row">
-                <button
-                  type="button"
-                  className="ref-forgot-link"
-                  onClick={() => { setMode('forgot'); setError(''); setSuccessMsg('') }}
-                  disabled={isLoggingInSuccess}
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              {/* 4. Login Action Button */}
-              <button
-                type="submit"
-                className={`ref-action-btn ${isLoggingInSuccess ? 'btn-success-active' : ''}`}
-                disabled={loading || lockoutSeconds > 0 || isLoggingInSuccess}
-              >
-                {isLoggingInSuccess ? (
-                  <>
-                    <Check size={18} />
-                    <span>Access Granted…</span>
-                  </>
-                ) : (
-                  <span>{loading ? 'Signing in…' : lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : 'Login'}</span>
                 )}
-              </button>
+
+                {error && lockoutSeconds === 0 && (
+                  <div className="login-error">
+                    <AlertTriangle size={15} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* 1. Email Input Field */}
+                <div className="ref-field-group">
+                  <label className="ref-label">Email</label>
+                  <div className="ref-input-wrap">
+                    <Mail className="ref-input-icon" size={16} />
+                    <input
+                      type="email"
+                      className="ref-input-control"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      required
+                      disabled={loading || isLoggingInSuccess}
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Password Input Field */}
+                <div className="ref-field-group">
+                  <div className="ref-label-row">
+                    <label className="ref-label">Password</label>
+                    <button
+                      type="button"
+                      className="ref-forgot-link"
+                      onClick={() => { setMode('forgot'); setError(''); setSuccessMsg('') }}
+                      disabled={isLoggingInSuccess}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="ref-input-wrap">
+                    <Lock className="ref-input-icon" size={16} />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="ref-input-control"
+                      style={{ paddingRight: 46 }}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                      disabled={loading || isLoggingInSuccess}
+                    />
+                    {/* Password Peek Toggle */}
+                    <button
+                      type="button"
+                      className="ref-peek-btn"
+                      onClick={handleToggleShowPassword}
+                      title={showPassword ? `Visible for ${secondsLeft}s (auto-hides)` : 'Show password for 5 seconds'}
+                      tabIndex={0}
+                      disabled={isLoggingInSuccess}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Login Action Button */}
+                <button
+                  type="submit"
+                  className={`ref-action-btn ${isLoggingInSuccess ? 'btn-success-active' : ''}`}
+                  disabled={loading || lockoutSeconds > 0 || isLoggingInSuccess}
+                >
+                  {isLoggingInSuccess ? (
+                    <>
+                      <Check size={16} />
+                      <span>Access Granted…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{loading ? 'Signing in…' : lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : 'Sign in'}</span>
+                      <span className="ref-action-btn-circle" aria-hidden="true">
+                        <ArrowRight size={16} strokeWidth={2} />
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* 4. Protected by role-based security footnote */}
+                <div className="login-security-badge">
+                  <ShieldCheck size={14} />
+                  <span>Protected by PerDevSys role-based security</span>
+                </div>
+              </div>
             </form>
           )}
 
           {/* Copyright Notice */}
           <div className="login-copyright-note">
-            © {new Date().getFullYear()} HORECAOS Hotel and Restaurant. All rights reserved.
+            © {new Date().getFullYear()} PerDevSys. All rights reserved.
           </div>
         </div>
       </section>
@@ -717,7 +832,7 @@ export default function Login({ onLogin, notice }) {
               <div className="login-success-title">AUTHENTICATION ACCEPTED</div>
               <div className="login-success-hotel-name">HORECAOS HOTEL & RESTAURANT</div>
               <div className="login-success-sub-text">
-                <DoorOpen size={16} className="text-violet-accent" />
+                <DoorOpen size={16} className="text-emerald-500" />
                 <span>Authentication accepted, logging in...</span>
               </div>
               <div className="login-success-progress-track">

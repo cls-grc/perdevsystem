@@ -24,6 +24,7 @@ import {
   Sliders,
 } from 'lucide-react'
 import '../orgChart.css'
+import PageBanner from '../components/PageBanner'
 
 // Department top bar color classification
 function getDeptBarClass(dept = '') {
@@ -384,32 +385,32 @@ export default function OrgChart() {
   return (
     <div className="org-chart-page-container">
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div className="org-chart-header">
-        <div className="org-chart-title-area">
-          <h1>Hotel Organizational Hierarchy</h1>
-          <p>Visual reporting tree connecting organizational hierarchy, succession readiness, and skill competencies.</p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            type="button"
-            className="org-btn-tool"
-            onClick={() => loadTree(false)}
-            title="Refresh org chart — picks up any new succession promotions"
-          >
-            <RotateCcw size={14} color="#513AB3" />
-            <span>Refresh Chart</span>
-          </button>
-          <Link to="/succession" className="org-btn-tool" style={{ textDecoration: 'none' }}>
-            <Crown size={14} color="#513AB3" />
-            <span>Succession Planning</span>
-          </Link>
-          <Link to="/competency" className="org-btn-tool" style={{ textDecoration: 'none' }}>
-            <Zap size={14} color="#513AB3" />
-            <span>Skill Radar</span>
-          </Link>
-        </div>
-      </div>
+      <PageBanner
+        title="Organizational Hierarchy"
+        description="Visual reporting tree connecting organizational hierarchy, succession readiness, and skill competencies."
+        icon={<Layers className="w-5 h-5 text-white" />}
+        actions={
+          <>
+            <button
+              type="button"
+              className="saas-btn-secondary"
+              onClick={() => loadTree(false)}
+              title="Refresh org chart — picks up any new succession promotions"
+            >
+              <RotateCcw size={14} color="#111827" />
+              <span>Refresh Chart</span>
+            </button>
+            <Link to="/succession" className="saas-btn-secondary" style={{ textDecoration: 'none' }}>
+              <Crown size={14} color="#111827" />
+              <span>Succession Planning</span>
+            </Link>
+            <Link to="/competency" className="saas-btn-secondary" style={{ textDecoration: 'none' }}>
+              <Zap size={14} color="#111827" />
+              <span>Skill Radar</span>
+            </Link>
+          </>
+        }
+      />
 
       {/* ── KPI CARDS ───────────────────────────────────────────────────────── */}
       <div className="org-chart-kpis">
@@ -624,7 +625,7 @@ export default function OrgChart() {
             border: '1px solid rgba(81, 58, 179, 0.25)',
             fontSize: 13,
             fontWeight: 700,
-            color: '#513AB3',
+            color: '#111827',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -659,7 +660,7 @@ export default function OrgChart() {
       >
         {/* Floating Glassmorphic Quick Zoom Indicator in Corner */}
         <div className="org-floating-zoom-badge">
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#513AB3' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
             {Math.round(zoomLevel * 100)}%
           </span>
           <button
@@ -738,7 +739,7 @@ export default function OrgChart() {
           <div className="org-drawer-panel" onClick={(e) => e.stopPropagation()}>
             <div className="org-drawer-header">
               <div className="org-drawer-title-row">
-                <Building2 size={18} color="#513AB3" />
+                <Building2 size={18} color="#111827" />
                 <h2>Profile & Succession Insight</h2>
               </div>
               <button
@@ -787,13 +788,13 @@ export default function OrgChart() {
               {/* Performance & Competency Summary */}
               <div className="org-drawer-section">
                 <div className="org-section-heading">
-                  <TrendingUp size={14} color="#513AB3" />
+                  <TrendingUp size={14} color="#111827" />
                   <span>Evaluation & Scores</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   <div style={{ padding: '12px 10px', background: '#f8fafc', borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 2 }}>Performance</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#513AB3' }}>{selectedNode.performanceScore}%</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#111827' }}>{selectedNode.performanceScore}%</div>
                   </div>
                   <div style={{ padding: '12px 10px', background: '#f8fafc', borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 2 }}>Competency</div>
@@ -809,7 +810,7 @@ export default function OrgChart() {
               {/* Succession Pipeline Detail */}
               <div className="org-drawer-section">
                 <div className="org-section-heading">
-                  <Crown size={14} color="#513AB3" />
+                  <Crown size={14} color="#111827" />
                   <span>Succession Pipeline Analysis</span>
                 </div>
                 <div className="org-succession-card">
@@ -840,7 +841,7 @@ export default function OrgChart() {
               {/* Competency Breakdown Skills */}
               <div className="org-drawer-section">
                 <div className="org-section-heading">
-                  <Zap size={14} color="#513AB3" />
+                  <Zap size={14} color="#111827" />
                   <span>Key Competency Alignment</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -862,7 +863,7 @@ export default function OrgChart() {
               {selectedNode.children && selectedNode.children.length > 0 && (
                 <div className="org-drawer-section">
                   <div className="org-section-heading">
-                    <Users size={14} color="#513AB3" />
+                    <Users size={14} color="#111827" />
                     <span>Direct Team Members ({selectedNode.children.length})</span>
                   </div>
                   <div className="org-reports-list">

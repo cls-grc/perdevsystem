@@ -151,8 +151,8 @@ export default function MobileNav({ user, onLogout, open, onClose }) {
                     <path d="M7 8h10M7 12h10M7 16h6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
                     <defs>
                       <linearGradient id="brandGradM" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                        <stop stopColor="#9333ea" />
-                        <stop offset="1" stopColor="#6366f1" />
+                        <stop stopColor="#111827" />
+                        <stop offset="1" stopColor="#111827" />
                       </linearGradient>
                     </defs>
                   </svg>

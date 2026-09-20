@@ -381,7 +381,7 @@ export default function SocialRecognition() {
         <div className="recognition-pending-section">
           <div className="pending-section-head">
             <div className="pending-section-title">
-              <Clock size={18} color="#513AB3" />
+              <Clock size={18} color="#111827" />
               <span>
                 {isHr
                   ? 'Nominations Awaiting HR Approval & Publishing'
@@ -511,7 +511,7 @@ export default function SocialRecognition() {
           <div className="recognition-composer-card">
             <div className="composer-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Heart size={16} color="#513AB3" />
+                <Heart size={16} color="#111827" />
                 <span>
                   {isUpperUp
                     ? (isHr ? 'Issue Official HR Recognition' : 'Nominate / Recognize Team Member')
@@ -522,7 +522,7 @@ export default function SocialRecognition() {
                 fontSize: 11,
                 fontWeight: 700,
                 background: isUpperUp ? 'rgba(81, 58, 179, 0.12)' : 'rgba(100, 116, 139, 0.12)',
-                color: isUpperUp ? '#513AB3' : '#64748b',
+                color: isUpperUp ? '#111827' : '#64748b',
                 padding: '3px 10px',
                 borderRadius: 20
               }}>
@@ -747,7 +747,7 @@ export default function SocialRecognition() {
           <div className="recognition-leaderboard-card">
             <div className="leaderboard-header-row">
               <div className="leaderboard-title">
-                <Trophy size={18} color="#513AB3" />
+                <Trophy size={18} color="#111827" />
                 <span>Monthly Staff Spotlight</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -795,7 +795,7 @@ export default function SocialRecognition() {
 
             {(!leaderboard.topStaff || leaderboard.topStaff.length === 0) ? (
               <div className="leaderboard-empty-cycle">
-                <Sparkles size={26} color="#a78bfa" style={{ marginBottom: 6 }} />
+                <Sparkles size={26} color="#6b7280" style={{ marginBottom: 6 }} />
                 <div className="leaderboard-empty-title">{leaderboard.monthLabel} Cycle Active!</div>
                 <div className="leaderboard-empty-sub">
                   All staff heart & kudos tallies are clean at 0. Start recognizing colleagues to see them rise in this month's Spotlight!
@@ -842,7 +842,7 @@ export default function SocialRecognition() {
           <div className="recognition-leaderboard-card">
             <div className="leaderboard-header-row">
               <div className="leaderboard-title">
-                <Building2 size={18} color="#513AB3" />
+                <Building2 size={18} color="#111827" />
                 <span>Department Kudos</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -904,7 +904,7 @@ export default function SocialRecognition() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: isDark ? '#f1f5f9' : '#0f172a' }}>
-                <RotateCcw size={18} color="#7c3aed" />
+                <RotateCcw size={18} color="#111827" />
                 <span>Reset for Upcoming Month</span>
               </div>
               <button
@@ -919,7 +919,7 @@ export default function SocialRecognition() {
 
             <p style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.6, marginBottom: 20 }}>
               Resetting for an upcoming month activates a{' '}
-              <b style={{ color: isDark ? '#c4b5fd' : '#513AB3' }}>clean slate</b> for that cycle.
+              <b style={{ color: isDark ? '#d1d5db' : '#111827' }}>clean slate</b> for that cycle.
               All staff hearts and department kudos start at <b>0</b>, and previous month
               rankings are safely preserved in the archive.
             </p>
@@ -976,13 +976,13 @@ export default function SocialRecognition() {
                         padding: '5px 14px',
                         borderRadius: 999,
                         border: isSelected(opt.key)
-                          ? '1.5px solid #7c3aed'
+                          ? '1.5px solid #111827'
                           : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid #e2e8f0',
                         background: isSelected(opt.key)
-                          ? isDark ? 'rgba(124,58,237,0.22)' : 'rgba(124,58,237,0.1)'
+                          ? isDark ? 'rgba(17,24,39,0.22)' : 'rgba(17,24,39,0.1)'
                           : isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
                         color: isSelected(opt.key)
-                          ? isDark ? '#c4b5fd' : '#7c3aed'
+                          ? isDark ? '#d1d5db' : '#111827'
                           : isDark ? '#94a3b8' : '#64748b',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
@@ -1019,7 +1019,7 @@ export default function SocialRecognition() {
                     padding: '9px 20px',
                     borderRadius: 10,
                     border: 'none',
-                    background: 'linear-gradient(135deg, #513AB3 0%, #7c3aed 100%)',
+                    background: 'linear-gradient(135deg, #111827 0%, #111827 100%)',
                     color: '#ffffff',
                     fontSize: 13,
                     fontWeight: 800,

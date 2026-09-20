@@ -6,27 +6,17 @@ const sectionsByRole = {
   hr: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI Analytics Dashboard', icon: 'grid', badge: 'Live' }]
+      links: [{ to: '/', label: 'System Dashboard', icon: 'grid' }]
     },
     {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
         { to: '/orgchart', label: 'Org Chart & Hierarchy', icon: 'sitemap' },
-        { to: '/certificates', label: 'Certificate Management', icon: 'award' }
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
+        { to: '/certificates', label: 'Certificate Management', icon: 'award' },
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
         { to: '/competency', label: 'Skill Development', icon: 'zap' },
-        { to: '/recognition', label: 'Social Recognition', icon: 'heart' }
-      ]
-    },
-    {
-      title: 'Monitoring',
-      links: [
+        { to: '/recognition', label: 'Social Recognition', icon: 'heart' },
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
         { to: '/succession', label: 'Succession Planning', icon: 'crown' },
@@ -37,26 +27,16 @@ const sectionsByRole = {
   supervisor: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'Team Dashboard', icon: 'grid', badge: 'Live' }]
+      links: [{ to: '/', label: 'Team Dashboard', icon: 'grid' }]
     },
     {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
-        { to: '/orgchart', label: 'Team Org Chart', icon: 'sitemap' }
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
+        { to: '/orgchart', label: 'Team Org Chart', icon: 'sitemap' },
         { to: '/performance', label: 'Team Performance', icon: 'trend' },
         { to: '/competency', label: 'Team Development', icon: 'zap' },
-        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
-      ]
-    },
-    {
-      title: 'Monitoring',
-      links: [
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' },
         { to: '/learning', label: 'Team Learning', icon: 'book' },
         { to: '/training', label: 'Training Attendance', icon: 'calendar' },
         { to: '/certificates', label: 'Team Certificates', icon: 'award' },
@@ -67,19 +47,15 @@ const sectionsByRole = {
   management: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid', badge: 'Live' }]
+      links: [{ to: '/', label: 'Leadership Dashboard', icon: 'grid' }]
     },
     {
-      title: 'Operations',
+      title: 'Administration',
       links: [
         { to: '/orgchart', label: 'Hotel Org Chart', icon: 'sitemap' },
+        { to: '/performance', label: 'Executive Performance', icon: 'trend' },
         { to: '/succession', label: 'Succession Approvals', icon: 'crown' },
-        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
-      ]
-    },
-    {
-      title: 'Monitoring',
-      links: [
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' },
         { to: '/audit', label: 'Audit Trail', icon: 'settings' }
       ]
     }
@@ -87,27 +63,17 @@ const sectionsByRole = {
   operations_manager: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'AI Analytics Dashboard', icon: 'grid', badge: 'Live' }]
+      links: [{ to: '/', label: 'Operations Dashboard', icon: 'grid' }]
     },
     {
       title: 'Administration',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
         { to: '/orgchart', label: 'Org Chart & Hierarchy', icon: 'sitemap' },
-        { to: '/certificates', label: 'Certificate Management', icon: 'award' }
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
+        { to: '/certificates', label: 'Certificate Management', icon: 'award' },
         { to: '/performance', label: 'Performance Reviews', icon: 'trend' },
         { to: '/competency', label: 'Skill Development', icon: 'zap' },
-        { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
-      ]
-    },
-    {
-      title: 'Monitoring',
-      links: [
+        { to: '/recognition', label: 'Recognition Review', icon: 'heart' },
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
         { to: '/succession', label: 'Succession Planning', icon: 'crown' },
@@ -118,22 +84,17 @@ const sectionsByRole = {
   employee: [
     {
       title: 'Overview',
-      links: [{ to: '/', label: 'My Dashboard', icon: 'grid', badge: 'Live' }]
+      links: [{ to: '/', label: 'My Dashboard', icon: 'grid' }]
     },
     {
-      title: 'Operations',
+      title: 'My Workspace',
       links: [
         { to: '/orgchart', label: 'Hotel Org Chart', icon: 'sitemap' },
         { to: '/performance', label: 'My Performance', icon: 'trend' },
         { to: '/competency', label: 'My Development Plan', icon: 'zap' },
-        { to: '/recognition', label: 'Recognition', icon: 'heart' }
-      ]
-    },
-    {
-      title: 'Monitoring',
-      links: [
-        { to: '/learning', label: 'My Learning', icon: 'book' },
-        { to: '/training', label: 'My Training', icon: 'calendar' },
+        { to: '/recognition', label: 'Recognition Wall', icon: 'heart' },
+        { to: '/learning', label: 'My Learning Modules', icon: 'book' },
+        { to: '/training', label: 'My Training Sessions', icon: 'calendar' },
         { to: '/certificates', label: 'My Certificates', icon: 'award' }
       ]
     }
@@ -242,7 +203,7 @@ export function Icon({ name, size = 20 }) {
   )
 }
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user, onLogout, collapsed = false, onToggleCollapse }) {
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarAvatar, setSidebarAvatar] = useState(user?.avatarUrl || null)
 
@@ -277,26 +238,33 @@ export default function Sidebar({ user, onLogout }) {
 
   return (
     <>
-    <aside className="sidebar">
-      {/* Brand Header */}
+    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* Brand Header (FleetOps Style) */}
       <div className="sidebar-brand-wrapper">
         <div className="brand">
           <div className="brand-logo-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#brandGrad)" />
-              <path d="M7 8h10M7 12h10M7 16h6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-              <defs>
-                <linearGradient id="brandGrad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#9333ea" />
-                  <stop offset="1" stopColor="#6366f1" />
-                </linearGradient>
-              </defs>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
             </svg>
           </div>
-          <div className="brand-text-block">
-            <span className="brand-name">PerDevSys</span>
-            <span className="brand-badge">HOSPITALITY HR</span>
-          </div>
+          {!collapsed && <span className="brand-name">System Console</span>}
+          <button
+            className="sidebar-collapse-indicator"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {collapsed ? (
+                <path d="m9 18 6-6-6-6" />
+              ) : (
+                <path d="m15 18-6-6 6-6" />
+              )}
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -304,13 +272,13 @@ export default function Sidebar({ user, onLogout }) {
       <div className="nav-list">
         {navSections.map((section) => (
           <div key={section.title} className="sidebar-section">
-            <div className="section-title">{section.title}</div>
+            {!collapsed && <div className="section-title">{section.title}</div>}
             <div className="section-list">
               {section.links.map((item) =>
                 item.disabled ? (
-                  <div key={item.label} className="nav-item disabled">
-                    <span className="nav-icon-wrap"><Icon name={item.icon} size={16} /></span>
-                    <span className="label">{item.label}</span>
+                  <div key={item.label} className="nav-item disabled" title={collapsed ? item.label : undefined}>
+                    <span className="nav-icon-wrap"><Icon name={item.icon} size={17} /></span>
+                    {!collapsed && <span className="label">{item.label}</span>}
                   </div>
                 ) : (
                   <NavLink
@@ -318,10 +286,11 @@ export default function Sidebar({ user, onLogout }) {
                     to={item.to}
                     end={item.to === '/'}
                     className={({ isActive }) => `nav-item ${isActive ? 'nav-active' : ''}`}
+                    title={collapsed ? item.label : undefined}
                   >
-                    <span className="nav-icon-wrap"><Icon name={item.icon} size={16} /></span>
-                    <span className="label">{item.label}</span>
-                    {item.badge && <span className="nav-badge-pill">{item.badge}</span>}
+                    <span className="nav-icon-wrap"><Icon name={item.icon} size={17} /></span>
+                    {!collapsed && <span className="label">{item.label}</span>}
+                    {!collapsed && item.badge && <span className="nav-badge-pill">{item.badge}</span>}
                   </NavLink>
                 )
               )}
@@ -330,30 +299,45 @@ export default function Sidebar({ user, onLogout }) {
         ))}
       </div>
 
-      {/* User Profile Pill at Bottom */}
+      {/* User Profile Pill at Bottom (FleetOps Style) */}
       <div className="sidebar-footer">
         <div
-          className="profile-mini profile-rbac profile-clickable"
+          className="profile-mini"
           onClick={() => setShowProfile(true)}
-          title="Edit your profile"
+          title={collapsed ? `${user.name} (Click for settings)` : "Click to view profile & settings"}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && setShowProfile(true)}
         >
           {(sidebarAvatar || user?.avatarUrl)
-            ? <img src={sidebarAvatar || user?.avatarUrl} alt="avatar" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-            : <span className="avatar avatar-lia">{initials}</span>
+            ? <img src={sidebarAvatar || user?.avatarUrl} alt="avatar" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} />
+            : <span className="profile-avatar-circle">{initials}</span>
           }
-          <div className="profile-info">
-            <b title={user.name}>{user.name}</b>
-            <small>{roleLabel}</small>
-            <span className="profile-edit-hint">Edit Profile</span>
-          </div>
-          <span className="role-dot" title={`Role: ${roleLabel}`} />
+          {!collapsed && (
+            <>
+              <div className="profile-info">
+                <b title={user.name}>{user.name}</b>
+                <small>{roleLabel.toLowerCase().replace(/\s+/g, '_')}</small>
+              </div>
+              <button
+                className="profile-signout-icon-btn"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onLogout()
+                }}
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
-        <button className="sidebar-signout" type="button" onClick={onLogout}>
-          <span>Sign out</span>
-        </button>
       </div>
     </aside>
 

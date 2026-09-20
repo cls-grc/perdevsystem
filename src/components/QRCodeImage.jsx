@@ -47,7 +47,7 @@ export default function QRCodeImage({ value, size = 70, className = '' }) {
           background: '#f4f2ff',
           borderRadius: 4,
           fontSize: 10,
-          color: '#654bd2'
+          color: '#111827'
         }}
       >
         QR

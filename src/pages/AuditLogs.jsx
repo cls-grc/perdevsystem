@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { downloadCsv } from '../lib/exportUtils'
-import { Download } from 'lucide-react'
+import { Download, ShieldCheck } from 'lucide-react'
+import PageBanner from '../components/PageBanner'
 
 const categoryLabels = {
   auth: 'Authentication',
@@ -105,19 +106,17 @@ export default function AuditLogs() {
 
   return (
     <main className="er-workspace">
-      <div className="er-heading">
-        <div>
-          <p className="eyebrow">Security &amp; Compliance</p>
-          <h1>Audit and Activity Trail</h1>
-          <p>Who did what, when, and from where — a role-aware trail across all accounts and modules.</p>
-        </div>
-        <div className="er-heading-actions">
-          <button className="module-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export the audit trail to CSV">
+      <PageBanner
+        title="Audit & Activity Trail"
+        description="Who did what, when, and from where — a role-aware trail across all accounts and modules."
+        icon={<ShieldCheck className="w-5 h-5 text-white" />}
+        actions={
+          <button className="saas-btn-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export the audit trail to CSV">
             <Download className="w-4 h-4 inline-block" />
             <span>Export CSV</span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error && <p className="module-error">{error}</p>}
 

@@ -170,7 +170,7 @@ export default function InteractiveBenchStrength({ employees = [], onSelectCandi
         <div className="bench-pipeline-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Crown size={18} color="#513AB3" />
+              <Crown size={18} color="#111827" />
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
                 {activePositionData.role} — Succession Pipeline
               </h3>

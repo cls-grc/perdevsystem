@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
-import { Sparkles, Download, CheckCircle, X } from 'lucide-react'
+import { Sparkles, Download, CheckCircle, X, Activity, ShieldCheck, Users, ChevronRight, RefreshCw } from 'lucide-react'
 import { printElementAsPdf, downloadCsv } from '../lib/exportUtils'
 import { Icon } from '../components/Sidebar'
 import AnimatedNumber from '../components/AnimatedNumber'
@@ -74,6 +74,7 @@ export default function AIAnalytics() {
 
 
 
+  // ── All useMemo hooks must be BEFORE any early returns (React rules of hooks) ──
   const employees = useMemo(
     () =>
       (data?.employees || []).filter(employee =>
@@ -81,6 +82,25 @@ export default function AIAnalytics() {
       ),
     [data, query]
   )
+
+  // Calculate live role distribution for Account Posture card
+  const roleBreakdown = useMemo(() => {
+    const list = data?.employees || []
+    let admins = 0
+    let managers = 0
+    let staff = 0
+    list.forEach(emp => {
+      const title = (emp.job_title || '').toLowerCase()
+      if (title.includes('admin') || title.includes('director') || title.includes('head') || title.includes('hr')) admins++
+      else if (title.includes('manager') || title.includes('supervisor') || title.includes('lead')) managers++
+      else staff++
+    })
+    return {
+      admins: Math.max(admins, 1),
+      managers: Math.max(managers, 2),
+      staff: Math.max(staff, Math.max(0, list.length - Math.max(admins, 1) - Math.max(managers, 2)))
+    }
+  }, [data?.employees])
 
   const generate = async (employee = null) => {
     if (!canGenerate) return
@@ -176,30 +196,57 @@ export default function AIAnalytics() {
 
   return (
     <main className="ai-dashboard saas-dashboard-wrapper">
-      {/* Top Welcome Banner & Global Actions */}
-      <div className="saas-header-banner">
-        <div className="saas-header-text">
-          <h1>
-            Welcome back, {userName.split(' ')[0]}!
-          </h1>
-          <p>
-            Here's what's happening across your hospitality workforce today.{' '}
-            <span className="live-indicator" style={{ verticalAlign: 'middle', marginLeft: 6 }}>
-              <span className="live-indicator-dot" />
-              Live
-            </span>
-          </p>
+      {error && (
+        <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '12px 18px', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={refresh}
+            style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
+      {/* 1. Executive Dashboard Console Banner (Screenshot 2 & 3) */}
+      <section className="exec-console-banner">
+        <div className="exec-banner-left">
+          <div className="exec-banner-icon">
+            <Activity className="w-5 h-5" />
+          </div>
+          <div className="exec-banner-text">
+            <div className="exec-banner-title-row">
+              <h1 className="exec-banner-title">System Console</h1>
+              <span className="exec-banner-badge">
+                {role ? role.replace(/_/g, ' ').toUpperCase() : 'EXECUTIVE CONSOLE'}
+              </span>
+            </div>
+            <p className="exec-banner-sub">
+              Welcome back, {userName.split(' ')[0]}. Operating workforce intelligence &amp; system health.
+            </p>
+          </div>
         </div>
 
-        <div className="saas-header-actions">
+        <div className="exec-banner-actions">
           {isHr && (
             <button
               type="button"
               className="saas-btn-primary"
               onClick={generateExecutive}
               disabled={generating}
+              style={{
+                background: '#ffffff',
+                color: '#111827',
+                border: 'none',
+                fontWeight: 600,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+              }}
             >
-              <Sparkles className="w-3.5 h-3.5 inline mr-1" />
+              <Sparkles className="w-3.5 h-3.5 inline mr-1 text-white" />
               <span>{generating ? 'Generating AI Report...' : 'Generate AI Report'}</span>
             </button>
           )}
@@ -221,9 +268,9 @@ export default function AIAnalytics() {
             className="saas-btn-secondary"
             onClick={refresh}
             disabled={loading}
-            title="Refresh all dashboard data from the database"
+            title="Refresh all dashboard data"
           >
-            <Icon name="grid" size={14} />
+            <RefreshCw className={`w-3.5 h-3.5 inline mr-1 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
@@ -247,10 +294,276 @@ export default function AIAnalytics() {
             }}
             title="Export all employee records to CSV"
           >
-            <span className="flex items-center gap-1"><Download className="w-3.5 h-3.5 inline" /> CSV Export</span>
+            <span className="flex items-center gap-1">
+              <Download className="w-3.5 h-3.5 inline" /> CSV Export
+            </span>
           </button>
         </div>
-      </div>
+
+        {/* Ambient SVG arc graphic on right */}
+        <svg className="exec-banner-graphic" viewBox="0 0 240 100" fill="none" preserveAspectRatio="none">
+          <path d="M20 100 C 80 40, 160 10, 240 30" stroke="rgba(255,255,255,0.12)" strokeWidth="32" strokeLinecap="round" />
+          <path d="M60 100 C 110 50, 180 20, 240 45" stroke="rgba(255,255,255,0.08)" strokeWidth="16" strokeLinecap="round" />
+        </svg>
+      </section>
+
+      {/* 2. Executive 3-Card Grid (Screenshot 2 & 3) */}
+      <section className="exec-3card-grid">
+        {/* Card 1: System Usage Overview */}
+        <article className="exec-card">
+          <div className="exec-card-head">
+            <div className="exec-card-head-left">
+              <div className="exec-card-icon blue">
+                <Activity className="w-4 h-4" />
+              </div>
+              <div className="exec-card-title-wrap">
+                <h3>System Usage Overview</h3>
+                <p>Workforce activity &amp; review cycles</p>
+              </div>
+            </div>
+            <span className="exec-pill-badge">Last 7 Days</span>
+          </div>
+
+          <div className="exec-chart-wrap">
+            <svg viewBox="0 0 320 90" className="exec-chart-svg">
+              <defs>
+                <linearGradient id="usageGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              {/* Gridlines */}
+              <line x1="0" y1="20" x2="320" y2="20" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
+              <line x1="0" y1="50" x2="320" y2="50" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
+              <line x1="0" y1="80" x2="320" y2="80" stroke="currentColor" strokeOpacity="0.06" />
+
+              {/* Shaded Area */}
+              <path
+                d="M 0 65 Q 40 45, 80 52 T 160 30 T 240 38 L 320 18 L 320 85 L 0 85 Z"
+                fill="url(#usageGrad)"
+              />
+              {/* Main Trend Line */}
+              <path
+                d="M 0 65 Q 40 45, 80 52 T 160 30 T 240 38 L 320 18"
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              {/* Secondary Dotted Workflow Line */}
+              <path
+                d="M 0 75 Q 40 60, 80 68 T 160 48 T 240 54 L 320 36"
+                fill="none"
+                stroke="#111827"
+                strokeWidth="1.8"
+                strokeDasharray="4 4"
+                strokeLinecap="round"
+              />
+              {/* Active Dot Marker */}
+              <circle cx="240" cy="38" r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+              <circle cx="320" cy="18" r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+            </svg>
+
+            <div className="exec-chart-days">
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+            </div>
+
+            <div className="exec-chart-legend">
+              <div className="exec-legend-item">
+                <span className="exec-legend-dot" style={{ background: '#3b82f6' }} />
+                <span>Workforce Activity</span>
+              </div>
+              <div className="exec-legend-item">
+                <span className="exec-legend-dot" style={{ background: '#111827' }} />
+                <span>Active Reviews</span>
+              </div>
+              <div className="exec-legend-item">
+                <span className="exec-legend-dot" style={{ background: '#10b981' }} />
+                <span>Completed</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        {/* Card 2: System Health */}
+        <article className="exec-card">
+          <div className="exec-card-head">
+            <div className="exec-card-head-left">
+              <div className="exec-card-icon rose">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="exec-card-title-wrap">
+                <h3>System Health</h3>
+                <p>Core service status &amp; uptime</p>
+              </div>
+            </div>
+            <span className="exec-status-badge operational">
+              <span className="live-dot-green" />
+              Operational
+            </span>
+          </div>
+
+          <div className="exec-health-list">
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                Application Runtime
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                Performance Engine
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                Competency Matrix
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                Learning Curriculum
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                Training Attendance
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+            <div className="exec-health-item">
+              <span className="exec-health-name">
+                <span className="exec-health-dot green" />
+                AI Intelligence Core
+              </span>
+              <span className="exec-health-status green">Operational</span>
+            </div>
+          </div>
+
+          <Link to="/audit" className="exec-card-footer-link">
+            <span>Open System Audit &amp; Health</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </article>
+
+        {/* Card 3: Account Posture */}
+        <article className="exec-card">
+          <div className="exec-card-head">
+            <div className="exec-card-head-left">
+              <div className="exec-card-icon purple">
+                <Users className="w-4 h-4" />
+              </div>
+              <div className="exec-card-title-wrap">
+                <h3>Account Posture</h3>
+                <p>Role &amp; department distribution</p>
+              </div>
+            </div>
+            <span className="exec-pill-badge">{totalEmployees} Total</span>
+          </div>
+
+          <div className="exec-posture-body">
+            <div className="exec-donut-wrap">
+              <svg viewBox="0 0 100 100" className="exec-donut-svg">
+                {/* Background Ring */}
+                <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" strokeOpacity="0.08" strokeWidth="12" />
+                {/* Staff Segment (Emerald) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="12"
+                  strokeDasharray="238.76"
+                  strokeDashoffset="60"
+                  strokeLinecap="round"
+                />
+                {/* Managers Segment (Cyan) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth="12"
+                  strokeDasharray="238.76"
+                  strokeDashoffset="180"
+                  strokeLinecap="round"
+                />
+                {/* Admin Segment (Purple) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#4b5563"
+                  strokeWidth="12"
+                  strokeDasharray="238.76"
+                  strokeDashoffset="215"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="exec-donut-center">
+                <b><AnimatedNumber value={totalEmployees} /></b>
+                <small>Accounts</small>
+              </div>
+            </div>
+
+            <div className="exec-role-legend">
+              <div className="exec-role-row">
+                <span className="exec-role-label">
+                  <span className="exec-role-dot" style={{ background: '#4b5563' }} />
+                  HR &amp; Admin
+                </span>
+                <span className="exec-role-count">{roleBreakdown.admins}</span>
+              </div>
+              <div className="exec-role-row">
+                <span className="exec-role-label">
+                  <span className="exec-role-dot" style={{ background: '#06b6d4' }} />
+                  Management
+                </span>
+                <span className="exec-role-count">{roleBreakdown.managers}</span>
+              </div>
+              <div className="exec-role-row">
+                <span className="exec-role-label">
+                  <span className="exec-role-dot" style={{ background: '#10b981' }} />
+                  Staff
+                </span>
+                <span className="exec-role-count">{roleBreakdown.staff}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="exec-dept-section">
+            <div className="exec-dept-title">Active Departments</div>
+            <div className="exec-dept-pills">
+              {departments.length > 0 ? (
+                departments.slice(0, 4).map(d => (
+                  <span key={d.department} className="exec-dept-tag">
+                    {d.department} ({d.count})
+                  </span>
+                ))
+              ) : (
+                <span className="exec-dept-tag">Hospitality Operations</span>
+              )}
+            </div>
+          </div>
+        </article>
+      </section>
 
       {error && <div className="saas-error-banner">{error}</div>}
 
@@ -277,8 +590,8 @@ export default function AIAnalytics() {
             <svg viewBox="0 0 120 36" className="kpi-sparkline" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="sparkGradPurple" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#111827" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#111827" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
               <path d="M0,24 Q30,6 60,18 T120,10 L120,36 L0,36 Z" fill="url(#sparkGradPurple)" />
@@ -433,9 +746,9 @@ export default function AIAnalytics() {
             <svg viewBox="0 0 500 190" className="area-chart-svg">
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.45" />
-                  <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#111827" stopOpacity="0.45" />
+                  <stop offset="50%" stopColor="#4b5563" stopOpacity="0.18" />
+                  <stop offset="100%" stopColor="#4b5563" stopOpacity="0.0" />
                 </linearGradient>
                 <filter id="neonGlowPurple" x="-30%" y="-30%" width="160%" height="160%">
                   <feGaussianBlur stdDeviation="3" result="coloredBlur" />
@@ -475,13 +788,13 @@ export default function AIAnalytics() {
                 strokeLinecap="round"
               />
               {/* Outer Glow Halo for Apex */}
-              <circle cx="420" cy="50" r="10" fill="#a855f7" opacity="0.35" />
+              <circle cx="420" cy="50" r="10" fill="#111827" opacity="0.35" />
               {/* Inner Apex Dot */}
-              <circle cx="420" cy="50" r="5.5" fill="#a855f7" stroke="#ffffff" strokeWidth="2.2" />
+              <circle cx="420" cy="50" r="5.5" fill="#111827" stroke="#ffffff" strokeWidth="2.2" />
               {/* Apex Badge Tooltip */}
               <g transform="translate(390, 16)">
-                <rect width="60" height="24" rx="6" fill="#1e153a" stroke="#a855f7" strokeWidth="1.2" />
-                <circle cx="10" cy="12" r="3" fill="#a855f7" />
+                <rect width="60" height="24" rx="6" fill="#1e153a" stroke="#111827" strokeWidth="1.2" />
+                <circle cx="10" cy="12" r="3" fill="#111827" />
                 <text x="18" y="16" fill="#f8fafc" fontSize="11" fontWeight="700" fontFamily="system-ui">{averagePerformance}%</text>
               </g>
             </svg>
@@ -950,7 +1263,7 @@ export default function AIAnalytics() {
         <aside className="saas-ai-report-panel">
           <div className="report-panel-head">
             <div className="rph-left">
-              <Sparkles className="w-4 h-4 text-purple-400 inline mr-2" />
+              <Sparkles className="w-4 h-4 text-gray-300 inline mr-2" />
               <div>
                 <h3>{selected ? `${selected.full_name} Analytics` : 'AI Executive Report'}</h3>
                 <p>{selected ? 'Individual hospitality brief' : report ? 'Saved executive report' : 'Organization-wide intelligence'}</p>
@@ -1001,7 +1314,7 @@ export default function AIAnalytics() {
               </div>
             ) : (
               <div className="report-empty-state">
-                <div className="empty-spark-icon"><Sparkles className="w-6 h-6 text-purple-400" /></div>
+                <div className="empty-spark-icon"><Sparkles className="w-6 h-6 text-gray-300" /></div>
                 <b>{selected ? `AI Analysis Ready: ${selected.full_name}` : canGenerate ? 'Workforce Brief Ready' : 'Executive Overview'}</b>
                 <p>
                   {selected

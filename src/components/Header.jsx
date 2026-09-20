@@ -5,15 +5,15 @@ import EmailOutboxDrawer from './EmailOutboxDrawer'
 import TwoFactorModal from './TwoFactorModal'
 import UserProfileModal from './UserProfileModal'
 import GlobalSearchModal from './GlobalSearchModal'
-import { BarChart3, Target, GraduationCap, Calendar, Crown, Trophy, Bell, Check, Sparkles, Mail, BellOff } from 'lucide-react'
+import { BarChart3, Target, GraduationCap, Calendar, Crown, Trophy, Bell, Check, Sparkles, Mail, BellOff, Clock } from 'lucide-react'
 
 function getNotifMeta(item) {
   const t = (item.title || '').toLowerCase()
-  if (t.includes('performance')) return { IconComponent: BarChart3, color: '#654bd2', bg: '#f0ebff', label: 'Performance' }
+  if (t.includes('performance')) return { IconComponent: BarChart3, color: '#111827', bg: '#f0ebff', label: 'Performance' }
   if (t.includes('competency') || t.includes('skill')) return { IconComponent: Target, color: '#0284c7', bg: '#e0f2fe', label: 'Competency' }
   if (t.includes('learning')) return { IconComponent: GraduationCap, color: '#16a34a', bg: '#dcfce7', label: 'Learning' }
   if (t.includes('training')) return { IconComponent: Calendar, color: '#d97706', bg: '#fef3c7', label: 'Training' }
-  if (t.includes('succession')) return { IconComponent: Crown, color: '#9333ea', bg: '#f3e8ff', label: 'Succession' }
+  if (t.includes('succession')) return { IconComponent: Crown, color: '#111827', bg: '#f3e8ff', label: 'Succession' }
   if (t.includes('recognition')) return { IconComponent: Trophy, color: '#e11d48', bg: '#ffe4e6', label: 'Recognition' }
   return { IconComponent: Bell, color: '#5e48c0', bg: '#efebff', label: 'Workflow' }
 }
@@ -29,15 +29,27 @@ function timeAgo(dateString) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAiChat }) {
+function formatSessionTime(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds ?? 300))
+  const mins = Math.floor(s / 60)
+  const secs = s % 60
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAiChat, sessionSecondsLeft, onResetSession }) {
+  // ── All useState hooks first (React rules of hooks) ──
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [headerAvatar, setHeaderAvatar] = useState(user?.avatarUrl || null)
-  const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [twoFactorOpen, setTwoFactorOpen] = useState(false)
+  const [notifFilter, setNotifFilter] = useState('all')
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // ── All useEffect hooks after useState ──
 
   useEffect(() => {
     if (user?.avatarUrl) setHeaderAvatar(user.avatarUrl)
@@ -52,10 +64,6 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
     window.addEventListener('pds:user-updated', handleUpdate)
     return () => window.removeEventListener('pds:user-updated', handleUpdate)
   }, [])
-  const [notifFilter, setNotifFilter] = useState('all')
-  const [searchOpen, setSearchOpen] = useState(false)
-
-  const canSeeOutbox = user?.role === 'hr' || user?.role === 'management'
 
   // Global Ctrl+K shortcut to open search
   useEffect(() => {
@@ -84,6 +92,8 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
     const timer = setInterval(load, 30000)
     return () => { active = false; clearInterval(timer) }
   }, [])
+
+  const canSeeOutbox = user?.role === 'hr' || user?.role === 'management'
 
   const showNotifications = async () => {
     setOpen(value => !value)
@@ -181,11 +191,26 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           )}
         </button>
 
+        {/* Session Inactivity Countdown Timer (Starts at 05:00) */}
+        <div
+          className={`topbar-clock-pill ${sessionSecondsLeft != null && sessionSecondsLeft <= 60 ? (sessionSecondsLeft <= 15 ? 'session-pill-urgent' : 'session-pill-warning') : ''}`}
+          title="Session Inactivity Timer (auto-logouts after 5 minutes of idle time). Click to extend."
+          onClick={onResetSession}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+          role="button"
+          tabIndex={0}
+        >
+          <Clock size={13} className={sessionSecondsLeft != null && sessionSecondsLeft <= 60 ? 'session-clock-urgent' : ''} />
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+            {formatSessionTime(sessionSecondsLeft)}
+          </span>
+        </div>
+
         {/* Animated Sun / Moon Theme Toggle */}
         <button
           className="theme-switch-btn"
           type="button"
-          onClick={onToggle}
+          onClick={(e) => onToggle(e)}
           aria-pressed={dark}
           title={dark ? "Switch to light mode" : "Switch to dark mode"}
         >
