@@ -512,8 +512,9 @@ router.post('/:id/comment', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-// Active recognition cycle month (defaults to current month)
-let activeCycleMonth = new Date().toISOString().slice(0, 7)
+// Active recognition cycle month (defaults to current month, timezone-safe)
+const _now = new Date()
+let activeCycleMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
 const resetMonths = new Set() // Set of months explicitly reset or initialized fresh
 
 function formatMonthLabel(monthStr) {

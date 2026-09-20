@@ -230,7 +230,10 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   reactRecognition: (id, reaction) => request(`/api/recognition/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction }) }),
   commentRecognition: (id, text) => request(`/api/recognition/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) }),
   recognitionLeaderboard: (month) => request(`/api/recognition/leaderboard${month ? `?month=${month}` : ''}`),
-  refreshRecognitionLeaderboard: (month) => request('/api/recognition/leaderboard/refresh', { method: 'POST', body: JSON.stringify({ month: month || new Date().toISOString().slice(0, 7) }) }),
+  refreshRecognitionLeaderboard: (month) => {
+    const fallback = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })()
+    return request('/api/recognition/leaderboard/refresh', { method: 'POST', body: JSON.stringify({ month: month || fallback }) })
+  },
   resetRecognitionCycle: (targetMonth) => request('/api/recognition/cycle/reset', { method: 'POST', body: JSON.stringify({ targetMonth }) }),
   getActiveRecognitionCycle: () => request('/api/recognition/cycle/active'),
 

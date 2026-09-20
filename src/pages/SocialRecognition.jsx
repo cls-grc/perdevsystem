@@ -51,13 +51,17 @@ export default function SocialRecognition() {
   const [pendingNominations, setPendingNominations] = useState([])
   const [pendingCounts, setPendingCounts] = useState({ awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 })
   const [leaderboard, setLeaderboard] = useState({ topStaff: [], topDepartments: [], coreValues: [] })
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
   const [refreshingSpotlight, setRefreshingSpotlight] = useState(false)
   const [showResetCycleModal, setShowResetCycleModal] = useState(false)
   const [targetUpcomingMonth, setTargetUpcomingMonth] = useState(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + 1)
-    return d.toISOString().slice(0, 7)
+    const now = new Date()
+    const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear()
+    const nextMon  = now.getMonth() === 11 ? 1 : now.getMonth() + 2
+    return `${nextYear}-${String(nextMon).padStart(2, '0')}`
   })
   const [resettingCycle, setResettingCycle] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -858,9 +862,17 @@ export default function SocialRecognition() {
       {showResetCycleModal && (
         <div className="ref-modal-backdrop" onClick={() => setShowResetCycleModal(false)}>
           <div
-            className="ref-modal-card"
-            style={{ maxWidth: 460, padding: 24, background: '#ffffff', borderRadius: 20 }}
             onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: 480,
+              background: '#ffffff',
+              borderRadius: 20,
+              padding: '28px 28px 24px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              boxSizing: 'border-box',
+            }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
@@ -909,8 +921,10 @@ export default function SocialRecognition() {
                   const options = []
                   const now = new Date()
                   for (let i = 1; i <= 3; i++) {
-                    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-                    const key = d.toISOString().slice(0, 7)
+                    const y = now.getMonth() + i > 11 ? now.getFullYear() + Math.floor((now.getMonth() + i) / 12) : now.getFullYear()
+                    const m = (now.getMonth() + i) % 12
+                    const d = new Date(y, m, 1)
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
                     const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
                     options.push({ key, label })
                   }
