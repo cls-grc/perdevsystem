@@ -231,6 +231,8 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   commentRecognition: (id, text) => request(`/api/recognition/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) }),
   recognitionLeaderboard: (month) => request(`/api/recognition/leaderboard${month ? `?month=${month}` : ''}`),
   refreshRecognitionLeaderboard: (month) => request('/api/recognition/leaderboard/refresh', { method: 'POST', body: JSON.stringify({ month: month || new Date().toISOString().slice(0, 7) }) }),
+  resetRecognitionCycle: (targetMonth) => request('/api/recognition/cycle/reset', { method: 'POST', body: JSON.stringify({ targetMonth }) }),
+  getActiveRecognitionCycle: () => request('/api/recognition/cycle/active'),
 
   // CSV exports (client-side from fetched data — no extra endpoint needed)
   exportEmployeesCsv: async () => {

@@ -288,6 +288,7 @@ router.post('/post', async (req, res, next) => {
       validatedAt: isSupervisor ? new Date().toISOString() : null,
       approvedBy: isHr ? req.user.name : null,
       approvedAt: isHr ? new Date().toISOString() : null,
+      cycleMonth: activeCycleMonth,
       createdAt: new Date().toISOString(),
     }
 
@@ -511,6 +512,10 @@ router.post('/:id/comment', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// Active recognition cycle month (defaults to current month)
+let activeCycleMonth = new Date().toISOString().slice(0, 7)
+const resetMonths = new Set() // Set of months explicitly reset or initialized fresh
+
 function formatMonthLabel(monthStr) {
   try {
     const [y, m] = monthStr.split('-')
@@ -522,30 +527,32 @@ function formatMonthLabel(monthStr) {
 }
 
 function calculateMonthlySpotlight(monthKey) {
-  const currentKey = monthKey || new Date().toISOString().slice(0, 7)
+  const currentKey = monthKey || activeCycleMonth
   const monthLabel = formatMonthLabel(currentKey)
+  const isResetOrUpcoming = resetMonths.has(currentKey) || currentKey > '2026-09'
 
-  // Filter approved kudos for this month (or default sample if store is fresh)
+  // Filter approved kudos
   const approved = kudosStore.filter(k => (!k.status || k.status === 'approved'))
 
   // Aggregate by recipient
   const staffMap = new Map()
-  // Baseline initial staff figures for rich display
-  const baseStaff = [
-    { name: 'Maria Lopez', department: 'Front Office', jobTitle: 'Receptionist', count: 12, heartsCount: 38, badgesCount: 6 },
-    { name: 'Andre Tan', department: 'Kitchen', jobTitle: 'Cook', count: 10, heartsCount: 29, badgesCount: 5 },
-    { name: 'Rosa Martinez', department: 'Housekeeping', jobTitle: 'Housekeeping Staff', count: 9, heartsCount: 24, badgesCount: 4 },
-    { name: 'James Wilson', department: 'Food & Beverage', jobTitle: 'Bartender', count: 8, heartsCount: 21, badgesCount: 4 },
-    { name: 'Emily Thompson', department: 'Food & Beverage', jobTitle: 'Waitress', count: 7, heartsCount: 18, badgesCount: 3 },
-  ]
 
-  baseStaff.forEach(s => staffMap.set(s.name, { ...s }))
+  // Baseline sample figures ONLY for September 2026 if it hasn't been reset
+  if (!isResetOrUpcoming && currentKey === '2026-09') {
+    const baseStaff = [
+      { name: 'Maria Lopez', department: 'Front Office', jobTitle: 'Receptionist', count: 12, heartsCount: 38, badgesCount: 6 },
+      { name: 'Andre Tan', department: 'Kitchen', jobTitle: 'Cook', count: 10, heartsCount: 29, badgesCount: 5 },
+      { name: 'Rosa Martinez', department: 'Housekeeping', jobTitle: 'Housekeeping Staff', count: 9, heartsCount: 24, badgesCount: 4 },
+      { name: 'James Wilson', department: 'Food & Beverage', jobTitle: 'Bartender', count: 8, heartsCount: 21, badgesCount: 4 },
+      { name: 'Emily Thompson', department: 'Food & Beverage', jobTitle: 'Waitress', count: 7, heartsCount: 18, badgesCount: 3 },
+    ]
+    baseStaff.forEach(s => staffMap.set(s.name, { ...s }))
+  }
 
-  // Aggregate live kudos
+  // Aggregate live kudos matching this month
   approved.forEach(k => {
-    // If post matches month or general pool
     const kDate = (k.createdAt || '').slice(0, 7)
-    const matchesMonth = !kDate || kDate === currentKey
+    const matchesMonth = k.cycleMonth === currentKey || (kDate === currentKey) || (!isResetOrUpcoming && currentKey === '2026-09' && !kDate)
 
     if (matchesMonth && k.recipientName) {
       const existing = staffMap.get(k.recipientName) || {
@@ -568,21 +575,25 @@ function calculateMonthlySpotlight(monthKey) {
     .sort((a, b) => (b.heartsCount * 2 + b.count) - (a.heartsCount * 2 + a.count))
     .slice(0, 5)
 
-  // Aggregate Department Kudos
+  // Aggregate Department Kudos (reset to 0 for upcoming / reset months)
   const deptMap = new Map([
-    ['Front Office', { department: 'Front Office', totalKudos: 34, icon: 'hotel' }],
-    ['Kitchen', { department: 'Kitchen', totalKudos: 31, icon: 'utensils' }],
-    ['Food & Beverage', { department: 'Food & Beverage', totalKudos: 27, icon: 'coffee' }],
-    ['Housekeeping', { department: 'Housekeeping', totalKudos: 23, icon: 'sparkles' }],
-    ['Operations', { department: 'Operations', totalKudos: 15, icon: 'settings' }],
+    ['Front Office', { department: 'Front Office', totalKudos: isResetOrUpcoming ? 0 : 34, icon: 'hotel' }],
+    ['Kitchen', { department: 'Kitchen', totalKudos: isResetOrUpcoming ? 0 : 31, icon: 'utensils' }],
+    ['Food & Beverage', { department: 'Food & Beverage', totalKudos: isResetOrUpcoming ? 0 : 27, icon: 'coffee' }],
+    ['Housekeeping', { department: 'Housekeeping', totalKudos: isResetOrUpcoming ? 0 : 23, icon: 'sparkles' }],
+    ['Operations', { department: 'Operations', totalKudos: isResetOrUpcoming ? 0 : 15, icon: 'settings' }],
   ])
 
   approved.forEach(k => {
-    const dept = k.recipientDepartment
-    if (dept && deptMap.has(dept)) {
-      deptMap.get(dept).totalKudos += 1
-    } else if (dept) {
-      deptMap.set(dept, { department: dept, totalKudos: 1, icon: 'hotel' })
+    const kDate = (k.createdAt || '').slice(0, 7)
+    const matchesMonth = k.cycleMonth === currentKey || (kDate === currentKey) || (!isResetOrUpcoming && currentKey === '2026-09' && !kDate)
+    if (matchesMonth) {
+      const dept = k.recipientDepartment
+      if (dept && deptMap.has(dept)) {
+        deptMap.get(dept).totalKudos += 1
+      } else if (dept) {
+        deptMap.set(dept, { department: dept, totalKudos: 1, icon: 'hotel' })
+      }
     }
   })
 
@@ -601,6 +612,9 @@ function calculateMonthlySpotlight(monthKey) {
   return {
     monthKey: currentKey,
     monthLabel,
+    activeCycleMonth,
+    isActiveCycle: currentKey === activeCycleMonth,
+    isResetOrUpcoming,
     topStaff,
     topDepartments,
     coreValues,
@@ -608,10 +622,48 @@ function calculateMonthlySpotlight(monthKey) {
   }
 }
 
+// GET /api/recognition/cycle/active — get active recognition cycle info
+router.get('/cycle/active', (_req, res) => {
+  res.json({
+    activeMonth: activeCycleMonth,
+    activeMonthLabel: formatMonthLabel(activeCycleMonth),
+  })
+})
+
+// POST /api/recognition/cycle/reset — reset and activate spotlight cycle for upcoming month
+router.post('/cycle/reset', async (req, res, next) => {
+  try {
+    const { targetMonth } = req.body
+    if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
+      return res.status(400).json({ error: 'Valid targetMonth (YYYY-MM) is required' })
+    }
+
+    activeCycleMonth = targetMonth
+    resetMonths.add(targetMonth)
+
+    const result = calculateMonthlySpotlight(targetMonth)
+
+    await logActivity({
+      req,
+      user: req.user,
+      action: 'recognition.cycle_reset',
+      category: 'recognition',
+      description: `${req.user.name} reset and activated the Monthly Staff Spotlight cycle for ${result.monthLabel}`,
+      details: { targetMonth },
+    })
+
+    res.json({
+      success: true,
+      message: `Monthly Staff Spotlight and Department Kudos reset for ${result.monthLabel}! Clean slate activated.`,
+      ...result,
+    })
+  } catch (error) { next(error) }
+})
+
 // GET /api/recognition/leaderboard — monthly recognition statistics with month filter
 router.get('/leaderboard', async (req, res, next) => {
   try {
-    const monthKey = req.query.month || new Date().toISOString().slice(0, 7)
+    const monthKey = req.query.month || activeCycleMonth
     const result = calculateMonthlySpotlight(monthKey)
     res.json(result)
   } catch (error) { next(error) }
@@ -620,7 +672,7 @@ router.get('/leaderboard', async (req, res, next) => {
 // POST /api/recognition/leaderboard/refresh — refresh monthly staff spotlight and department kudos
 router.post('/leaderboard/refresh', async (req, res, next) => {
   try {
-    const monthKey = req.body.month || new Date().toISOString().slice(0, 7)
+    const monthKey = req.body.month || activeCycleMonth
     const result = calculateMonthlySpotlight(monthKey)
 
     await logActivity({

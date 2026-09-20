@@ -18,7 +18,10 @@ import {
   Check,
   X,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
+  RotateCcw,
+  Calendar,
   Flame,
   Star,
 } from 'lucide-react'
@@ -50,6 +53,13 @@ export default function SocialRecognition() {
   const [leaderboard, setLeaderboard] = useState({ topStaff: [], topDepartments: [], coreValues: [] })
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [refreshingSpotlight, setRefreshingSpotlight] = useState(false)
+  const [showResetCycleModal, setShowResetCycleModal] = useState(false)
+  const [targetUpcomingMonth, setTargetUpcomingMonth] = useState(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + 1)
+    return d.toISOString().slice(0, 7)
+  })
+  const [resettingCycle, setResettingCycle] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedTag, setSelectedTag] = useState('ALL')
   const [commentOpen, setCommentOpen] = useState({})
@@ -104,7 +114,16 @@ export default function SocialRecognition() {
   }
 
   useEffect(() => {
-    loadData()
+    api.getActiveRecognitionCycle()
+      .then(res => {
+        if (res.activeMonth) {
+          setSelectedMonth(res.activeMonth)
+          loadData(res.activeMonth)
+        } else {
+          loadData()
+        }
+      })
+      .catch(() => loadData())
   }, [])
 
   // Monthly spotlight refresh handler
@@ -119,6 +138,25 @@ export default function SocialRecognition() {
       setStatusNotice('Unable to refresh monthly spotlight.')
     } finally {
       setRefreshingSpotlight(false)
+    }
+  }
+
+  // Reset and activate spotlight cycle for upcoming month
+  const handleResetForUpcomingMonth = async (e) => {
+    if (e) e.preventDefault()
+    if (!targetUpcomingMonth) return
+    setResettingCycle(true)
+    try {
+      const res = await api.resetRecognitionCycle(targetUpcomingMonth)
+      setLeaderboard(res)
+      setSelectedMonth(targetUpcomingMonth)
+      setShowResetCycleModal(false)
+      setStatusNotice(`Recognition cycle successfully reset and activated for ${res.monthLabel}! Clean slate started.`)
+      setTimeout(() => setStatusNotice(''), 5000)
+    } catch {
+      setStatusNotice('Unable to reset recognition cycle.')
+    } finally {
+      setResettingCycle(false)
     }
   }
 
@@ -695,22 +733,40 @@ export default function SocialRecognition() {
                 <Trophy size={18} color="#513AB3" />
                 <span>Monthly Staff Spotlight</span>
               </div>
-              <button
-                type="button"
-                className="leaderboard-refresh-btn"
-                onClick={handleRefreshSpotlight}
-                disabled={refreshingSpotlight}
-                title="Refresh Monthly Staff Spotlight and Kudos"
-              >
-                <RefreshCw size={12} className={refreshingSpotlight ? 'animate-spin' : ''} />
-                <span>{refreshingSpotlight ? 'Refreshing…' : 'Refresh'}</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  className="leaderboard-refresh-btn"
+                  onClick={handleRefreshSpotlight}
+                  disabled={refreshingSpotlight}
+                  title="Refresh Monthly Staff Spotlight and Kudos"
+                >
+                  <RefreshCw size={12} className={refreshingSpotlight ? 'animate-spin' : ''} />
+                  <span>{refreshingSpotlight ? 'Refreshing…' : 'Refresh'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="leaderboard-reset-cycle-btn"
+                  onClick={() => setShowResetCycleModal(true)}
+                  title="Reset and activate upcoming month cycle"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset for Upcoming Month</span>
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span className="leaderboard-month-badge">
-                <Clock size={11} /> {leaderboard.monthLabel || 'Current Month'}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="leaderboard-month-badge">
+                  <Clock size={11} /> {leaderboard.monthLabel || 'Current Month'}
+                </span>
+                {leaderboard.isActiveCycle ? (
+                  <span className="leaderboard-cycle-active-pill">● Active Cycle</span>
+                ) : (
+                  <span className="leaderboard-cycle-archived-pill">Archived</span>
+                )}
+              </div>
               <input
                 type="month"
                 className="leaderboard-month-select"
@@ -720,29 +776,49 @@ export default function SocialRecognition() {
               />
             </div>
 
-            <div className="leaderboard-list">
-              {leaderboard.topStaff?.map((staff, idx) => (
-                <div key={staff.name} className="leaderboard-item">
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span className="rank-badge">{idx + 1}</span>
-                    <div>
-                      <div className="leaderboard-item-name">{staff.name}</div>
-                      <div className="leaderboard-item-sub">{staff.jobTitle ? `${staff.jobTitle} • ` : ''}{staff.department}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className="leaderboard-item-count" title="Hearts Received" style={{ color: '#ec4899' }}>
-                      <Heart size={12} style={{ fill: '#ec4899', color: '#ec4899' }} />
-                      <span>{staff.heartsCount || 0}</span>
-                    </div>
-                    <div className="leaderboard-item-count" title="Total Kudos / Awards">
-                      <Award size={13} />
-                      <span>{staff.count}</span>
-                    </div>
-                  </div>
+            {(!leaderboard.topStaff || leaderboard.topStaff.length === 0) ? (
+              <div className="leaderboard-empty-cycle">
+                <Sparkles size={26} color="#a78bfa" style={{ marginBottom: 6 }} />
+                <div className="leaderboard-empty-title">{leaderboard.monthLabel} Cycle Active!</div>
+                <div className="leaderboard-empty-sub">
+                  All staff heart & kudos tallies are clean at 0. Start recognizing colleagues to see them rise in this month's Spotlight!
                 </div>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  className="leaderboard-empty-action-btn"
+                  onClick={() => {
+                    document.querySelector('.recognition-composer-card')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                >
+                  <Heart size={12} />
+                  <span>Give First Recognition</span>
+                </button>
+              </div>
+            ) : (
+              <div className="leaderboard-list">
+                {leaderboard.topStaff?.map((staff, idx) => (
+                  <div key={staff.name} className="leaderboard-item">
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span className="rank-badge">{idx + 1}</span>
+                      <div>
+                        <div className="leaderboard-item-name">{staff.name}</div>
+                        <div className="leaderboard-item-sub">{staff.jobTitle ? `${staff.jobTitle} • ` : ''}{staff.department}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="leaderboard-item-count" title="Hearts Received" style={{ color: '#ec4899' }}>
+                        <Heart size={12} style={{ fill: '#ec4899', color: '#ec4899' }} />
+                        <span>{staff.heartsCount || 0}</span>
+                      </div>
+                      <div className="leaderboard-item-count" title="Total Kudos / Awards">
+                        <Award size={13} />
+                        <span>{staff.count}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Department Kudos Leaderboard */}
@@ -752,9 +828,14 @@ export default function SocialRecognition() {
                 <Building2 size={18} color="#513AB3" />
                 <span>Department Kudos</span>
               </div>
-              <span className="leaderboard-month-badge">
-                {leaderboard.monthLabel || 'Monthly'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="leaderboard-month-badge">
+                  {leaderboard.monthLabel || 'Monthly'}
+                </span>
+                {leaderboard.isResetOrUpcoming && (
+                  <span className="leaderboard-cycle-active-pill" style={{ fontSize: 9 }}>New Cycle</span>
+                )}
+              </div>
             </div>
             <div className="leaderboard-list">
               {leaderboard.topDepartments?.map((dept) => (
@@ -763,13 +844,140 @@ export default function SocialRecognition() {
                     <Users size={15} />
                     <span className="leaderboard-item-name">{dept.department}</span>
                   </div>
-                  <span style={{ fontWeight: 800, color: '#059669' }}>{dept.totalKudos} kudos</span>
+                  <span style={{ fontWeight: 800, color: dept.totalKudos > 0 ? '#059669' : '#94a3b8' }}>
+                    {dept.totalKudos} kudos
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── MODAL: RESET & ACTIVATE SPOTLIGHT CYCLE FOR UPCOMING MONTH ────── */}
+      {showResetCycleModal && (
+        <div className="ref-modal-backdrop" onClick={() => setShowResetCycleModal(false)}>
+          <div
+            className="ref-modal-card"
+            style={{ maxWidth: 460, padding: 24, background: '#ffffff', borderRadius: 20 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                <RotateCcw size={18} color="#513AB3" />
+                <span>Reset for Upcoming Month</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetCycleModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 16 }}>
+              Resetting for an upcoming month activates a <b>clean slate</b> for that cycle. All staff hearts and department kudos start at <b>0</b>, and previous month rankings are safely preserved in the archive.
+            </p>
+
+            <form onSubmit={handleResetForUpcomingMonth}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Target Upcoming Month
+                </label>
+                <input
+                  type="month"
+                  value={targetUpcomingMonth}
+                  onChange={(e) => setTargetUpcomingMonth(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    borderRadius: 10,
+                    border: '1.5px solid #cbd5e1',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Quick Suggestion Buttons for Next 3 Months */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+                {(() => {
+                  const options = []
+                  const now = new Date()
+                  for (let i = 1; i <= 3; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+                    const key = d.toISOString().slice(0, 7)
+                    const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+                    options.push({ key, label })
+                  }
+                  return options.map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setTargetUpcomingMonth(opt.key)}
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: 20,
+                        border: targetUpcomingMonth === opt.key ? '1px solid #513AB3' : '1px solid #e2e8f0',
+                        background: targetUpcomingMonth === opt.key ? 'rgba(81, 58, 179, 0.1)' : '#f8fafc',
+                        color: targetUpcomingMonth === opt.key ? '#513AB3' : '#64748b',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))
+                })()}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowResetCycleModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: '#64748b',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resettingCycle || !targetUpcomingMonth}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #513AB3 0%, #7054e3 100%)',
+                    color: '#ffffff',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <RotateCcw size={13} className={resettingCycle ? 'animate-spin' : ''} />
+                  <span>{resettingCycle ? 'Activating…' : 'Reset & Start Upcoming Month'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

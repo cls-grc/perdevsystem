@@ -560,6 +560,117 @@
   transform: translateY(-1px);
 }
 
+.leaderboard-reset-cycle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+:root.dark .leaderboard-reset-cycle-btn,
+.dark .leaderboard-reset-cycle-btn {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.leaderboard-reset-cycle-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  transform: translateY(-1px);
+}
+
+.leaderboard-cycle-active-pill {
+  font-size: 10px;
+  font-weight: 800;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 2px 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.leaderboard-cycle-archived-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.leaderboard-empty-cycle {
+  padding: 24px 16px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+:root.dark .leaderboard-empty-cycle,
+.dark .leaderboard-empty-cycle {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.leaderboard-empty-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+:root.dark .leaderboard-empty-title,
+.dark .leaderboard-empty-title {
+  color: #f1f5f9;
+}
+
+.leaderboard-empty-sub {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+:root.dark .leaderboard-empty-sub,
+.dark .leaderboard-empty-sub {
+  color: #94a3b8;
+}
+
+.leaderboard-empty-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #513AB3;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.leaderboard-empty-action-btn:hover {
+  background: #432e98;
+  transform: translateY(-1px);
+}
+
 .leaderboard-month-select {
   padding: 3px 8px;
   font-size: 11.5px;
