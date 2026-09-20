@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import {
@@ -55,6 +56,9 @@ export default function SocialRecognition() {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains('dark') || localStorage.getItem('pds-theme') === 'dark'
+  )
   const [refreshingSpotlight, setRefreshingSpotlight] = useState(false)
   const [showResetCycleModal, setShowResetCycleModal] = useState(false)
   const [targetUpcomingMonth, setTargetUpcomingMonth] = useState(() => {
@@ -128,6 +132,15 @@ export default function SocialRecognition() {
         }
       })
       .catch(() => loadData())
+  }, [])
+
+  // Keep isDark in sync with the root class when user toggles theme
+  useEffect(() => {
+    const obs = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    })
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
   }, [])
 
   // Monthly spotlight refresh handler
@@ -859,43 +872,62 @@ export default function SocialRecognition() {
       </div>
 
       {/* ── MODAL: RESET & ACTIVATE SPOTLIGHT CYCLE FOR UPCOMING MONTH ────── */}
-      {showResetCycleModal && (
-        <div className="ref-modal-backdrop" onClick={() => setShowResetCycleModal(false)}>
+      {/* ── MODAL: RESET & ACTIVATE SPOTLIGHT CYCLE (via Portal so it always centers on screen) ── */}
+      {showResetCycleModal && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            background: 'rgba(5, 7, 18, 0.78)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setShowResetCycleModal(false)}
+        >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'relative',
               width: '100%',
               maxWidth: 480,
-              background: '#ffffff',
+              background: isDark ? '#1e293b' : '#ffffff',
               borderRadius: 20,
               padding: '28px 28px 24px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              boxShadow: isDark
+                ? '0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(167,139,250,0.2)'
+                : '0 20px 60px rgba(0,0,0,0.18)',
+              border: isDark ? '1px solid rgba(167,139,250,0.25)' : '1px solid rgba(226,232,240,0.8)',
               boxSizing: 'border-box',
             }}
           >
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                <RotateCcw size={18} color="#513AB3" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: isDark ? '#f1f5f9' : '#0f172a' }}>
+                <RotateCcw size={18} color="#7c3aed" />
                 <span>Reset for Upcoming Month</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowResetCycleModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isDark ? '#94a3b8' : '#64748b', display: 'flex' }}
                 aria-label="Close"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, marginBottom: 16 }}>
-              Resetting for an upcoming month activates a <b>clean slate</b> for that cycle. All staff hearts and department kudos start at <b>0</b>, and previous month rankings are safely preserved in the archive.
+            <p style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.6, marginBottom: 20 }}>
+              Resetting for an upcoming month activates a{' '}
+              <b style={{ color: isDark ? '#c4b5fd' : '#513AB3' }}>clean slate</b> for that cycle.
+              All staff hearts and department kudos start at <b>0</b>, and previous month
+              rankings are safely preserved in the archive.
             </p>
 
             <form onSubmit={handleResetForUpcomingMonth}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+              {/* Month Input */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 7, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                   Target Upcoming Month
                 </label>
                 <input
@@ -905,18 +937,22 @@ export default function SocialRecognition() {
                   required
                   style={{
                     width: '100%',
-                    padding: '9px 12px',
-                    fontSize: 13.5,
-                    fontWeight: 600,
+                    padding: '10px 14px',
+                    fontSize: 14,
+                    fontWeight: 700,
                     borderRadius: 10,
-                    border: '1.5px solid #cbd5e1',
+                    border: isDark ? '1.5px solid rgba(167,139,250,0.35)' : '1.5px solid #cbd5e1',
+                    background: isDark ? '#0f172a' : '#f8fafc',
+                    color: isDark ? '#e2e8f0' : '#0f172a',
                     boxSizing: 'border-box',
+                    outline: 'none',
+                    colorScheme: isDark ? 'dark' : 'light',
                   }}
                 />
               </div>
 
-              {/* Quick Suggestion Buttons for Next 3 Months */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+              {/* Quick month pills */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
                 {(() => {
                   const options = []
                   const now = new Date()
@@ -928,20 +964,28 @@ export default function SocialRecognition() {
                     const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
                     options.push({ key, label })
                   }
+                  const isSelected = (k) => targetUpcomingMonth === k
                   return options.map(opt => (
                     <button
                       key={opt.key}
                       type="button"
                       onClick={() => setTargetUpcomingMonth(opt.key)}
                       style={{
-                        fontSize: 11.5,
+                        fontSize: 12,
                         fontWeight: 700,
-                        padding: '4px 10px',
-                        borderRadius: 20,
-                        border: targetUpcomingMonth === opt.key ? '1px solid #513AB3' : '1px solid #e2e8f0',
-                        background: targetUpcomingMonth === opt.key ? 'rgba(81, 58, 179, 0.1)' : '#f8fafc',
-                        color: targetUpcomingMonth === opt.key ? '#513AB3' : '#64748b',
+                        padding: '5px 14px',
+                        borderRadius: 999,
+                        border: isSelected(opt.key)
+                          ? '1.5px solid #7c3aed'
+                          : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid #e2e8f0',
+                        background: isSelected(opt.key)
+                          ? isDark ? 'rgba(124,58,237,0.22)' : 'rgba(124,58,237,0.1)'
+                          : isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                        color: isSelected(opt.key)
+                          ? isDark ? '#c4b5fd' : '#7c3aed'
+                          : isDark ? '#94a3b8' : '#64748b',
                         cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
                       {opt.label}
@@ -950,18 +994,19 @@ export default function SocialRecognition() {
                 })()}
               </div>
 
+              {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => setShowResetCycleModal(false)}
                   style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    fontSize: 12.5,
+                    padding: '9px 18px',
+                    borderRadius: 10,
+                    border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid #e2e8f0',
+                    background: isDark ? 'rgba(255,255,255,0.06)' : '#f8fafc',
+                    fontSize: 13,
                     fontWeight: 700,
-                    color: '#64748b',
+                    color: isDark ? '#94a3b8' : '#64748b',
                     cursor: 'pointer',
                   }}
                 >
@@ -971,17 +1016,18 @@ export default function SocialRecognition() {
                   type="submit"
                   disabled={resettingCycle || !targetUpcomingMonth}
                   style={{
-                    padding: '8px 18px',
-                    borderRadius: 8,
+                    padding: '9px 20px',
+                    borderRadius: 10,
                     border: 'none',
-                    background: 'linear-gradient(135deg, #513AB3 0%, #7054e3 100%)',
+                    background: 'linear-gradient(135deg, #513AB3 0%, #7c3aed 100%)',
                     color: '#ffffff',
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 800,
-                    cursor: 'pointer',
+                    cursor: resettingCycle ? 'not-allowed' : 'pointer',
+                    opacity: resettingCycle ? 0.75 : 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 7,
                   }}
                 >
                   <RotateCcw size={13} className={resettingCycle ? 'animate-spin' : ''} />
@@ -990,10 +1036,12 @@ export default function SocialRecognition() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
+
 
 
