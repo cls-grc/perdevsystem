@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
@@ -21,6 +21,7 @@ const CHART_SERIES = [
 function UsageChart({ days }) {
   const containerRef = useRef(null)
   const [hoveredIdx, setHoveredIdx] = useState(null)
+  const [tooltipStyle, setTooltipStyle] = useState({})
 
   const W = 400, H = 120, PAD_T = 8, PAD_B = 4
   const d = days || []
@@ -38,18 +39,16 @@ function UsageChart({ days }) {
     if (!containerRef.current || d.length < 2) return
     const rect = containerRef.current.getBoundingClientRect()
     const ratio = (e.clientX - rect.left) / rect.width
-    setHoveredIdx(Math.max(0, Math.min(d.length - 1, Math.round(ratio * (d.length - 1)))))
+    const idx = Math.max(0, Math.min(d.length - 1, Math.round(ratio * (d.length - 1))))
+    setHoveredIdx(idx)
+    // Compute tooltip flip position here — inside an event handler, ref access is legal
+    const pxX = (idx / Math.max(1, d.length - 1)) * rect.width
+    setTooltipStyle(
+      pxX / rect.width > 0.60
+        ? { top: 4, right: rect.width - pxX + 10 }
+        : { top: 4, left: pxX + 10 }
+    )
   }
-
-  // Tooltip flip: show on left side when cursor is past 60% of width
-  const tooltipStyle = (() => {
-    if (hoveredIdx === null || !containerRef.current) return {}
-    const rect = containerRef.current.getBoundingClientRect()
-    const pxX  = (hoveredIdx / Math.max(1, d.length - 1)) * rect.width
-    return pxX / rect.width > 0.60
-      ? { top: 4, right: rect.width - pxX + 10 }
-      : { top: 4, left: pxX + 10 }
-  })()
 
   return (
     <article className="exec-card exec-card--usage">
@@ -159,7 +158,6 @@ export default function AIAnalytics() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'report'
 
   const user = (() => {
     try {
@@ -276,7 +274,6 @@ export default function AIAnalytics() {
       const result = await api.generateExecutiveReport()
       setInsights(null)
       setReport(result.report ?? null)
-      setActiveTab('report')
       setError('')
     } catch (requestError) {
       setError(requestError.message)

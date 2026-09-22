@@ -154,6 +154,7 @@ export default function AuditLogs() {
   const [logs, setLogs]           = useState([])
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 })
   const [category, setCategory]   = useState('')
+  // eslint-disable-next-line no-unused-vars
   const [action, setAction]       = useState('')
   const [query, setQuery]         = useState('')
   const [loading, setLoading]     = useState(false)
