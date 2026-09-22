@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import AIReport from '../components/AIReport'
@@ -9,6 +9,145 @@ import AnimatedNumber from '../components/AnimatedNumber'
 
 const initials = name => (name || '').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase()
 const percent = value => `${Math.round(Number(value || 0))}%`
+
+// ── System Usage Overview chart with hover tooltip ───────────────────────────
+const CHART_SERIES = [
+  { key: 'workflows',   color: '#3b82f6', label: 'Workflows' },
+  { key: 'completions', color: '#10b981', label: 'Completions' },
+  { key: 'maintenance', color: '#f59e0b', label: 'Maintenance' },
+  { key: 'logins',      color: '#6b7280', label: 'User Logins' },
+]
+
+function UsageChart({ days }) {
+  const containerRef = useRef(null)
+  const [hoveredIdx, setHoveredIdx] = useState(null)
+
+  const W = 400, H = 120, PAD_T = 8, PAD_B = 4
+  const d = days || []
+  const maxVal  = Math.max(10, ...d.flatMap(row => CHART_SERIES.map(s => Number(row[s.key] || 0))))
+  const xStep   = d.length > 1 ? W / (d.length - 1) : W
+  const toY     = v => PAD_T + (H - PAD_T - PAD_B) * (1 - v / maxVal)
+  const pts     = s => d.map((row, i) => [i * xStep, toY(Number(row[s.key] || 0))])
+  const polyPts = s => pts(s).map(p => p.join(',')).join(' ')
+  const yTicks  = 4
+  const yTickVals = Array.from({ length: yTicks + 1 }, (_, i) => Math.round(maxVal * i / yTicks))
+  const xLabels   = d.filter((_, i) => i % 5 === 0 || i === d.length - 1)
+  const hoverX    = hoveredIdx !== null ? (hoveredIdx / Math.max(1, d.length - 1)) * W : null
+
+  const handleMouseMove = e => {
+    if (!containerRef.current || d.length < 2) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const ratio = (e.clientX - rect.left) / rect.width
+    setHoveredIdx(Math.max(0, Math.min(d.length - 1, Math.round(ratio * (d.length - 1)))))
+  }
+
+  // Tooltip flip: show on left side when cursor is past 60% of width
+  const tooltipStyle = (() => {
+    if (hoveredIdx === null || !containerRef.current) return {}
+    const rect = containerRef.current.getBoundingClientRect()
+    const pxX  = (hoveredIdx / Math.max(1, d.length - 1)) * rect.width
+    return pxX / rect.width > 0.60
+      ? { top: 4, right: rect.width - pxX + 10 }
+      : { top: 4, left: pxX + 10 }
+  })()
+
+  return (
+    <article className="exec-card exec-card--usage">
+      <div className="exec-card-head">
+        <div className="exec-card-head-left">
+          <div className="exec-card-icon blue">
+            <Activity className="w-4 h-4" />
+          </div>
+          <div className="exec-card-title-wrap">
+            <h3>System Usage Overview</h3>
+            <p>Key activities across the system (Last 30 days)</p>
+          </div>
+        </div>
+        <span className="exec-pill-badge">Last 30 Days</span>
+      </div>
+
+      <div className="exec-usage-body">
+        {/* Y-axis labels */}
+        <div className="exec-usage-yaxis" style={{ height: H }}>
+          {[...yTickVals].reverse().map(v => <span key={v}>{v}</span>)}
+        </div>
+
+        {/* Chart + tooltip area */}
+        <div
+          className="exec-usage-chart-area"
+          ref={containerRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoveredIdx(null)}
+          style={{ position: 'relative', cursor: 'crosshair' }}
+        >
+          <svg viewBox={`0 0 ${W} ${H}`} className="exec-usage-svg" preserveAspectRatio="none">
+            {/* Gridlines */}
+            {yTickVals.map(v => (
+              <line key={v} x1={0} x2={W} y1={toY(v)} y2={toY(v)}
+                stroke="#d1d5db" strokeWidth="0.5" strokeDasharray="3 3" />
+            ))}
+
+            {/* Vertical hover crosshair */}
+            {hoverX !== null && (
+              <line x1={hoverX} x2={hoverX} y1={PAD_T} y2={H - PAD_B}
+                stroke="#9ca3af" strokeWidth="1" strokeDasharray="4 3" />
+            )}
+
+            {/* Series lines */}
+            {d.length > 1 && CHART_SERIES.map(s => (
+              <polyline key={s.key} points={polyPts(s)} fill="none"
+                stroke={s.color} strokeWidth="1.8"
+                strokeLinejoin="round" strokeLinecap="round" />
+            ))}
+
+            {/* Dots — every 5th + all hovered */}
+            {d.length > 1 && CHART_SERIES.map(s =>
+              pts(s).map(([x, y], i) => {
+                const isHov = hoveredIdx === i
+                if (!isHov && i % 5 !== 0 && i !== d.length - 1) return null
+                return (
+                  <circle key={i} cx={x} cy={y}
+                    r={isHov ? 4.5 : 3}
+                    fill={s.color} stroke="#fff"
+                    strokeWidth={isHov ? 2 : 1.5} />
+                )
+              })
+            )}
+          </svg>
+
+          {/* Hover tooltip */}
+          {hoveredIdx !== null && d[hoveredIdx] && (
+            <div className="exec-usage-tooltip" style={tooltipStyle}>
+              <div className="exec-usage-tooltip-date">{d[hoveredIdx].label}</div>
+              {CHART_SERIES.map(s => (
+                <div key={s.key} className="exec-usage-tooltip-row">
+                  <span className="exec-usage-tooltip-dot" style={{ background: s.color }} />
+                  <span className="exec-usage-tooltip-label">{s.label}</span>
+                  <span className="exec-usage-tooltip-val">{d[hoveredIdx][s.key] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* X-axis labels */}
+          <div className="exec-usage-xaxis">
+            {xLabels.map(row => <span key={row.date}>{row.label}</span>)}
+          </div>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="exec-chart-legend">
+        {CHART_SERIES.map(s => (
+          <div key={s.key} className="exec-legend-item">
+            <span className="exec-legend-dot" style={{ background: s.color }} />
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
 
 export default function AIAnalytics() {
   const navigate = useNavigate()
@@ -72,6 +211,20 @@ export default function AIAnalytics() {
     }
   }, [])
 
+  // ── System Usage Chart (30-day daily data) ──
+  const [usageData, setUsageData] = useState(null)
+  useEffect(() => {
+    api.systemUsage().then(r => setUsageData(r.days || [])).catch(() => {})
+  }, [])
+
+  // ── System Health (live polling every 30 s) ──
+  const [healthData, setHealthData] = useState(null)
+  useEffect(() => {
+    const fetchHealth = () => api.systemHealth().then(r => setHealthData(r)).catch(() => {})
+    fetchHealth()
+    const tid = setInterval(fetchHealth, 30000)
+    return () => clearInterval(tid)
+  }, [])
 
 
   // ── All useMemo hooks must be BEFORE any early returns (React rules of hooks) ──
@@ -310,161 +463,79 @@ export default function AIAnalytics() {
       {/* 2. Executive 3-Card Grid (Screenshot 2 & 3) */}
       <section className="exec-3card-grid">
         {/* Card 1: System Usage Overview */}
-        <article className="exec-card">
-          <div className="exec-card-head">
-            <div className="exec-card-head-left">
-              <div className="exec-card-icon blue">
-                <Activity className="w-4 h-4" />
-              </div>
-              <div className="exec-card-title-wrap">
-                <h3>System Usage Overview</h3>
-                <p>Workforce activity &amp; review cycles</p>
-              </div>
-            </div>
-            <span className="exec-pill-badge">Last 7 Days</span>
-          </div>
+        <UsageChart days={usageData || []} />
 
-          <div className="exec-chart-wrap">
-            <svg viewBox="0 0 320 90" className="exec-chart-svg">
-              <defs>
-                <linearGradient id="usageGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              {/* Gridlines */}
-              <line x1="0" y1="20" x2="320" y2="20" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
-              <line x1="0" y1="50" x2="320" y2="50" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
-              <line x1="0" y1="80" x2="320" y2="80" stroke="currentColor" strokeOpacity="0.06" />
 
-              {/* Shaded Area */}
-              <path
-                d="M 0 65 Q 40 45, 80 52 T 160 30 T 240 38 L 320 18 L 320 85 L 0 85 Z"
-                fill="url(#usageGrad)"
-              />
-              {/* Main Trend Line */}
-              <path
-                d="M 0 65 Q 40 45, 80 52 T 160 30 T 240 38 L 320 18"
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-              {/* Secondary Dotted Workflow Line */}
-              <path
-                d="M 0 75 Q 40 60, 80 68 T 160 48 T 240 54 L 320 36"
-                fill="none"
-                stroke="#111827"
-                strokeWidth="1.8"
-                strokeDasharray="4 4"
-                strokeLinecap="round"
-              />
-              {/* Active Dot Marker */}
-              <circle cx="240" cy="38" r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
-              <circle cx="320" cy="18" r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
-            </svg>
-
-            <div className="exec-chart-days">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-              <span>Sun</span>
-            </div>
-
-            <div className="exec-chart-legend">
-              <div className="exec-legend-item">
-                <span className="exec-legend-dot" style={{ background: '#3b82f6' }} />
-                <span>Workforce Activity</span>
+        {/* Card 2: System Health — live polled every 30 s */}
+        {(() => {
+          const services = healthData?.services || []
+          const overall = healthData?.overall || 'operational'
+          const checkedAt = healthData?.checkedAt ? new Date(healthData.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+          const statusMeta = {
+            operational:    { dot: 'green', label: 'Operational',    cls: 'operational' },
+            needs_attention: { dot: 'amber', label: 'Needs Attention', cls: 'warning' },
+            degraded:       { dot: 'red',   label: 'Degraded',        cls: 'degraded' },
+          }
+          const overallMeta = statusMeta[overall] || statusMeta.operational
+          return (
+            <article className="exec-card">
+              <div className="exec-card-head">
+                <div className="exec-card-head-left">
+                  <div className="exec-card-icon rose">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div className="exec-card-title-wrap">
+                    <h3>System Health</h3>
+                    <p>Live service status {checkedAt && <span className="exec-health-time">· {checkedAt}</span>}</p>
+                  </div>
+                </div>
+                <span className={`exec-status-badge ${overallMeta.cls}`}>
+                  <span className={`live-dot-${overallMeta.dot}`} />
+                  {overallMeta.label}
+                </span>
               </div>
-              <div className="exec-legend-item">
-                <span className="exec-legend-dot" style={{ background: '#111827' }} />
-                <span>Active Reviews</span>
-              </div>
-              <div className="exec-legend-item">
-                <span className="exec-legend-dot" style={{ background: '#10b981' }} />
-                <span>Completed</span>
-              </div>
-            </div>
-          </div>
-        </article>
 
-        {/* Card 2: System Health */}
-        <article className="exec-card">
-          <div className="exec-card-head">
-            <div className="exec-card-head-left">
-              <div className="exec-card-icon rose">
-                <ShieldCheck className="w-4 h-4" />
+              <div className="exec-health-list">
+                {services.length === 0 ? (
+                  // Loading skeleton rows
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="exec-health-item">
+                      <span className="exec-health-name">
+                        <span className="exec-health-dot gray" />
+                        <span className="exec-health-skeleton" />
+                      </span>
+                      <span className="exec-health-status gray">Checking…</span>
+                    </div>
+                  ))
+                ) : services.map(svc => {
+                  const m = statusMeta[svc.status] || statusMeta.operational
+                  const statusLabel = m.label
+                  return (
+                    <div key={svc.name} className="exec-health-item" title={svc.detail}>
+                      <span className="exec-health-name">
+                        <span className={`exec-health-dot ${m.dot}`} />
+                        {svc.name}
+                      </span>
+                      <span className={`exec-health-status ${m.dot}`}>{statusLabel}</span>
+                    </div>
+                  )
+                })}
               </div>
-              <div className="exec-card-title-wrap">
-                <h3>System Health</h3>
-                <p>Core service status &amp; uptime</p>
-              </div>
-            </div>
-            <span className="exec-status-badge operational">
-              <span className="live-dot-green" />
-              Operational
-            </span>
-          </div>
 
-          <div className="exec-health-list">
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                Application Runtime
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                Performance Engine
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                Competency Matrix
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                Learning Curriculum
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                Training Attendance
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-            <div className="exec-health-item">
-              <span className="exec-health-name">
-                <span className="exec-health-dot green" />
-                AI Intelligence Core
-              </span>
-              <span className="exec-health-status green">Operational</span>
-            </div>
-          </div>
+              <Link to="/audit" className="exec-card-footer-link">
+                <span>Open System Audit &amp; Health</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </article>
+          )
+        })()}
 
-          <Link to="/audit" className="exec-card-footer-link">
-            <span>Open System Audit &amp; Health</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </article>
 
         {/* Card 3: Account Posture */}
         <article className="exec-card">
           <div className="exec-card-head">
             <div className="exec-card-head-left">
-              <div className="exec-card-icon purple">
+              <div className="exec-card-icon teal">
                 <Users className="w-4 h-4" />
               </div>
               <div className="exec-card-title-wrap">

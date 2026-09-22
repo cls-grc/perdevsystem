@@ -20,7 +20,7 @@ const sectionsByRole = {
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
         { to: '/succession', label: 'Succession Planning', icon: 'crown' },
-        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
+        { to: '/audit', label: 'Audit & System Health', icon: 'settings' }
       ]
     }
   ],
@@ -56,7 +56,7 @@ const sectionsByRole = {
         { to: '/performance', label: 'Executive Performance', icon: 'trend' },
         { to: '/succession', label: 'Succession Approvals', icon: 'crown' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' },
-        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
+        { to: '/audit', label: 'Audit & System Health', icon: 'settings' }
       ]
     }
   ],
@@ -77,7 +77,7 @@ const sectionsByRole = {
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
         { to: '/succession', label: 'Succession Planning', icon: 'crown' },
-        { to: '/audit', label: 'Audit Trail', icon: 'settings' }
+        { to: '/audit', label: 'Audit & System Health', icon: 'settings' }
       ]
     }
   ],

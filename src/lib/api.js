@@ -97,6 +97,8 @@ workflows: (module, { page, limit, status } = {}) => {
   successionRecords: () => request('/api/succession/records'),
   employeeSuccessionHistory: (employeeId) => request(`/api/succession/employee/${employeeId}/history`),
   analytics: () => request('/api/analytics/dashboard'),
+  systemUsage: () => request('/api/analytics/system-usage'),
+  systemHealth: () => request('/api/analytics/system-health'),
   analyticsMe: () => request('/api/analytics/me'),
   generateInsights: (employeeName) => request('/api/analytics/insights', { method: 'POST', body: JSON.stringify(employeeName ? { employeeName } : {}) }),
 generateModuleInsights: (module, stage) => request('/api/analytics/module-insights', { method: 'POST', body: JSON.stringify({ module, stage }) }),

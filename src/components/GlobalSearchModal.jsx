@@ -17,7 +17,7 @@ const SYSTEM_PAGES = [
   { id: 'page-recognition', type: 'page', title: 'Social Recognition', subtitle: 'Peer badges, nominations & team leaderboard', path: '/recognition', IconComponent: Trophy, category: 'Pages' },
   { id: 'page-employees', type: 'page', title: 'Employee Records & Directory', subtitle: 'Staff profiles, organizational roles & access', path: '/employees', IconComponent: Users, category: 'Pages' },
   { id: 'page-certificates', type: 'page', title: 'Certificate Management', subtitle: 'Award generation, templates & QR verification', path: '/certificates', IconComponent: ScrollText, category: 'Pages' },
-  { id: 'page-audit', type: 'page', title: 'Audit Trail & Activity Logs', subtitle: 'Security logs, user actions & CSV exports', path: '/audit', IconComponent: ClipboardList, category: 'Pages' },
+  { id: 'page-audit', type: 'page', title: 'Audit & System Health', subtitle: 'Security logs, user actions & live service health status', path: '/audit', IconComponent: ClipboardList, category: 'Pages' },
 ]
 
 const QUICK_ACTIONS = [

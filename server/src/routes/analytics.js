@@ -225,6 +225,80 @@ router.post('/executive-report', authorize('hr'), async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// GET /system-usage — 30-day daily aggregation from activity_logs for the chart.
+router.get('/system-usage', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
+  try {
+    const sql = `
+      WITH dates AS (
+        SELECT generate_series(CURRENT_DATE - INTERVAL '29 days', CURRENT_DATE, '1 day'::interval)::date AS day
+      ),
+      activity_counts AS (
+        SELECT
+          created_at::date AS day,
+          count(*) FILTER (WHERE category = 'auth' AND (action LIKE '%login%'))::int AS logins,
+          count(*) FILTER (WHERE category = 'workflow' AND action IN ('workflow.create', 'workflow.advance'))::int AS workflows,
+          count(*) FILTER (WHERE (category = 'workflow' AND action = 'workflow.complete') OR category = 'learning')::int AS completions,
+          count(*) FILTER (WHERE category IN ('certificate', 'employee', 'system'))::int AS maintenance
+        FROM activity_logs
+        WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY created_at::date
+      )
+      SELECT
+        to_char(d.day, 'YYYY-MM-DD') AS date,
+        to_char(d.day, 'Mon DD') AS label,
+        coalesce(a.workflows, 0) AS workflows,
+        coalesce(a.completions, 0) AS completions,
+        coalesce(a.maintenance, 0) AS maintenance,
+        coalesce(a.logins, 0) AS logins
+      FROM dates d
+      LEFT JOIN activity_counts a ON a.day = d.day
+      ORDER BY d.day ASC
+    `
+    const { rows } = await query(sql)
+    res.json({ days: rows })
+  } catch (error) { next(error) }
+})
+
+// GET /system-health — real-time service health checks.
+router.get('/system-health', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
+  const check = async (name, fn) => {
+    try {
+      await fn()
+      return { name, status: 'operational', detail: 'Responding normally' }
+    } catch (err) {
+      return { name, status: 'degraded', detail: err.message?.slice(0, 120) || 'Unavailable' }
+    }
+  }
+
+  try {
+    const [dbCheck, perfCheck, compCheck, learnCheck, trainCheck, succCheck, recogCheck, aiCheck] = await Promise.all([
+      check('Database', async () => { await query('SELECT 1') }),
+      check('Performance Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='performance'") }),
+      check('Competency Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='competency'") }),
+      check('Learning Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='learning'") }),
+      check('Training Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='training'") }),
+      check('Succession Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='succession'") }),
+      check('Recognition Module', async () => { await query("SELECT count(*) FROM workflows WHERE module='recognition'") }),
+      // AI model: check if OPENROUTER_API_KEY is configured
+      Promise.resolve().then(() => {
+        const hasKey = !!process.env.OPENROUTER_API_KEY
+        return {
+          name: 'AI Intelligence Core',
+          status: hasKey ? 'operational' : 'needs_attention',
+          detail: hasKey ? 'API key configured' : 'OPENROUTER_API_KEY not set — running in fallback mode',
+        }
+      }),
+    ])
+
+    const services = [dbCheck, perfCheck, compCheck, learnCheck, trainCheck, succCheck, recogCheck, aiCheck]
+    const hasDegraded = services.some(s => s.status === 'degraded')
+    const hasAttention = services.some(s => s.status === 'needs_attention')
+    const overall = hasDegraded ? 'degraded' : hasAttention ? 'needs_attention' : 'operational'
+
+    res.json({ services, overall, checkedAt: new Date().toISOString() })
+  } catch (error) { next(error) }
+})
+
 // GET /workflows/:id/reports - fetch saved AI reports for a workflow (audit trail).
 router.get('/workflows/:id/reports', authorize('hr', 'supervisor', 'management', 'employee'), async (req, res, next) => {
   try {
