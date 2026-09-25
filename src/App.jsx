@@ -38,6 +38,7 @@ const CertificateVerification = lazy(() => import('./pages/CertificateVerificati
 const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'))
 const OrgChart = lazy(() => import('./pages/OrgChart'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
+const ReportsHub = lazy(() => import('./pages/ReportsHub'))
 const Register = lazy(() => import('./pages/Register'))
 const AIChatDrawer = lazy(() => import('./components/AIChatDrawer'))
 
@@ -218,6 +219,7 @@ function ModuleRoutes({ user }) {
               )
             }
           />
+          <Route path="/reports" element={<ReportsHub key={`reports-${user.id}`} />} />
           <Route
             path="/audit"
             element={

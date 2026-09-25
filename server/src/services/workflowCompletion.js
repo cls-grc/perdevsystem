@@ -605,3 +605,82 @@ export async function autoAssignGapLearning(client, employeeId, actorId) {
   return assigned
 }
 
+export async function getCompetencyComparison(client, employeeId) {
+  if (!employeeId) return null
+
+  const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(employeeId))
+  const empRes = await client.query(
+    isUuid
+      ? `SELECT id, full_name, job_title, department, performance_score, competency_score, learning_progress
+         FROM employees WHERE (id::text = $1 OR employee_number = $1) AND is_active = true`
+      : `SELECT id, full_name, job_title, department, performance_score, competency_score, learning_progress
+         FROM employees WHERE employee_number = $1 AND is_active = true`,
+    [employeeId]
+  )
+  const emp = empRes.rows[0]
+  if (!emp) return null
+
+  const realEmpId = emp.id
+
+  const completedAssignments = await client.query(
+    `SELECT la.*, lr.title, lr.category FROM learning_assignments la
+     JOIN learning_resources lr ON lr.id = la.resource_id
+     WHERE la.employee_id = $1 AND (la.status = 'completed' OR la.progress >= 100)`,
+    [realEmpId]
+  )
+
+  const compAssessments = await client.query(
+    `SELECT competency, score, required_score, source, assessed_at
+     FROM competency_assessments WHERE employee_id = $1`,
+    [realEmpId]
+  )
+
+  const baseCompetencyScore = Number(emp.competency_score) || 75
+  const completedCount = completedAssignments.rows.length
+  const autoLiftScore = Math.min(100, Math.max(baseCompetencyScore, baseCompetencyScore + (completedCount * 5)))
+  const completedTitles = completedAssignments.rows.map(r => r.title)
+
+  const kpiScore = Number(emp.performance_score) || 80
+  const learningProg = Number(emp.learning_progress) || 80
+
+  let aiScore = Math.round((autoLiftScore * 0.5) + (kpiScore * 0.3) + (learningProg * 0.2))
+  let aiConfidenceBoost = 0
+  if (kpiScore >= 85) aiConfidenceBoost += 3
+  if (learningProg >= 85) aiConfidenceBoost += 2
+  aiScore = Math.min(100, Math.max(autoLiftScore, aiScore + aiConfidenceBoost))
+
+  const variance = aiScore - autoLiftScore
+
+  let reasoning = ''
+  if (variance > 0) {
+    reasoning = `AI recommends a +${variance}% confidence boost (${aiScore}%) over auto-lift (${autoLiftScore}%) because ${emp.full_name} demonstrated strong performance KPI results (${kpiScore}%) and ${learningProg}% learning progress.`
+  } else if (variance === 0) {
+    reasoning = `AI recommendation matches the empirical auto-lift score (${autoLiftScore}%) based on verified course completions and alignment with role benchmarks.`
+  } else {
+    reasoning = `AI recommendation suggests ${aiScore}% based on balanced multi-metric evaluation across role competency benchmarks.`
+  }
+
+  return {
+    employeeId,
+    employeeName: emp.full_name,
+    jobTitle: emp.job_title,
+    department: emp.department,
+    autoLift: {
+      score: autoLiftScore,
+      baseScore: baseCompetencyScore,
+      completedCoursesCount: completedCount,
+      completedCourses: completedTitles,
+      assessmentsCount: compAssessments.rows.length
+    },
+    aiRecommended: {
+      score: aiScore,
+      kpiScore,
+      learningProgress: learningProg,
+      confidenceBoost: aiConfidenceBoost
+    },
+    variance,
+    reasoning
+  }
+}
+
+

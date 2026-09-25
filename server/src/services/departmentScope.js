@@ -83,8 +83,11 @@ export async function verifyEmployeeAccess(user, targetEmployeeId) {
     throw Object.assign(new Error('Target employee ID is required.'), { status: 400 })
   }
 
+  const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(targetEmployeeId))
   const { rows } = await query(
-    'SELECT id, full_name, department, department_id, is_active FROM employees WHERE id = $1',
+    isUuid
+      ? 'SELECT id, full_name, department, department_id, employee_number, is_active FROM employees WHERE id::text = $1 OR employee_number = $1'
+      : 'SELECT id, full_name, department, department_id, employee_number, is_active FROM employees WHERE employee_number = $1',
     [targetEmployeeId]
   )
   const targetEmployee = rows[0]
@@ -92,12 +95,12 @@ export async function verifyEmployeeAccess(user, targetEmployeeId) {
     throw Object.assign(new Error('Employee not found.'), { status: 404 })
   }
 
-  if (user.role === 'hr') {
+  if (user.role === 'hr' || user.role === 'management') {
     return targetEmployee
   }
 
   if (user.role === 'employee') {
-    if (targetEmployeeId !== user.employeeId) {
+    if (targetEmployee.id !== user.employeeId && targetEmployee.employee_number !== user.employeeId) {
       throw Object.assign(new Error('Access denied: You can only access your own employee records.'), { status: 403 })
     }
     return targetEmployee

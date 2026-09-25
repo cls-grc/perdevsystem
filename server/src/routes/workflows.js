@@ -6,7 +6,7 @@ import { authenticate, authorize } from '../middleware.js'
 import { logActivity } from '../services/activity.js'
 import { saveMetricsForWorkflow, generateOnDemand, getReportsForWorkflow, calculateMetrics } from '../services/aiReports.js'
 import { getScopeFilter, verifyEmployeeAccess, verifyWorkflowAccess } from '../services/departmentScope.js'
-import { applyWorkflowScoreWriteBack, autoAssignGapLearning } from '../services/workflowCompletion.js'
+import { applyWorkflowScoreWriteBack, autoAssignGapLearning, getCompetencyComparison } from '../services/workflowCompletion.js'
 import { approveSuccessionTransaction } from '../services/successionService.js'
 
 const router = Router()
@@ -96,6 +96,22 @@ router.get('/', async (req, res, next) => {
     params.push(limitNum, offset)
     const { rows } = await query(`SELECT w.*, e.full_name AS subject_name, e.department AS subject_department FROM workflows w LEFT JOIN employees e ON e.id = w.subject_employee_id ${where} ORDER BY w.updated_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params)
     res.json({ workflows: rows, total, page: pageNum, limit: limitNum })
+  } catch (error) { next(error) }
+})
+
+router.get('/:id/competency-comparison', async (req, res, next) => {
+  try {
+    const workflow = await verifyWorkflowAccess(req.user, req.params.id)
+    const comparison = await getCompetencyComparison({ query }, workflow.subject_employee_id)
+    res.json({ comparison })
+  } catch (error) { next(error) }
+})
+
+router.get('/competency-comparison/employee/:employeeId', async (req, res, next) => {
+  try {
+    const employee = await verifyEmployeeAccess(req.user, req.params.employeeId)
+    const comparison = await getCompetencyComparison({ query }, employee.id)
+    res.json({ comparison })
   } catch (error) { next(error) }
 })
 

@@ -13,10 +13,16 @@ const router = Router()
 // middleware so third parties can validate certificate authenticity without a token.
 router.get('/verify/:code', async (req, res, next) => {
   try {
-    const rawCode = String(req.params.code || '').trim()
+    let rawCode = String(req.params.code || '').trim()
     if (!rawCode) {
       return res.status(404).json({ valid: false, message: 'Certificate not found.' })
     }
+    if (rawCode.includes('/verify/certificate/')) {
+      rawCode = rawCode.split('/verify/certificate/').pop()
+    } else if (rawCode.includes('/')) {
+      rawCode = rawCode.split('/').pop()
+    }
+    rawCode = rawCode.split('?')[0].split('#')[0].trim()
 
     if (rawCode.toUpperCase().includes('SAMPLE')) {
       const sampleCert = {
@@ -49,7 +55,7 @@ router.get('/verify/:code', async (req, res, next) => {
     const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status, c.revoked_at, c.revoked_reason,
       e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
       FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
-      WHERE LOWER(c.verification_code::text)=$1 OR LOWER(c.id::text)=$1 OR LOWER(c.certificate_number)=$1`, [rawCode.toLowerCase()])
+      WHERE LOWER(coalesce(c.verification_code::text, ''))=$1 OR LOWER(c.id::text)=$1 OR LOWER(c.certificate_number)=$1`, [rawCode.toLowerCase()])
     if (!rows[0]) {
       return res.status(404).json({
         valid: false,
@@ -250,10 +256,11 @@ router.post('/issue', authorize('hr'), async (req, res, next) => {
       const created = []
       for (const employee of people.rows) {
         const certificateNumber = `PDS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+        const verificationCode = `V-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
         const expiresAt = template.validity_days ? new Date(Date.parse(input.awardedAt || new Date().toISOString().slice(0, 10)) + template.validity_days * 86400000).toISOString().slice(0, 10) : null
         const inserted = await client.query(
-          'INSERT INTO certificates(template_id,employee_id,certificate_number,achievement_text,awarded_at,expires_at,issued_by,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-          [template.id, employee.id, certificateNumber, input.achievementText, input.awardedAt || new Date().toISOString().slice(0, 10), expiresAt, req.user.sub, { employeeName: employee.full_name, employeeNumber: employee.employee_number, department: employee.department }]
+          'INSERT INTO certificates(template_id,employee_id,certificate_number,verification_code,achievement_text,awarded_at,expires_at,issued_by,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+          [template.id, employee.id, certificateNumber, verificationCode, input.achievementText, input.awardedAt || new Date().toISOString().slice(0, 10), expiresAt, req.user.sub, { employeeName: employee.full_name, employeeNumber: employee.employee_number, department: employee.department }]
         )
         const certRecord = inserted.rows[0]
         created.push(certRecord)

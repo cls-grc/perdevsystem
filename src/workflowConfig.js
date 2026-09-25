@@ -462,6 +462,129 @@ export const COMPETENCY_TEMPLATES = {
     { competency: 'Communication', level: 'Developing', weight: 20, category: 'Communication', targetScore: 75 },
     { competency: 'Data & Payroll', level: 'Developing', weight: 15, category: 'Financial Acumen', targetScore: 75 },
   ],
+  // Executive Office
+  'General Manager': [
+    { competency: 'Strategic Leadership & Vision', level: 'Expert', weight: 30, category: 'Leadership', targetScore: 98 },
+    { competency: 'Financial & Asset Management', level: 'Expert', weight: 25, category: 'Financial Acumen', targetScore: 95 },
+    { competency: 'Executive Operations & Governance', level: 'Expert', weight: 20, category: 'Operations', targetScore: 95 },
+    { competency: 'Stakeholder & Board Relations', level: 'Expert', weight: 15, category: 'Relationship Management', targetScore: 95 },
+    { competency: 'Crisis & Risk Management', level: 'Expert', weight: 10, category: 'Compliance', targetScore: 95 },
+  ],
+  'Operations Manager': [
+    { competency: 'Cross-Departmental Coordination', level: 'Expert', weight: 30, category: 'Operations', targetScore: 95 },
+    { competency: 'Resource Allocation & Efficiency', level: 'Proficient', weight: 25, category: 'Operations', targetScore: 90 },
+    { competency: 'Operational Strategy & SOP Compliance', level: 'Expert', weight: 20, category: 'Compliance', targetScore: 92 },
+    { competency: 'Performance Monitoring & Analytics', level: 'Proficient', weight: 15, category: 'Technical', targetScore: 88 },
+    { competency: 'Team Leadership & Mentorship', level: 'Proficient', weight: 10, category: 'Leadership', targetScore: 88 },
+  ],
+
+  // Security
+  'Director of Security': [
+    { competency: 'Crisis Management & Evacuation', level: 'Expert', weight: 30, category: 'Compliance', targetScore: 95 },
+    { competency: 'Incident Response & Safety', level: 'Expert', weight: 25, category: 'Operations', targetScore: 95 },
+    { competency: 'Security Risk & Threat Assessment', level: 'Expert', weight: 20, category: 'Technical', targetScore: 92 },
+    { competency: 'Executive Leadership & Governance', level: 'Expert', weight: 15, category: 'Leadership', targetScore: 90 },
+    { competency: 'Emergency SOP & Law Liaison', level: 'Proficient', weight: 10, category: 'Compliance', targetScore: 88 },
+  ],
+  'Security Supervisor': [
+    { competency: 'Patrol & Dispatch Supervision', level: 'Expert', weight: 30, category: 'Operations', targetScore: 90 },
+    { competency: 'Surveillance Systems Monitoring', level: 'Expert', weight: 25, category: 'Technical', targetScore: 88 },
+    { competency: 'Incident Response & Escalation', level: 'Expert', weight: 20, category: 'Compliance', targetScore: 90 },
+    { competency: 'Shift Leadership & Guard Mentorship', level: 'Proficient', weight: 15, category: 'Leadership', targetScore: 85 },
+    { competency: 'Safety & Emergency Protocols', level: 'Proficient', weight: 10, category: 'Compliance', targetScore: 88 },
+  ],
+  'CCTV & Patrol Officer': [
+    { competency: 'Surveillance Systems Operation', level: 'Proficient', weight: 30, category: 'Technical', targetScore: 85 },
+    { competency: 'Premises Patrol & Inspection', level: 'Proficient', weight: 30, category: 'Operations', targetScore: 85 },
+    { competency: 'Incident Reporting & Logging', level: 'Proficient', weight: 20, category: 'Communication', targetScore: 82 },
+    { competency: 'Access Control & Visitor Safety', level: 'Proficient', weight: 20, category: 'Compliance', targetScore: 82 },
+  ],
+
+  // Engineering
+  'Chief Engineer': [
+    { competency: 'Facilities Management & Sustainability', level: 'Expert', weight: 30, category: 'Operations', targetScore: 95 },
+    { competency: 'HVAC & Heavy Mechanical Systems', level: 'Expert', weight: 25, category: 'Technical', targetScore: 92 },
+    { competency: 'Capital Project & Vendor Management', level: 'Expert', weight: 20, category: 'Financial Acumen', targetScore: 90 },
+    { competency: 'Engineering Financial Acumen', level: 'Proficient', weight: 15, category: 'Financial Acumen', targetScore: 88 },
+    { competency: 'Safety & OSHA Compliance', level: 'Expert', weight: 10, category: 'Compliance', targetScore: 95 },
+  ],
+  'Assistant Chief Engineer': [
+    { competency: 'Mechanical & Electrical Maintenance', level: 'Expert', weight: 30, category: 'Technical', targetScore: 90 },
+    { competency: 'Preventive Maintenance Scheduling', level: 'Expert', weight: 25, category: 'Operations', targetScore: 88 },
+    { competency: 'Crew Supervision & Work Orders', level: 'Proficient', weight: 20, category: 'Leadership', targetScore: 85 },
+    { competency: 'Energy & Utility Efficiency', level: 'Proficient', weight: 15, category: 'Operations', targetScore: 85 },
+    { competency: 'Emergency Safety Protocols', level: 'Proficient', weight: 10, category: 'Compliance', targetScore: 88 },
+  ],
+  'HVAC & Maintenance Tech': [
+    { competency: 'HVAC & Technical Maintenance', level: 'Proficient', weight: 35, category: 'Technical', targetScore: 85 },
+    { competency: 'Preventive Equipment Servicing', level: 'Proficient', weight: 30, category: 'Operations', targetScore: 85 },
+    { competency: 'Workplace Safety & OSHA', level: 'Proficient', weight: 20, category: 'Compliance', targetScore: 85 },
+    { competency: 'Tool & Inventory Care', level: 'Foundation', weight: 15, category: 'Operations', targetScore: 75 },
+  ],
+
+  // Sales & Marketing
+  'Director of Sales': [
+    { competency: 'Revenue Strategy & Yield Management', level: 'Expert', weight: 30, category: 'Financial Acumen', targetScore: 95 },
+    { competency: 'Negotiation & Contracting', level: 'Expert', weight: 25, category: 'Relationship Management', targetScore: 95 },
+    { competency: 'Commercial Client Relationships', level: 'Expert', weight: 20, category: 'Hospitality Service', targetScore: 92 },
+    { competency: 'Sales Team Leadership', level: 'Expert', weight: 15, category: 'Leadership', targetScore: 90 },
+    { competency: 'Market Analysis & Digital Campaigns', level: 'Proficient', weight: 10, category: 'Operations', targetScore: 88 },
+  ],
+  'Sales Manager': [
+    { competency: 'Corporate Account Management', level: 'Expert', weight: 30, category: 'Relationship Management', targetScore: 90 },
+    { competency: 'Contract Negotiation & Closing', level: 'Expert', weight: 25, category: 'Financial Acumen', targetScore: 88 },
+    { competency: 'Client Communication & Pitching', level: 'Expert', weight: 25, category: 'Communication', targetScore: 90 },
+    { competency: 'Sales Pipeline Tracking', level: 'Proficient', weight: 20, category: 'Operations', targetScore: 85 },
+  ],
+  'Events & Banquet Coordinator': [
+    { competency: 'Event Planning & Execution', level: 'Expert', weight: 35, category: 'Operations', targetScore: 90 },
+    { competency: 'Client Relationship Management', level: 'Proficient', weight: 30, category: 'Hospitality Service', targetScore: 88 },
+    { competency: 'Banquet Logistics & BEO Coordination', level: 'Proficient', weight: 20, category: 'Technical', targetScore: 85 },
+    { competency: 'Communication & Team Sync', level: 'Proficient', weight: 15, category: 'Communication', targetScore: 85 },
+  ],
+
+  // Finance
+  'Financial Controller': [
+    { competency: 'Financial Reporting & USALI', level: 'Expert', weight: 30, category: 'Financial Acumen', targetScore: 98 },
+    { competency: 'Internal Controls & Compliance', level: 'Expert', weight: 25, category: 'Compliance', targetScore: 95 },
+    { competency: 'Strategic Budgeting & Forecasting', level: 'Expert', weight: 20, category: 'Financial Acumen', targetScore: 95 },
+    { competency: 'Finance Team Leadership', level: 'Expert', weight: 15, category: 'Leadership', targetScore: 90 },
+    { competency: 'Asset & Cash Risk Management', level: 'Expert', weight: 10, category: 'Operations', targetScore: 92 },
+  ],
+  'Assistant Financial Controller': [
+    { competency: 'Financial Audit & USALI Standards', level: 'Expert', weight: 30, category: 'Financial Acumen', targetScore: 92 },
+    { competency: 'Account Reconciliation & Ledger', level: 'Expert', weight: 25, category: 'Financial Acumen', targetScore: 90 },
+    { competency: 'General Ledger & Closing', level: 'Proficient', weight: 20, category: 'Technical', targetScore: 88 },
+    { competency: 'Audit Team Supervision', level: 'Proficient', weight: 15, category: 'Leadership', targetScore: 85 },
+    { competency: 'Variance Analysis', level: 'Proficient', weight: 10, category: 'Financial Acumen', targetScore: 85 },
+  ],
+  'Senior General Accountant': [
+    { competency: 'General Ledger & Tax Accounting', level: 'Expert', weight: 35, category: 'Financial Acumen', targetScore: 90 },
+    { competency: 'AP/AR & Bank Reconciliation', level: 'Expert', weight: 30, category: 'Technical', targetScore: 88 },
+    { competency: 'Internal Audit Compliance', level: 'Proficient', weight: 20, category: 'Compliance', targetScore: 85 },
+    { competency: 'Financial Reporting Accuracy', level: 'Proficient', weight: 15, category: 'Communication', targetScore: 85 },
+  ],
+
+  // Additional Housekeeping & Human Resources
+  'Housekeeping Supervisor': [
+    { competency: 'Floor Quality & Room Inspections', level: 'Expert', weight: 35, category: 'Technical', targetScore: 90 },
+    { competency: 'Shift Duty Rostering', level: 'Proficient', weight: 25, category: 'Operations', targetScore: 85 },
+    { competency: 'Chemical & Bio-Safety', level: 'Expert', weight: 20, category: 'Compliance', targetScore: 90 },
+    { competency: 'Attendant Mentorship', level: 'Proficient', weight: 20, category: 'Leadership', targetScore: 85 },
+  ],
+  'Room Attendant': [
+    { competency: 'Room Cleaning & Sanitation', level: 'Proficient', weight: 40, category: 'Technical', targetScore: 85 },
+    { competency: 'Linen & Amenities Stocking', level: 'Proficient', weight: 25, category: 'Operations', targetScore: 82 },
+    { competency: 'Chemical Safety Compliance', level: 'Proficient', weight: 20, category: 'Compliance', targetScore: 85 },
+    { competency: 'Turnaround Speed', level: 'Developing', weight: 15, category: 'Operations', targetScore: 78 },
+  ],
+  'HR Manager': [
+    { competency: 'Strategic Talent & Workforce Planning', level: 'Expert', weight: 30, category: 'Leadership', targetScore: 92 },
+    { competency: 'Labor Law & Statutory Compliance', level: 'Expert', weight: 25, category: 'Compliance', targetScore: 95 },
+    { competency: 'Employee Relations & Culture', level: 'Expert', weight: 20, category: 'Leadership', targetScore: 90 },
+    { competency: 'HR Team Supervision', level: 'Proficient', weight: 15, category: 'Operations', targetScore: 88 },
+    { competency: 'Compensation & Benefits Strategy', level: 'Proficient', weight: 10, category: 'Financial Acumen', targetScore: 85 },
+  ],
 }
 
 // SMART goal templates for the Goals module — user only edits target numbers.
@@ -609,11 +732,8 @@ define_requirements: {
     },
     update_record: {
       title: 'Update competency record',
-      description: 'Finalize the new competency scores and analytics.',
-      fields: [
-        { name: 'newScore', label: 'Updated competency score (%)', type: 'slider', required: true, min: 0, max: 100 },
-        { name: 'reviewNotes', label: 'Record notes', type: 'textarea' },
-      ],
+      description: 'Compare actual empirical auto-lift score vs AI recommendation and finalize the updated competency score.',
+      builder: 'competencyComparison',
     },
   },
   quickActions: [

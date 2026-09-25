@@ -98,6 +98,8 @@ workflows: (module, { page, limit, status } = {}) => {
   cancelWorkflow: (id, reason) => request(`/api/workflows/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   addWorkflowNote: (id, data) => request(`/api/workflows/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),
   assignLearningGap: (data) => request('/api/workflows/assign-learning-gap', { method: 'POST', body: JSON.stringify(data) }),
+  getCompetencyComparison: (workflowId) => request(`/api/workflows/${workflowId}/competency-comparison`),
+  getEmployeeCompetencyComparison: (employeeId) => request(`/api/workflows/competency-comparison/employee/${employeeId}`),
   successionPositions: () => request('/api/succession/positions'),
   successionCandidates: () => request('/api/succession/candidates'),
   successionAssess: (employeeId) => request('/api/succession/assess', { method: 'POST', body: JSON.stringify({ employeeId }) }),
@@ -290,5 +292,14 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   },
   employeeAttendance: (employeeId, period = 'Q1 2026') => request(`/api/attendance/employee/${employeeId}?period=${encodeURIComponent(period)}`),
   attendanceSync: (period = 'Q1 2026') => request('/api/attendance/sync', { method: 'POST', body: JSON.stringify({ period }) }),
+  getReportData: (reportType, params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.department) qs.set('department', params.department)
+    if (params.search) qs.set('search', params.search)
+    if (params.status) qs.set('status', params.status)
+    if (params.period) qs.set('period', params.period)
+    const queryStr = qs.toString()
+    return request(`/api/analytics/reports/${reportType}${queryStr ? `?${queryStr}` : ''}`)
+  },
 }
 

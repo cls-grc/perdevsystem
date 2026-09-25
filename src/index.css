@@ -5025,6 +5025,73 @@ body {
   border-color: #ef4444;
 }
 
+/* Sidebar standard comfortable typography, partitioned sections & smooth scrolling */
+.sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+}
+.sidebar-brand-wrapper {
+  padding: 16px 20px 12px !important;
+}
+.sidebar-nav {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 8px 14px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent !important;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px !important;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3) !important;
+  border-radius: 4px !important;
+}
+.sidebar .section-title {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.07em !important;
+  color: #94a3b8 !important;
+  margin: 14px 0 6px 6px !important;
+  padding-bottom: 4px !important;
+  border-bottom: 1px dashed rgba(226, 232, 240, 0.8) !important;
+}
+.dark .sidebar .section-title {
+  color: #64748b !important;
+  border-bottom-color: rgba(51, 65, 85, 0.5) !important;
+}
+.sidebar .nav-item {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  margin-bottom: 3px !important;
+  border-radius: 8px !important;
+  min-height: 34px !important;
+}
+.sidebar .nav-icon-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.sidebar .nav-icon-wrap svg {
+  width: 17px !important;
+  height: 17px !important;
+}
+.sidebar .section-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+.sidebar-footer {
+  padding: 12px 14px !important;
+  margin-top: auto !important;
+}
+.profile-mini {
+  padding: 8px 12px !important;
+}
+
+
 
 
 
