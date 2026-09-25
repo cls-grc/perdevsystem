@@ -29,18 +29,19 @@ async function refreshAccessToken() {
 }
 
 async function request(path, options = {}, _retried = false) {
-  // For unauthenticated auth endpoints, never send an Authorization header and do not require existing token
-  const publicAuthEndpoints = [
+  // Public endpoints do not require a logged-in user token
+  const publicEndpoints = [
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/verify-2fa',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
     '/api/auth/refresh',
+    '/api/certificates/verify',
   ]
-  const isAuthEndpoint = publicAuthEndpoints.some(p => path.startsWith(p))
-  const token = isAuthEndpoint ? null : localStorage.getItem('pds-token')
-  if (!isAuthEndpoint && !token) {
+  const isPublicEndpoint = publicEndpoints.some(p => path.startsWith(p))
+  const token = localStorage.getItem('pds-token')
+  if (!isPublicEndpoint && !token) {
     window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: 'Your session has expired. Please sign in again.' } }))
     throw new Error('Authentication is required.')
   }
@@ -49,8 +50,8 @@ async function request(path, options = {}, _retried = false) {
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
   })
   const body = await response.json().catch(() => ({}))
-  // If access token expired (401) and not already retried, try to refresh once.
-  if (response.status === 401 && !_retried && !path.startsWith('/api/auth/')) {
+  // If access token expired (401) and not already retried, try to refresh once (unless calling a public endpoint).
+  if (response.status === 401 && !_retried && !isPublicEndpoint) {
     if (!refreshPromise) refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null })
     const newToken = await refreshPromise
     if (newToken) {
@@ -58,10 +59,10 @@ async function request(path, options = {}, _retried = false) {
     }
     localStorage.removeItem('pds-token')
     localStorage.removeItem('pds-refresh-token')
-    window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: body.error || 'Your session has expired. Please sign in again.' } }))
-    throw new Error(body.error || 'Your session has expired. Please sign in again.')
+    window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: body.error || body.message || 'Your session has expired. Please sign in again.' } }))
+    throw new Error(body.error || body.message || 'Your session has expired. Please sign in again.')
   }
-  if (!response.ok) throw new Error(body.error || 'Request failed. Please check that the backend is running on port 4000 and try again.')
+  if (!response.ok) throw new Error(body.error || body.message || 'Request failed. Please check backend connection.')
   return body
 }
 
