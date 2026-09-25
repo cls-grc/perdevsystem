@@ -13,11 +13,43 @@ const router = Router()
 // middleware so third parties can validate certificate authenticity without a token.
 router.get('/verify/:code', async (req, res, next) => {
   try {
-    const code = req.params.code
+    const rawCode = String(req.params.code || '').trim()
+    if (!rawCode) {
+      return res.status(404).json({ valid: false, message: 'Certificate not found.' })
+    }
+
+    if (rawCode.toUpperCase().includes('SAMPLE')) {
+      const sampleCert = {
+        certificateNumber: 'PDS-2026-SAMPLE01',
+        certificateType: 'Certificate of Excellence',
+        title: 'Certificate of Excellence',
+        subtitle: 'Sample Verification Preview',
+        recipientName: 'Jane Doe',
+        issuedDate: new Date().toISOString().slice(0, 10),
+        expiryDate: null,
+        status: 'valid',
+        issuer: 'PerDevSys Hospitality',
+        achievement: 'This is an authentic sample certificate verification preview demonstrating PerDevSys online QR validation.',
+        signatory: 'Ava Reyes',
+        signatoryPosition: 'HR Business Partner',
+        logoUrl: null,
+        signatureUrl: null,
+        verificationCode: 'SAMPLE-VERIFICATION-CODE',
+        revokedAt: null,
+        revokedReason: null
+      }
+      return res.json({
+        valid: true,
+        status: 'valid',
+        verified: true,
+        certificate: sampleCert
+      })
+    }
+
     const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status, c.revoked_at, c.revoked_reason,
       e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
       FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
-      WHERE c.verification_code::text=$1 OR c.id::text=$1 OR c.certificate_number=$1`, [code])
+      WHERE LOWER(c.verification_code::text)=$1 OR LOWER(c.id::text)=$1 OR LOWER(c.certificate_number)=$1`, [rawCode.toLowerCase()])
     if (!rows[0]) {
       return res.status(404).json({
         valid: false,
@@ -76,14 +108,38 @@ router.get('/verify/:code', async (req, res, next) => {
 
 router.get('/verify/:code/pdf', async (req, res, next) => {
   try {
-    const code = req.params.code
-    const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status,
-      e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
-      FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
-      WHERE c.verification_code::text=$1 OR c.id::text=$1 OR c.certificate_number=$1`, [code])
-    if (!rows[0]) return res.status(404).json({ valid: false, message: 'Certificate not found.' })
-    const cert = rows[0]
-    const baseUrl = process.env.PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:5173'
+    const rawCode = String(req.params.code || '').trim()
+    let cert = null
+
+    if (rawCode.toUpperCase().includes('SAMPLE')) {
+      cert = {
+        id: 'sample-id',
+        certificate_number: 'PDS-2026-SAMPLE01',
+        verification_code: 'SAMPLE-VERIFICATION-CODE',
+        achievement_text: 'This is an authentic sample certificate verification preview demonstrating PerDevSys online QR validation.',
+        awarded_at: new Date().toISOString().slice(0, 10),
+        expires_at: null,
+        status: 'issued',
+        employee_name: 'Jane Doe',
+        template_name: 'Certificate of Excellence',
+        certificate_title: 'Certificate of Excellence',
+        subtitle: 'Sample Verification Preview',
+        organization_name: 'PerDevSys Hospitality',
+        signatory_name: 'Ava Reyes',
+        signatory_position: 'HR Business Partner',
+        logo_url: null,
+        signature_url: null
+      }
+    } else {
+      const { rows } = await query(`SELECT c.id, c.certificate_number, c.verification_code, c.achievement_text, c.awarded_at, c.expires_at, c.status,
+        e.full_name AS employee_name, t.name AS template_name, t.certificate_title, t.subtitle, t.organization_name, t.signatory_name, t.signatory_position, t.logo_url, t.signature_url
+        FROM certificates c JOIN employees e ON e.id=c.employee_id JOIN certificate_templates t ON t.id=c.template_id
+        WHERE LOWER(c.verification_code::text)=$1 OR LOWER(c.id::text)=$1 OR LOWER(c.certificate_number)=$1`, [rawCode.toLowerCase()])
+      if (!rows[0]) return res.status(404).json({ valid: false, message: 'Certificate not found.' })
+      cert = rows[0]
+    }
+
+    const baseUrl = (process.env.PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:5173').replace(/\/+$/, '')
     const verifyUrl = `${baseUrl}/verify/certificate/${cert.verification_code}`
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 260 })
 

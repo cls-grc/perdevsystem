@@ -212,11 +212,124 @@ router.get('/feed', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// Helper: Checks if an employee has completed their performance evaluation
+export async function checkPerformanceEvaluationCompleted(employeeIdentifier) {
+  if (!employeeIdentifier) return false
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(employeeIdentifier))
+  let empId = employeeIdentifier
+  if (!isUuid) {
+    const empLookup = await query(
+      'SELECT id FROM employees WHERE id::text = $1 OR employee_number = $1 OR full_name ILIKE $1 LIMIT 1',
+      [String(employeeIdentifier)]
+    )
+    if (empLookup.rows[0]) {
+      empId = empLookup.rows[0].id
+    } else {
+      return false
+    }
+  }
+
+  const res = await query(`
+    SELECT 1 FROM workflows
+    WHERE module = 'performance'
+      AND subject_employee_id = $1
+      AND (
+        status = 'completed'
+        OR current_stage = 'published'
+        OR EXISTS (
+          SELECT 1 FROM workflow_events we
+          WHERE we.workflow_id = workflows.id
+            AND we.stage = 'performance_evaluation'
+            AND we.event_type = 'advanced'
+        )
+      )
+    LIMIT 1
+  `, [empId])
+  return res.rows.length > 0
+}
+
+// GET /api/recognition/colleagues — list employees eligible for recognition with RBAC-filtered metrics
+router.get('/colleagues', async (req, res, next) => {
+  try {
+    const role = req.user.role || 'employee'
+    const isHrOrAdmin = role === 'hr' || role === 'operations_manager'
+
+    const { rows } = await query(`
+      SELECT e.id, e.employee_number, e.full_name, e.department, e.job_title, e.avatar_url,
+             e.performance_score, e.competency_score, e.learning_progress,
+             EXISTS (
+               SELECT 1 FROM workflows w
+               WHERE w.subject_employee_id = e.id
+                 AND w.module = 'performance'
+                 AND (
+                   w.status = 'completed'
+                   OR w.current_stage = 'published'
+                   OR EXISTS (
+                     SELECT 1 FROM workflow_events we
+                     WHERE we.workflow_id = w.id
+                       AND we.stage = 'performance_evaluation'
+                       AND we.event_type = 'advanced'
+                   )
+                 )
+             ) AS has_completed_performance_eval
+      FROM employees e
+      WHERE e.is_active = true
+      ORDER BY e.full_name ASC
+    `)
+
+    // Resolve calling user's employee record to determine nominator eligibility
+    let callerEmployeeId = req.user.employeeId || req.user.employee_id
+    if (!callerEmployeeId && req.user.sub) {
+      const u = await query('SELECT employee_id FROM users WHERE id = $1', [req.user.sub])
+      callerEmployeeId = u.rows[0]?.employee_id
+    }
+    const userHasCompletedEvaluation = isHrOrAdmin
+      ? true
+      : await checkPerformanceEvaluationCompleted(callerEmployeeId)
+
+    const userEligibility = {
+      canNominate: Boolean(isHrOrAdmin || userHasCompletedEvaluation),
+      hasCompletedPerformanceEvaluation: Boolean(userHasCompletedEvaluation),
+      reason: (!isHrOrAdmin && !userHasCompletedEvaluation)
+        ? 'You must complete your performance evaluation before submitting recognition nominations.'
+        : null,
+    }
+
+    // Strict RBAC: Only authorized HR / Admin can access performance, competency, and learning percentages
+    const colleagues = rows.map((emp) => {
+      const basic = {
+        id: emp.id,
+        employee_number: emp.employee_number,
+        full_name: emp.full_name,
+        department: emp.department,
+        job_title: emp.job_title,
+        avatar_url: emp.avatar_url || null,
+        has_completed_performance_eval: Boolean(emp.has_completed_performance_eval),
+      }
+
+      if (isHrOrAdmin) {
+        return {
+          ...basic,
+          performance_score: Number(emp.performance_score || 0),
+          competency_score: Number(emp.competency_score || 0),
+          learning_progress: Number(emp.learning_progress || 0),
+        }
+      }
+
+      // Non-HR users (regular employees, supervisors, etc.) receive strictly basic profile info + eligibility flag
+      return basic
+    })
+
+    res.json({ employees: colleagues, userEligibility })
+  } catch (error) { next(error) }
+})
+
 // GET /api/recognition/pending — fetch nominations awaiting supervisor validation or HR review
 router.get('/pending', async (req, res, next) => {
   try {
     const role = req.user.role || 'employee'
     const userId = req.user.sub
+    const isHrOrAdmin = role === 'hr' || role === 'operations_manager'
 
     // Filter pending based on RBAC:
     // HR & Ops Manager see all awaiting_hr and awaiting_supervisor
@@ -224,15 +337,54 @@ router.get('/pending', async (req, res, next) => {
     // Employees see their own submitted nominations
     const pendingList = kudosStore.filter(k => {
       if (k.status === 'approved' || k.status === 'rejected') return false
-      if (role === 'hr' || role === 'operations_manager' || role === 'management') return true
+      if (isHrOrAdmin || role === 'management') return true
       if (role === 'supervisor') {
         return k.status === 'awaiting_supervisor' || k.senderId === userId || k.senderDepartment === req.user.department
       }
       return k.senderId === userId
     })
 
+    let enrichedPendingList = pendingList
+
+    // HR validation: Attach recognized employee's Performance, Learning, and Competency metrics exclusively for HR
+    if (isHrOrAdmin && pendingList.length > 0) {
+      try {
+        const empRes = await query(`
+          SELECT id::text, full_name, performance_score, competency_score, learning_progress
+          FROM employees
+          WHERE is_active = true
+        `)
+        const empMap = new Map()
+        empRes.rows.forEach(e => {
+          empMap.set(e.id, e)
+          if (e.full_name) empMap.set(e.full_name.toLowerCase(), e)
+        })
+
+        enrichedPendingList = pendingList.map(item => {
+          const emp = empMap.get(item.recipientId) || (item.recipientName ? empMap.get(item.recipientName.toLowerCase()) : null)
+          return {
+            ...item,
+            recipientMetrics: {
+              performance: emp ? Number(emp.performance_score || 0) : 0,
+              competency: emp ? Number(emp.competency_score || 0) : 0,
+              learning: emp ? Number(emp.learning_progress || 0) : 0,
+            }
+          }
+        })
+      } catch {
+        // Fallback without breaking endpoint
+        enrichedPendingList = pendingList.map(item => ({
+          ...item,
+          recipientMetrics: { performance: 0, competency: 0, learning: 0 }
+        }))
+      }
+    } else {
+      // Ensure regular employees and non-HR never receive recipientMetrics
+      enrichedPendingList = pendingList.map(({ recipientMetrics, ...rest }) => rest)
+    }
+
     res.json({
-      pending: pendingList,
+      pending: enrichedPendingList,
       counts: {
         awaitingSupervisor: kudosStore.filter(k => k.status === 'awaiting_supervisor').length,
         awaitingHr: kudosStore.filter(k => k.status === 'awaiting_hr').length,
@@ -249,6 +401,33 @@ router.post('/post', async (req, res, next) => {
     const role = req.user.role || 'employee'
     const isHr = role === 'hr' || role === 'operations_manager'
     const isSupervisor = role === 'supervisor'
+
+    // ── PERFORMANCE EVALUATION PREREQUISITE CHECKS ──
+    // 1. Nominator check: Non-HR employees must have completed a performance evaluation first
+    if (!isHr) {
+      let callerEmployeeId = req.user.employeeId || req.user.employee_id
+      if (!callerEmployeeId && req.user.sub) {
+        const u = await query('SELECT employee_id FROM users WHERE id = $1', [req.user.sub])
+        callerEmployeeId = u.rows[0]?.employee_id
+      }
+
+      const nominatorHasCompleted = await checkPerformanceEvaluationCompleted(callerEmployeeId)
+      if (!nominatorHasCompleted) {
+        return res.status(403).json({
+          error: 'Performance Evaluation prerequisite required. You must complete your performance evaluation before submitting recognition nominations.',
+          code: 'NOMINATOR_EVALUATION_REQUIRED',
+        })
+      }
+    }
+
+    // 2. Nominee check: The recognized colleague must have completed a performance evaluation first
+    const nomineeHasCompleted = await checkPerformanceEvaluationCompleted(input.recipientId || input.recipientName)
+    if (!nomineeHasCompleted) {
+      return res.status(400).json({
+        error: `Performance Evaluation prerequisite required. ${input.recipientName || 'The selected employee'} has not completed a performance evaluation yet and is not eligible for recognition.`,
+        code: 'RECIPIENT_EVALUATION_REQUIRED',
+      })
+    }
 
     // Flow determination:
     // 1. Employee submits -> status = 'awaiting_supervisor'
@@ -631,9 +810,14 @@ router.get('/cycle/active', (_req, res) => {
   })
 })
 
-// POST /api/recognition/cycle/reset — reset and activate spotlight cycle for upcoming month
+// POST /api/recognition/cycle/reset — reset and activate spotlight cycle for upcoming month (HR/Admin only)
 router.post('/cycle/reset', async (req, res, next) => {
   try {
+    const role = req.user.role || 'employee'
+    if (role !== 'hr' && role !== 'operations_manager' && role !== 'management') {
+      return res.status(403).json({ error: 'Unauthorized: Only HR Administrators and Management can reset the recognition cycle.' })
+    }
+
     const { targetMonth } = req.body
     if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
       return res.status(400).json({ error: 'Valid targetMonth (YYYY-MM) is required' })

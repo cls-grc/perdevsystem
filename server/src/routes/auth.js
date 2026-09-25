@@ -491,7 +491,7 @@ router.post('/2fa/setup', authenticate, async (req, res, next) => {
     const user = rows[0]
     if (!user) return res.status(404).json({ error: 'User account not found.' })
 
-    const secret = generateSecret(20)
+    const secret = generateSecret()
     await query('UPDATE users SET two_factor_temp_secret = $1 WHERE id = $2', [secret, user.id])
 
     const otpAuthURI = getOtpAuthURI(user.email, secret, 'PerDevSys')

@@ -29,8 +29,16 @@ async function refreshAccessToken() {
 }
 
 async function request(path, options = {}, _retried = false) {
-  // For login and register, never send an Authorization header — the endpoint is public.
-  const isAuthEndpoint = path.startsWith('/api/auth/') && (path.includes('/login') || path.includes('/register'))
+  // For unauthenticated auth endpoints, never send an Authorization header and do not require existing token
+  const publicAuthEndpoints = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/verify-2fa',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/api/auth/refresh',
+  ]
+  const isAuthEndpoint = publicAuthEndpoints.some(p => path.startsWith(p))
   const token = isAuthEndpoint ? null : localStorage.getItem('pds-token')
   if (!isAuthEndpoint && !token) {
     window.dispatchEvent(new CustomEvent('pds:session-expired', { detail: { message: 'Your session has expired. Please sign in again.' } }))
@@ -230,6 +238,7 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   orgTree: () => request('/api/employees/org-tree'),
 
   // Social Recognition Wall & Feed
+  recognitionColleagues: () => request('/api/recognition/colleagues'),
   recognitionFeed: () => request('/api/recognition/feed'),
   recognitionPending: () => request('/api/recognition/pending'),
   postRecognition: (data) => request('/api/recognition/post', { method: 'POST', body: JSON.stringify(data) }),
@@ -261,5 +270,24 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   getProfileMe: () => request('/api/employees/profile/me'),
   updateProfileMe: (data) => request('/api/employees/profile/me', { method: 'PATCH', body: JSON.stringify(data) }),
   updateAccountMe: (data) => request('/api/auth/profile/account', { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // HR2 Attendance Integration
+  attendanceList: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.department) qs.set('department', params.department)
+    if (params.search) qs.set('search', params.search)
+    if (params.period) qs.set('period', params.period)
+    const queryStr = qs.toString()
+    return request(`/api/attendance${queryStr ? `?${queryStr}` : ''}`)
+  },
+  attendanceSummary: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.department) qs.set('department', params.department)
+    if (params.period) qs.set('period', params.period)
+    const queryStr = qs.toString()
+    return request(`/api/attendance/summary${queryStr ? `?${queryStr}` : ''}`)
+  },
+  employeeAttendance: (employeeId, period = 'Q1 2026') => request(`/api/attendance/employee/${employeeId}?period=${encodeURIComponent(period)}`),
+  attendanceSync: (period = 'Q1 2026') => request('/api/attendance/sync', { method: 'POST', body: JSON.stringify({ period }) }),
 }
 

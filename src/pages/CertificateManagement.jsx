@@ -50,10 +50,10 @@ const certCache = { certificates: null, templates: null, employees: null, ts: 0 
 const CACHE_TTL_MS = 60_000 // 1 minute
 
 function Preview({ template, certificate, compact = false }) {
-  const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+  const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
   const name = certificate?.employee_name || '{{Employee Name}}'
   const text = (certificate?.achievement_text || template?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', name)
-  const verifyCode = certificate?.verification_code
+  const verifyCode = certificate?.verification_code || certificate?.id || certificate?.certificate_number
   const verifyUrl = verifyCode ? `${publicAppUrl}/verify/certificate/${verifyCode}` : `${publicAppUrl}/verify/certificate/SAMPLE-VERIFICATION-CODE`
 
   return (
@@ -295,8 +295,8 @@ export default function CertificateManagement({ embedded = false }) {
 
   const printOrDownloadCertificate = async (certificate) => {
     const tmpl = templates.find(t => t.id === certificate?.template_id) || certificate || {}
-    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
-    const verifyCode = certificate?.verification_code
+    const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
+    const verifyCode = certificate?.verification_code || certificate?.id || certificate?.certificate_number
     const verifyUrl = verifyCode ? `${publicAppUrl}/verify/certificate/${verifyCode}` : `${publicAppUrl}/verify/certificate/SAMPLE-VERIFICATION-CODE`
 
     let qrDataUrl = ''
@@ -416,16 +416,16 @@ export default function CertificateManagement({ embedded = false }) {
   }
 
   const copyVerificationLink = certificate => {
-    const code = certificate.verification_code
+    const code = certificate?.verification_code || certificate?.id || certificate?.certificate_number
     if (!code) return setError('Certificate verification code is missing.')
-    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+    const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
     const url = `${publicAppUrl}/verify/certificate/${code}`
     navigator.clipboard.writeText(url)
     setNotice(`Copied verification link: ${url}`)
   }
 
   const verifyCertificate = async certificate => {
-    const code = certificate.verification_code
+    const code = certificate?.verification_code || certificate?.id || certificate?.certificate_number
     if (!code) return setError('This certificate has no verification code.')
     window.open(`/verify/certificate/${code}`, '_blank')
   }

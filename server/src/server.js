@@ -14,6 +14,7 @@ import chatRoutes from './routes/chat.js'
 import trainingRoutes from './routes/training.js'
 import recognitionRoutes from './routes/recognition.js'
 import successionRoutes from './routes/succession.js'
+import attendanceRoutes from './routes/attendance.js'
 import { errorHandler, notFound, requestLogger } from './middleware.js'
 import { pool } from './db.js'
 import { logger } from './services/logger.js'
@@ -69,6 +70,7 @@ app.use('/api/learning', learningResourceRoutes)
 app.use('/api/training', trainingRoutes)
 app.use('/api/recognition', recognitionRoutes)
 app.use('/api/succession', successionRoutes)
+app.use('/api/attendance', attendanceRoutes)
 app.use('/api/chat', chatRoutes)
 app.use(notFound)
 

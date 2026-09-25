@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import {
@@ -25,6 +26,9 @@ import {
   Calendar,
   Flame,
   Star,
+  TrendingUp,
+  GraduationCap,
+  AlertCircle,
 } from 'lucide-react'
 import '../recognitionWall.css'
 
@@ -83,6 +87,12 @@ export default function SocialRecognition() {
   const [submitting, setSubmitting] = useState(false)
   const [processingId, setProcessingId] = useState(null)
   const [statusNotice, setStatusNotice] = useState('')
+  const [noticeType, setNoticeType] = useState('success') // 'success' | 'error'
+  const [userEligibility, setUserEligibility] = useState({
+    canNominate: true,
+    hasCompletedPerformanceEvaluation: true,
+    reason: null,
+  })
 
   // User role and RBAC
   const currentUser = (() => {
@@ -96,6 +106,7 @@ export default function SocialRecognition() {
   const isHr = userRole === 'hr' || userRole === 'operations_manager'
   const isSupervisor = userRole === 'supervisor'
   const isUpperUp = isHr || isSupervisor || userRole === 'management'
+  const selectedEmployee = staffList.find((s) => s.id === selectedStaffId) || null
 
   const loadData = async (monthOverride) => {
     const activeMonth = monthOverride || selectedMonth
@@ -103,12 +114,15 @@ export default function SocialRecognition() {
       const [feedRes, lbRes, staffRes, pendingRes] = await Promise.all([
         api.recognitionFeed().catch(() => ({ feed: [] })),
         api.recognitionLeaderboard(activeMonth).catch(() => ({ topStaff: [], topDepartments: [], coreValues: [] })),
-        api.workflowSubjects().catch(() => ({ employees: [] })),
+        api.recognitionColleagues().catch(() => api.workflowSubjects()).catch(() => ({ employees: [] })),
         api.recognitionPending().catch(() => ({ pending: [], counts: { awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 } })),
       ])
       setFeed(feedRes.feed || [])
       setLeaderboard(lbRes || { topStaff: [], topDepartments: [], coreValues: [] })
       setStaffList(staffRes.employees || [])
+      if (staffRes.userEligibility) {
+        setUserEligibility(staffRes.userEligibility)
+      }
       setPendingNominations(pendingRes.pending || [])
       setPendingCounts(pendingRes.counts || { awaitingSupervisor: 0, awaitingHr: 0, totalPending: 0 })
       if (staffRes.employees?.length > 0 && !selectedStaffId) {
@@ -235,9 +249,30 @@ export default function SocialRecognition() {
   // Submit Give Recognition / Nomination
   const handleSubmitRecognition = async (e) => {
     e.preventDefault()
-    if (!selectedStaffId || !customMessage.trim()) return
+    if (!selectedStaffId) return
     const targetEmployee = staffList.find((s) => s.id === selectedStaffId)
     if (!targetEmployee) return
+
+    if (!userEligibility.canNominate) {
+      setNoticeType('error')
+      setStatusNotice(userEligibility.reason || 'You must complete your performance evaluation before submitting recognition nominations.')
+      setTimeout(() => setStatusNotice(''), 6000)
+      return
+    }
+
+    if (targetEmployee.has_completed_performance_eval === false) {
+      setNoticeType('error')
+      setStatusNotice(`⚠️ Cannot Nominate: ${targetEmployee.full_name} has not completed a performance evaluation yet and cannot be nominated.`)
+      setTimeout(() => setStatusNotice(''), 6000)
+      return
+    }
+
+    if (!customMessage.trim()) {
+      setNoticeType('error')
+      setStatusNotice('Please write a message explaining why you are recognizing this colleague.')
+      setTimeout(() => setStatusNotice(''), 4000)
+      return
+    }
 
     const badgeConfig = AWARD_BADGES.find((b) => b.name === selectedBadge) || AWARD_BADGES[0]
 
@@ -256,6 +291,7 @@ export default function SocialRecognition() {
       })
 
       setCustomMessage('')
+      setNoticeType('success')
       if (res.status === 'approved') {
         setStatusNotice(`Official award published on the Merit Wall for ${targetEmployee.full_name}!`)
       } else if (res.status === 'awaiting_hr') {
@@ -265,8 +301,10 @@ export default function SocialRecognition() {
       }
       await loadData()
       setTimeout(() => setStatusNotice(''), 5000)
-    } catch {
-      setStatusNotice('Unable to submit recognition. Please try again.')
+    } catch (err) {
+      setNoticeType('error')
+      setStatusNotice(err?.message || 'Unable to submit recognition. Please try again.')
+      setTimeout(() => setStatusNotice(''), 6000)
     } finally {
       setSubmitting(false)
     }
@@ -351,20 +389,25 @@ export default function SocialRecognition() {
 
       {statusNotice && (
         <div
+          className={`status-notice-banner ${noticeType === 'error' ? 'notice-error' : 'notice-success'}`}
           style={{
-            padding: '12px 18px',
+            padding: '13px 18px',
             borderRadius: 14,
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid #10b981',
-            color: '#059669',
+            background: noticeType === 'error' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.1)',
+            border: `1.5px solid ${noticeType === 'error' ? '#ef4444' : '#10b981'}`,
+            color: noticeType === 'error' ? '#b91c1c' : '#059669',
             fontSize: 13,
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 10,
           }}
         >
-          <CheckCircle2 size={16} />
+          {noticeType === 'error' ? (
+            <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+          ) : (
+            <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0 }} />
+          )}
           <span>{statusNotice}</span>
         </div>
       )}
@@ -431,6 +474,30 @@ export default function SocialRecognition() {
                         3. HR Approval {isAwaitingHr ? '⏳ Reviewing' : ''}
                       </span>
                     </div>
+
+                    {/* HR Validation & Review: Recognized Employee's Live Metrics */}
+                    {isHr && nom.recipientMetrics && (
+                      <div className="pending-metrics-panel">
+                        <div className="pending-metrics-title">
+                          <TrendingUp size={12} />
+                          <span>Candidate Metrics (HR Validation)</span>
+                        </div>
+                        <div className="pending-metrics-grid">
+                          <div className="pending-metric-chip metric-perf">
+                            <span className="p-metric-label">Performance</span>
+                            <span className="p-metric-val">{nom.recipientMetrics.performance}%</span>
+                          </div>
+                          <div className="pending-metric-chip metric-learn">
+                            <span className="p-metric-label">Learning</span>
+                            <span className="p-metric-val">{nom.recipientMetrics.learning}%</span>
+                          </div>
+                          <div className="pending-metric-chip metric-comp">
+                            <span className="p-metric-label">Competency</span>
+                            <span className="p-metric-val">{nom.recipientMetrics.competency}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <p className="pending-message-quote">"{nom.message}"</p>
 
@@ -529,6 +596,27 @@ export default function SocialRecognition() {
                 {isHr ? 'Official HR Award' : isSupervisor ? 'Supervisor Nomination' : 'Peer Nomination'}
               </span>
             </div>
+
+            {/* Performance Evaluation Prerequisite Banner (for employees who have not completed evaluation) */}
+            {!userEligibility.canNominate && (
+              <div className="performance-prerequisite-banner">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div className="prerequisite-icon-wrap">
+                    <AlertCircle size={20} color="#b45309" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 className="prerequisite-title">Performance Evaluation Prerequisite Required</h4>
+                    <p className="prerequisite-desc">
+                      {userEligibility.reason || 'You must complete your performance evaluation before submitting recognition nominations.'}
+                    </p>
+                    <Link to="/performance" className="prerequisite-link-btn">
+                      Complete Performance Evaluation
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmitRecognition}>
               <div className="composer-row">
                 <div>
@@ -539,11 +627,14 @@ export default function SocialRecognition() {
                     onChange={(e) => setSelectedStaffId(e.target.value)}
                     required
                   >
-                    {staffList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name} — {s.job_title} ({s.department})
-                      </option>
-                    ))}
+                    {staffList.map((s) => {
+                      const isEligible = s.has_completed_performance_eval !== false
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {s.full_name} — {s.job_title} ({s.department}){isEligible ? '' : ' ⚠️ (Evaluation Pending)'}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
                 <div>
@@ -559,26 +650,143 @@ export default function SocialRecognition() {
                   </select>
                 </div>
               </div>
+
+              {/* Nominee Ineligible Warning */}
+              {selectedEmployee && selectedEmployee.has_completed_performance_eval === false && (
+                <div className="nominee-prerequisite-warning">
+                  <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Cannot Nominate — Performance Evaluation Required:</strong>{' '}
+                    <span>{selectedEmployee.full_name} has not completed a performance evaluation yet and cannot be nominated.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* HR / Admin Employee Evaluation & Percentages Overview */}
+              {isHr && selectedEmployee && (
+                <div className="composer-employee-metrics">
+                  <div className="metrics-panel-header">
+                    <div className="metrics-emp-summary">
+                      <div className="metrics-avatar">
+                        {selectedEmployee.avatar_url ? (
+                          <img src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} />
+                        ) : (
+                          <span>{(selectedEmployee.full_name || 'EM').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="metrics-emp-meta">
+                        <span className="metrics-emp-name">{selectedEmployee.full_name}</span>
+                        <span className="metrics-emp-details">{selectedEmployee.job_title} • {selectedEmployee.department}</span>
+                      </div>
+                    </div>
+                    <div className="metrics-badge-chip">
+                      <Award size={12} />
+                      <span>{selectedBadge}</span>
+                    </div>
+                  </div>
+
+                  <div className="metrics-cards-grid">
+                    <div className="metric-tile metric-performance">
+                      <div className="metric-tile-header">
+                        <TrendingUp size={13} className="metric-icon" />
+                        <span className="metric-label">Performance</span>
+                      </div>
+                      <div className="metric-val-wrap">
+                        <span className="metric-val">{Number(selectedEmployee.performance_score ?? 0)}%</span>
+                      </div>
+                      <div className="metric-progress-track">
+                        <div
+                          className="metric-progress-bar bar-performance"
+                          style={{ width: `${Math.min(100, Math.max(0, Number(selectedEmployee.performance_score ?? 0)))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="metric-tile metric-learning">
+                      <div className="metric-tile-header">
+                        <GraduationCap size={13} className="metric-icon" />
+                        <span className="metric-label">Learning</span>
+                      </div>
+                      <div className="metric-val-wrap">
+                        <span className="metric-val">{Number(selectedEmployee.learning_progress ?? 0)}%</span>
+                      </div>
+                      <div className="metric-progress-track">
+                        <div
+                          className="metric-progress-bar bar-learning"
+                          style={{ width: `${Math.min(100, Math.max(0, Number(selectedEmployee.learning_progress ?? 0)))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="metric-tile metric-competency">
+                      <div className="metric-tile-header">
+                        <CheckCircle2 size={13} className="metric-icon" />
+                        <span className="metric-label">Competency</span>
+                      </div>
+                      <div className="metric-val-wrap">
+                        <span className="metric-val">{Number(selectedEmployee.competency_score ?? 0)}%</span>
+                      </div>
+                      <div className="metric-progress-track">
+                        <div
+                          className="metric-progress-bar bar-competency"
+                          style={{ width: `${Math.min(100, Math.max(0, Number(selectedEmployee.competency_score ?? 0)))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <textarea
                 className="composer-textarea"
-                placeholder="Share specific examples of how this colleague went above and beyond…"
+                placeholder={
+                  !userEligibility.canNominate
+                    ? 'Performance evaluation required before submitting nominations…'
+                    : selectedEmployee && selectedEmployee.has_completed_performance_eval === false
+                    ? 'Selected colleague has not completed a performance evaluation yet…'
+                    : 'Share specific examples of how this colleague went above and beyond…'
+                }
                 value={customMessage}
                 onChange={(e) => setCustomMessage(e.target.value)}
-                required
+                disabled={!userEligibility.canNominate}
               />
               <div className="composer-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <small style={{ color: '#64748b', fontSize: 11 }}>
-                  {isHr
+                <small style={{ color: selectedEmployee && selectedEmployee.has_completed_performance_eval === false ? '#dc2626' : '#64748b', fontSize: 11, fontWeight: selectedEmployee && selectedEmployee.has_completed_performance_eval === false ? 600 : 400 }}>
+                  {!userEligibility.canNominate
+                    ? 'Complete your performance evaluation in the Performance module to unlock nominations.'
+                    : selectedEmployee && selectedEmployee.has_completed_performance_eval === false
+                    ? '⚠️ This colleague must complete a performance evaluation before receiving nominations.'
+                    : isHr
                     ? 'HR awards publish directly to the live Merit Wall.'
                     : 'Nominations are validated by the supervisor, approved by HR, then posted.'}
                 </small>
                 <button
                   type="submit"
                   className="org-drawer-action-btn"
-                  disabled={submitting || !customMessage.trim()}
+                  onClick={(e) => {
+                    if (selectedEmployee && selectedEmployee.has_completed_performance_eval === false) {
+                      handleSubmitRecognition(e)
+                    }
+                  }}
+                  disabled={submitting || !userEligibility.canNominate}
+                  style={
+                    selectedEmployee && selectedEmployee.has_completed_performance_eval === false
+                      ? { background: '#dc2626', borderColor: '#b91c1c' }
+                      : undefined
+                  }
                 >
                   <Send size={14} />
-                  <span>{submitting ? 'Submitting…' : (isHr ? 'Publish Official HR Award' : 'Submit for Review & Publishing')}</span>
+                  <span>
+                    {submitting
+                      ? 'Submitting…'
+                      : !userEligibility.canNominate
+                      ? 'Evaluation Required to Nominate'
+                      : selectedEmployee && selectedEmployee.has_completed_performance_eval === false
+                      ? 'Cannot Nominate (Evaluation Required)'
+                      : isHr
+                      ? 'Publish Official HR Award'
+                      : 'Submit Nomination'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -761,15 +969,17 @@ export default function SocialRecognition() {
                   <RefreshCw size={12} className={refreshingSpotlight ? 'animate-spin' : ''} />
                   <span>{refreshingSpotlight ? 'Refreshing…' : 'Refresh'}</span>
                 </button>
-                <button
-                  type="button"
-                  className="leaderboard-reset-cycle-btn"
-                  onClick={() => setShowResetCycleModal(true)}
-                  title="Reset and activate upcoming month cycle"
-                >
-                  <RotateCcw size={12} />
-                  <span>Reset for Upcoming Month</span>
-                </button>
+                {isHr && (
+                  <button
+                    type="button"
+                    className="leaderboard-reset-cycle-btn"
+                    onClick={() => setShowResetCycleModal(true)}
+                    title="Reset and activate upcoming month cycle"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Reset for Upcoming Month</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -873,7 +1083,7 @@ export default function SocialRecognition() {
 
       {/* ── MODAL: RESET & ACTIVATE SPOTLIGHT CYCLE FOR UPCOMING MONTH ────── */}
       {/* ── MODAL: RESET & ACTIVATE SPOTLIGHT CYCLE (via Portal so it always centers on screen) ── */}
-      {showResetCycleModal && createPortal(
+      {showResetCycleModal && isHr && createPortal(
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 99999,

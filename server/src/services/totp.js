@@ -1,16 +1,12 @@
 import crypto from 'node:crypto'
 import QRCode from 'qrcode'
+import {
+  generateSecret as otplibGenerateSecret,
+  generateURI as otplibGenerateURI,
+  verifySync as otplibVerifySync,
+} from 'otplib'
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-
-export function generateSecret(length = 20) {
-  const bytes = crypto.randomBytes(length)
-  let secret = ''
-  for (let i = 0; i < bytes.length; i++) {
-    secret += BASE32_ALPHABET[bytes[i] % 32]
-  }
-  return secret
-}
 
 export function base32ToBuffer(base32) {
   const clean = base32.toUpperCase().replace(/[^A-Z2-7]/g, '')
@@ -27,7 +23,8 @@ export function base32ToBuffer(base32) {
   return Buffer.from(bytes)
 }
 
-export function generateTOTP(secret, timeStep = 30, time = Date.now()) {
+// Fallback legacy calculation for backwards compatibility with any 20-char secrets
+export function generateTOTPLegacy(secret, timeStep = 30, time = Date.now()) {
   const counter = Math.floor(time / 1000 / timeStep)
   const counterBuf = Buffer.alloc(8)
   counterBuf.writeBigUInt64BE(BigInt(counter))
@@ -46,24 +43,58 @@ export function generateTOTP(secret, timeStep = 30, time = Date.now()) {
   return otp
 }
 
-export function verifyTOTP(token, secret, window = 1, timeStep = 30) {
+/**
+ * Generate standard RFC-compliant 32-character Base32 secret (160 bits)
+ * Fully compatible with Google Authenticator and Microsoft Authenticator.
+ */
+export function generateSecret() {
+  return otplibGenerateSecret()
+}
+
+/**
+ * Verify TOTP code from Google Authenticator
+ * Supports +/- 60 seconds time drift and legacy fallbacks.
+ */
+export function verifyTOTP(token, secret, window = 2, timeStep = 30) {
   if (!token || typeof token !== 'string') return false
   const cleanToken = token.trim().replace(/\s+/g, '')
   if (cleanToken.length !== 6 || !/^\d{6}$/.test(cleanToken)) return false
   if (!secret) return false
 
+  // 1. Standard RFC 6238 check via otplib with 60-second drift tolerance
+  try {
+    const result = otplibVerifySync({
+      secret,
+      token: cleanToken,
+      epochTolerance: 60,
+    })
+    if (result && result.valid) return true
+  } catch {
+    // If secret has legacy non-standard padding, continue to legacy check
+  }
+
+  // 2. Legacy check with +/- 2 window (60s drift)
   const now = Date.now()
   for (let i = -window; i <= window; i++) {
-    const expected = generateTOTP(secret, timeStep, now + i * timeStep * 1000)
+    const expected = generateTOTPLegacy(secret, timeStep, now + i * timeStep * 1000)
     if (cleanToken === expected) return true
   }
+
   return false
 }
 
 export function getOtpAuthURI(email, secret, issuer = 'PerDevSys') {
-  const encodedIssuer = encodeURIComponent(issuer)
-  const encodedEmail = encodeURIComponent(email)
-  return `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`
+  try {
+    return otplibGenerateURI({
+      secret,
+      label: email,
+      issuer,
+    })
+  } catch {
+    const encodedIssuer = encodeURIComponent(issuer)
+    const encodedEmail = encodeURIComponent(email)
+    return `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`
+  }
 }
 
 export async function generateQRCodeDataUrl(otpAuthURI) {

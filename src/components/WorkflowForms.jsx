@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users } from 'lucide-react'
+import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users, Lock } from 'lucide-react'
 import {
   KPI_LIBRARY, LEARNING_TEMPLATES, COMPETENCY_TEMPLATES, GOAL_TEMPLATES,
   QUICK_COMMENTS, INTELLIGENT_DEFAULTS, COMPETENCY_LEVELS, LEARNING_CATEGORIES,
@@ -8,6 +8,7 @@ import {
 } from '../workflowConfig'
 import { api } from '../lib/api'
 import SkillRadarChart, { LEVEL_SCORES } from './SkillRadarChart'
+import '../hr2Attendance.css'
 
 // ---------------------------------------------------------------------------
 // Reusable per-step business forms for the workflow engine. Each module's
@@ -626,6 +627,22 @@ function extractKpiData(events, stageKey) {
   return { kpis: [], overall: 0, strengths: '', improvements: '', comments: '' }
 }
 
+export function isAttendanceCriterion(c) {
+  if (!c) return false
+  const id = String(c.id || '')
+  const name = String(c.name || '').toLowerCase()
+  return id.endsWith('_3') || name.includes('punctual') || name.includes('attendance')
+}
+
+export function getHr2Rating(scoreNum) {
+  const s = Number(scoreNum)
+  if (s >= 95) return 5
+  if (s >= 90) return 4
+  if (s >= 80) return 3
+  if (s >= 70) return 2
+  return 1
+}
+
 function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [], subject, workflow }) {
   const empSelfData = useMemo(() => extractKpiData(events, 'self_assessment'), [events])
 
@@ -633,9 +650,20 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
   const reviewCreationEvent = useMemo(() => (events || []).find(e => e.stage === 'create_review' || e.event_type === 'created'), [events])
   const createDetails = reviewCreationEvent?.details?.formData || reviewCreationEvent?.details || workflow?.metadata || {}
   
+  const targetId = subject?.id || workflow?.subject_employee_id || createDetails?.employee?.id || (typeof createDetails?.employee === 'string' && !createDetails?.employee.includes(' ') ? createDetails?.employee : null)
+
+  const [hr2Attendance, setHr2Attendance] = useState(null)
+  useEffect(() => {
+    if (!targetId) return
+    let active = true
+    api.employeeAttendance(targetId).then(res => {
+      if (active && res?.record) setHr2Attendance(res.record)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [targetId])
+
   const employeeInfo = useMemo(() => {
     // 1. Resolve employee object and name
-    const targetId = subject?.id || workflow?.subject_employee_id || createDetails?.employee?.id || (typeof createDetails?.employee === 'string' && !createDetails?.employee.includes(' ') ? createDetails?.employee : null)
     const targetName = subject?.full_name || subject?.name || workflow?.subject_name || createDetails?.employee?.full_name || createDetails?.employee?.name || (typeof createDetails?.employee === 'string' ? createDetails?.employee : '') || createDetails?.employeeName || ''
 
     const matchedPerson = (people || []).find(p => 
@@ -705,16 +733,24 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
     }
 
     const defaultRating = 4
-    const initialRatings = baseCriteria.map(c => ({
-      id: c.id || c.name,
-      name: c.name,
-      description: c.description,
-      target: c.target || '90%',
-      weight: c.weight,
-      rating: defaultRating,
-      score: Math.round((defaultRating / 5) * 100),
-      comment: ''
-    }))
+    const initialRatings = baseCriteria.map((c, i) => {
+      const isAtt = isAttendanceCriterion(c) || i === 2
+      let rating = defaultRating
+      if (isAtt && hr2Attendance) {
+        rating = getHr2Rating(hr2Attendance.attendance_score)
+      }
+      return {
+        id: c.id || c.name,
+        name: c.name,
+        description: c.description,
+        target: c.target || '90%',
+        weight: c.weight,
+        rating,
+        score: Math.round((rating / 5) * 100),
+        comment: isAtt && hr2Attendance ? `Verified via HR2 Biometrics: ${hr2Attendance.days_present}/${hr2Attendance.total_working_days || 60} days present, ${hr2Attendance.days_absent} absences, ${hr2Attendance.tardy_count} lates (${hr2Attendance.attendance_score}% DTR).` : '',
+        isLockedByHr2: isAtt,
+      }
+    })
     const avgRating = (initialRatings.reduce((sum, k) => sum + k.rating, 0) / initialRatings.length).toFixed(2)
     const overall = calculateWeightedKpiAverage(initialRatings)
     onChange({ 
@@ -727,9 +763,45 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
       comments: value.comments || '',
       role: role || '' 
     })
-  }, [baseCriteria, employeeInfo.department])
+  }, [baseCriteria, employeeInfo.department, hr2Attendance])
+
+  // Sync Criterion #3 when hr2Attendance loads asynchronously
+  useEffect(() => {
+    if (!hr2Attendance || !value.kpiRatings?.length) return
+    const hr2Score = Number(hr2Attendance.attendance_score)
+    const hr2Rating = getHr2Rating(hr2Score)
+    const targetIdx = value.kpiRatings.findIndex((c, i) => isAttendanceCriterion(c) || i === 2)
+    if (targetIdx >= 0) {
+      const current = value.kpiRatings[targetIdx]
+      if (current.rating !== hr2Rating || !current.isLockedByHr2) {
+        const updated = value.kpiRatings.map((row, i) => {
+          if (i !== targetIdx) return row
+          return {
+            ...row,
+            rating: hr2Rating,
+            score: Math.round((hr2Rating / 5) * 100),
+            comment: row.comment || `Verified via HR2 Biometrics: ${hr2Attendance.days_present}/${hr2Attendance.total_working_days || 60} days present, ${hr2Attendance.days_absent} absences, ${hr2Attendance.tardy_count} lates (${hr2Score}% DTR).`,
+            isLockedByHr2: true,
+          }
+        })
+        const avgRating = (updated.reduce((sum, k) => sum + Number(k.rating || 0), 0) / updated.length).toFixed(2)
+        const overall = calculateWeightedKpiAverage(updated)
+        onChange({
+          ...value,
+          kpiRatings: updated,
+          averageRating: Number(avgRating),
+          overall,
+        })
+      }
+    }
+  }, [hr2Attendance, value.kpiRatings])
 
   const handleRatingSelect = (index, ratingNum) => {
+    const targetRow = activeRatings[index]
+    if (isAttendanceCriterion(targetRow) || index === 2 || targetRow?.isLockedByHr2) {
+      // PREVENT EDITING: Attendance score is locked by HR2 DTR verification
+      return
+    }
     const currentList = activeRatings
     const updated = currentList.map((row, i) => {
       if (i !== index) return row
@@ -798,6 +870,54 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
         </div>
       </div>
 
+      {/* HR2 Biometric Attendance Integration Card */}
+      {hr2Attendance && (
+        <div className="hr2-eval-insight-box">
+          <div className="hr2-eval-head">
+            <div className="hr2-eval-title">
+              <Clock size={16} style={{ color: '#4f46e5' }} />
+              <span>HR2 Biometric Attendance &amp; Punctuality Record</span>
+              {hr2Attendance.is_perfect_attendance && (
+                <span className="hr2-badge-perfect">⭐ Perfect Attendance</span>
+              )}
+            </div>
+            <span className="hr2-eval-source-pill">
+              ✓ Synced from HR2 Core DTR
+            </span>
+          </div>
+
+          <div className="hr2-eval-grid">
+            <div>
+              <div className="hr2-eval-stat-label">Days Present</div>
+              <div className="hr2-eval-stat-val">
+                {hr2Attendance.days_present} / {hr2Attendance.total_working_days || 60} days
+              </div>
+            </div>
+            <div>
+              <div className="hr2-eval-stat-label">Absences</div>
+              <div className="hr2-eval-stat-val" style={{ color: hr2Attendance.days_absent === 0 ? '#10b981' : '#ef4444' }}>
+                {hr2Attendance.days_absent} day{hr2Attendance.days_absent === 1 ? '' : 's'}
+              </div>
+            </div>
+            <div>
+              <div className="hr2-eval-stat-label">Tardiness</div>
+              <div className="hr2-eval-stat-val" style={{ color: hr2Attendance.tardy_count === 0 ? '#10b981' : '#f59e0b' }}>
+                {hr2Attendance.tardy_count === 0 ? '0 (On-Time)' : `${hr2Attendance.tardy_count}x (${hr2Attendance.tardy_minutes}m)`}
+              </div>
+            </div>
+            <div>
+              <div className="hr2-eval-stat-label">HR2 Attendance Score</div>
+              <div className="hr2-eval-stat-val" style={{ color: Number(hr2Attendance.attendance_score) >= 95 ? '#10b981' : '#3b82f6' }}>
+                {Number(hr2Attendance.attendance_score).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+          <p style={{ margin: '8px 0 0', fontSize: 11, color: '#64748b' }}>
+            ℹ️ Objective biometric record from HR2. Serves as empirical basis for Punctuality, Attendance, and Reliability criteria.
+          </p>
+        </div>
+      )}
+
       {/* 2. Rating Scale Reference Bar */}
       <div className="eval-rating-scale-legend">
         <span className="scale-title">Performance Rating Scale:</span>
@@ -831,12 +951,36 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
             {activeRatings.map((row, index) => {
               const selectedRating = row.rating || 4
               const rowPercentage = Math.round((selectedRating / 5) * 100)
+              const isLocked = isAttendanceCriterion(row) || index === 2 || Boolean(row.isLockedByHr2)
 
               return (
-                <tr key={index} className={selectedRating >= 4 ? 'row-high' : selectedRating <= 2 ? 'row-low' : ''}>
+                <tr key={index} className={selectedRating >= 4 ? 'row-high' : selectedRating <= 2 ? 'row-low' : ''} style={isLocked ? { background: 'rgba(254, 243, 199, 0.15)' } : {}}>
                   <td className="td-criteria">
-                    <b>{row.name}</b>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <b>{row.name}</b>
+                      {isLocked && (
+                        <Lock size={13} style={{ color: '#d97706', flexShrink: 0 }} title="Locked: Synced directly from HR2 Biometrics" />
+                      )}
+                    </div>
                     {row.weight && <span className="kpi-weight-badge">{row.weight}% weight</span>}
+                    {isLocked && (
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 7px',
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: '#fef3c7',
+                          color: '#92400e',
+                          border: '1px solid #fde68a'
+                        }}>
+                          🔒 Locked: Verified by HR2 Biometrics ({hr2Attendance?.attendance_score ? `${hr2Attendance.attendance_score}%` : `${rowPercentage}%`})
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="td-desc">
                     <p>{row.description}</p>
@@ -845,14 +989,17 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
                     <td 
                       key={ratingNum} 
                       className={`td-rating-cell ${selectedRating === ratingNum ? 'selected' : ''}`}
-                      onClick={() => handleRatingSelect(index, ratingNum)}
+                      style={isLocked ? { cursor: 'not-allowed', opacity: selectedRating === ratingNum ? 1 : 0.35 } : {}}
+                      onClick={() => !isLocked && handleRatingSelect(index, ratingNum)}
+                      title={isLocked ? "This rating is locked and verified from HR2 Daily Time Records." : undefined}
                     >
-                      <label className="eval-radio-label">
+                      <label className="eval-radio-label" style={isLocked ? { cursor: 'not-allowed' } : {}}>
                         <input 
                           type="radio" 
                           name={`criteria-rating-${index}`} 
                           checked={selectedRating === ratingNum} 
-                          onChange={() => handleRatingSelect(index, ratingNum)}
+                          disabled={isLocked}
+                          onChange={() => !isLocked && handleRatingSelect(index, ratingNum)}
                         />
                         <span className="eval-custom-radio" />
                       </label>

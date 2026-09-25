@@ -32,7 +32,7 @@ export default function CertificateVerification() {
       })
   }, [verificationCode])
 
-  const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin
+  const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
   const verifyUrl = `${publicAppUrl}/verify/certificate/${verificationCode}`
 
   const handleDownloadPdf = () => {
