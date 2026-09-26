@@ -1333,21 +1333,59 @@ export default function AIAnalytics() {
             <div className="rph-left">
               <Sparkles className="w-4 h-4 text-gray-300 inline mr-2" />
               <div>
-                <h3>{selected ? `${selected.full_name} Analytics` : 'AI Executive Report'}</h3>
-                <p>{selected ? 'Individual hospitality brief' : report ? 'Saved executive report' : 'Organization-wide intelligence'}</p>
+                <h3>{selected ? `${selected.full_name} Analytics` : insights ? 'Workforce Intelligence Brief' : report ? 'AI Executive Report' : 'AI Analytics'}</h3>
+                <p>{selected ? 'Individual hospitality brief' : insights ? 'Live database insights' : report ? 'Saved executive report' : 'Organization-wide intelligence'}</p>
               </div>
             </div>
-            {selected && (
-              <button
-                type="button"
-                className="ai-status-chip flex items-center gap-1"
-                onClick={() => { setSelected(null); setInsights(null); }}
-                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer' }}
-                title="Reset selection to Organization Brief"
-              >
-                <X className="w-3 h-3 inline" /> Deselect
-              </button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {report && !selected && !insights && (
+                <>
+                  {isHr && (
+                    <button
+                      type="button"
+                      className="ai-status-chip flex items-center gap-1"
+                      onClick={generateExecutive}
+                      disabled={generating}
+                      style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer', color: '#fff', fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+                      title="Generate a fresh executive report"
+                    >
+                      <Sparkles className="w-3 h-3 inline" /> {generating ? 'Generating...' : 'Regenerate'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="ai-status-chip flex items-center gap-1"
+                    onClick={() => { setReport(null); setInsights(null); }}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+                    title="Dismiss report to generate new insights"
+                  >
+                    <X className="w-3 h-3 inline" /> Dismiss
+                  </button>
+                </>
+              )}
+              {selected && (
+                <button
+                  type="button"
+                  className="ai-status-chip flex items-center gap-1"
+                  onClick={() => { setSelected(null); setInsights(null); }}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+                  title="Reset selection to Organization Brief"
+                >
+                  <X className="w-3 h-3 inline" /> Deselect
+                </button>
+              )}
+              {insights && !selected && (
+                <button
+                  type="button"
+                  className="ai-status-chip flex items-center gap-1"
+                  onClick={() => setInsights(null)}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+                  title="Clear insights"
+                >
+                  <X className="w-3 h-3 inline" /> Clear
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="report-panel-body" id="ai-report-content">
@@ -1358,6 +1396,27 @@ export default function AIAnalytics() {
                   {report.metrics_json && <span className="data-chip"><CheckCircle className="w-3 h-3 inline mr-0.5 text-emerald-400" /> Data-backed</span>}
                 </div>
                 <AIReport content={report.content} title={report.title} />
+                <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {isHr && (
+                    <button
+                      type="button"
+                      className="saas-btn-primary"
+                      onClick={generateExecutive}
+                      disabled={generating}
+                      style={{ fontSize: 12, padding: '7px 14px' }}
+                    >
+                      {generating ? 'Regenerating...' : <><Sparkles className="w-3.5 h-3.5 inline mr-1" /> Regenerate Report</>}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="saas-btn-secondary"
+                    onClick={() => { setReport(null); setInsights(null); }}
+                    style={{ fontSize: 12, padding: '7px 14px' }}
+                  >
+                    New Analysis / Brief
+                  </button>
+                </div>
               </div>
             ) : insights ? (
               <div className="insight-results-box">
