@@ -354,7 +354,7 @@ export default function ReportsHub() {
 
         ${reportData.aiBrief ? `
           <div class="ai-box">
-            <div class="ai-title">Executive AI Summary & Empirical Insights</div>
+            <div class="ai-title">Executive Analytics & Governance Summary</div>
             <div class="ai-text">${reportData.aiBrief}</div>
           </div>
         ` : ''}
@@ -763,10 +763,10 @@ export default function ReportsHub() {
               })}
             </div>
 
-            {/* Formal Executive AI Summary Box */}
+            {/* Formal Executive Summary Box */}
             <div className="reports-ai-brief">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span className="reports-ai-title">Executive Intelligence Brief & Findings</span>
+                <span className="reports-ai-title">Executive Summary & Key Audit Findings</span>
               </div>
               <p className="reports-ai-text">
                 {reportData.aiTakeaway}

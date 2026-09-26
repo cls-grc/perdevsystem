@@ -27,15 +27,91 @@ const dueDateSchema = z.object({ dueDate: z.string().datetime() })
 const overdueQuerySchema = z.object({ days: z.coerce.number().int().positive().default(3) })
 import { sendEmail } from '../services/email.js'
 
+export async function resolveNextOwners(client, workflow, destination) {
+  const recipientMap = new Map()
+
+  // 1. Fetch subject employee info if available
+  let subjectEmp = null
+  if (workflow?.subject_employee_id) {
+    const empRes = await client.query(
+      'SELECT id, full_name, department, manager_id FROM employees WHERE id = $1',
+      [workflow.subject_employee_id]
+    )
+    subjectEmp = empRes.rows[0] || null
+  }
+
+  // 2. Resolve recipients for each role in destination.roles
+  for (const role of destination.roles) {
+    if (role === 'employee') {
+      if (workflow?.subject_employee_id) {
+        // ONLY the subject employee of the workflow is notified
+        const empUser = await client.query(
+          'SELECT id, email, full_name FROM users WHERE employee_id = $1 AND is_active = true',
+          [workflow.subject_employee_id]
+        )
+        for (const u of empUser.rows) {
+          recipientMap.set(u.id, u)
+        }
+      }
+    } else if (role === 'supervisor') {
+      let foundSupervisor = false
+      if (subjectEmp) {
+        // a) Direct manager if active user
+        if (subjectEmp.manager_id) {
+          const mgrUser = await client.query(
+            'SELECT id, email, full_name FROM users WHERE employee_id = $1 AND is_active = true',
+            [subjectEmp.manager_id]
+          )
+          for (const u of mgrUser.rows) {
+            recipientMap.set(u.id, u)
+            foundSupervisor = true
+          }
+        }
+        // b) Supervisors in the employee's assigned department
+        if (subjectEmp.department) {
+          const deptSupers = await client.query(
+            `SELECT u.id, u.email, u.full_name
+             FROM users u
+             JOIN employees e ON e.id = u.employee_id
+             WHERE u.role = 'supervisor' AND e.department = $1 AND u.is_active = true`,
+            [subjectEmp.department]
+          )
+          for (const u of deptSupers.rows) {
+            recipientMap.set(u.id, u)
+            foundSupervisor = true
+          }
+        }
+      }
+      // Fallback: If no subject employee or no department supervisor was found
+      if (!foundSupervisor) {
+        const allSupers = await client.query(
+          "SELECT id, email, full_name FROM users WHERE role = 'supervisor' AND is_active = true"
+        )
+        for (const u of allSupers.rows) {
+          recipientMap.set(u.id, u)
+        }
+      }
+    } else {
+      // hr, management, operations_manager
+      const roleUsers = await client.query(
+        'SELECT id, email, full_name FROM users WHERE role = $1 AND is_active = true',
+        [role]
+      )
+      for (const u of roleUsers.rows) {
+        recipientMap.set(u.id, u)
+      }
+    }
+  }
+
+  return Array.from(recipientMap.values())
+}
+
 async function notifyNextOwners(client, workflow, destination) {
-  const employeeOnly = destination.roles.length === 1 && destination.roles[0] === 'employee'
-  const recipients = employeeOnly
-    ? await client.query('SELECT id, email, full_name FROM users WHERE employee_id=$1 AND is_active=true', [workflow.subject_employee_id])
-    : await client.query('SELECT id, email, full_name FROM users WHERE role = ANY($1::user_role[]) AND is_active=true', [destination.roles])
+  const recipients = await resolveNextOwners(client, workflow, destination)
   const title = `${workflow.module[0].toUpperCase()}${workflow.module.slice(1)}: Action Required`
   const message = `${destination.label} is ready for your action: "${workflow.title}".`
 
-  for (const recipient of recipients.rows) {
+  for (const recipient of recipients) {
     await client.query('INSERT INTO notifications(user_id, workflow_id, title, message) VALUES($1,$2,$3,$4)', [recipient.id, workflow.id, title, message])
     if (recipient.email) {
       // Dispatch email asynchronously

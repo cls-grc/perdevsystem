@@ -208,8 +208,8 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(17, 24, 39, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
       }}
     >
-      <Sparkles size={16} className="inline-block" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' }} />
-      <span>AI Assistant</span>
+      <Sparkles size={15} style={{ opacity: 0.9 }} />
+      <span>PerDevSys Assistant</span>
       {isMinimized && (
         <span
           title="Active Chat Session"
@@ -301,7 +301,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Sparkles size={18} className="text-gray-400" />
-                <h2 style={{ margin: 0, fontSize: 16, color: '#fff', fontWeight: 700 }}>AI Assistant Chatbox</h2>
+                <h2 style={{ margin: 0, fontSize: 15, color: '#fff', fontWeight: 700 }}>PerDevSys Knowledge Assistant</h2>
                 {isMaximized && (
                   <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, color: '#d8d1f7' }}>
                     Expanded

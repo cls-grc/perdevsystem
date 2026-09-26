@@ -50,9 +50,12 @@ export function stagesFor(module) {
 // and the actor IS the workflow's subject (so e.g. a department-head subject
 // can still complete their own self-assessment regardless of role label).
 export function canActOnStage(stageRoles, role, subjectEmployeeId, actorEmployeeId) {
+  if (role === 'employee' && subjectEmployeeId) {
+    return stageRoles.includes('employee') && Boolean(actorEmployeeId && actorEmployeeId === subjectEmployeeId)
+  }
   if (stageRoles.includes(role)) return true
-  if (stageRoles.length === 1 && stageRoles[0] === 'employee') {
-    return Boolean(actorEmployeeId && subjectEmployeeId && actorEmployeeId === subjectEmployeeId)
+  if (stageRoles.includes('employee') && actorEmployeeId && subjectEmployeeId && actorEmployeeId === subjectEmployeeId) {
+    return true
   }
   return false
 }

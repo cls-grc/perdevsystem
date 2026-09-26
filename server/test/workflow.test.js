@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { nextStage, stagesFor, returnToStage, previousStages, canActOnStage } from '../src/workflow.js'
 import { calculatePerformance, calculateReadiness } from '../src/services/metrics.js'
 import { deriveWorkflowScoreResult } from '../src/services/workflowCompletion.js'
+import { resolveNextOwners } from '../src/routes/workflows.js'
 
 test('performance workflow advances only in its defined order', () => {
   assert.deepEqual(nextStage('performance', 'self_assessment', 'employee'), { key: 'performance_evaluation', label: 'Performance evaluation', roles: ['supervisor'] })
@@ -126,3 +127,85 @@ test('learning completion uses tracked progress or defaults to complete', () => 
   assert.equal(completed.newValue, 100)
   assert.equal(completed.source, 'workflow_completed_default')
 })
+
+test('canActOnStage prevents other employees from acting on multi-role stages containing employee', () => {
+  const subjectId = 'yuan-uuid-1'
+  const otherEmployeeId = 'hexa-uuid-2'
+  const multiRoles = ['employee', 'supervisor']
+
+  // The subject employee can act
+  assert.equal(canActOnStage(multiRoles, 'employee', subjectId, subjectId), true)
+  // Another employee CANNOT act on this employee's stage
+  assert.equal(canActOnStage(multiRoles, 'employee', subjectId, otherEmployeeId), false)
+  // A supervisor can act
+  assert.equal(canActOnStage(multiRoles, 'supervisor', subjectId, 'supervisor-uuid'), true)
+})
+
+test('resolveNextOwners scopes notifications to subject employee and department supervisor only', async () => {
+  const mockClient = {
+    async query(sql, params) {
+      if (sql.includes('FROM employees WHERE id = $1')) {
+        return {
+          rows: [
+            { id: 'emp-yuan', full_name: 'Yuan Amboy', department: 'Sales & Marketing', manager_id: 'emp-elena' },
+          ],
+        }
+      }
+      if (sql.includes('FROM users WHERE employee_id = $1') && params[0] === 'emp-yuan') {
+        return {
+          rows: [
+            { id: 'user-yuan', email: 'yuan.amby@gmail.com', full_name: 'Yuan Amboy' },
+          ],
+        }
+      }
+      if (sql.includes('FROM users WHERE employee_id = $1') && params[0] === 'emp-elena') {
+        return {
+          rows: [
+            { id: 'user-elena', email: 'elena@pds.local', full_name: 'Elena Rostova' },
+          ],
+        }
+      }
+      if (sql.includes("e.department = $1 AND u.is_active = true")) {
+        return {
+          rows: [
+            { id: 'user-elena', email: 'elena@pds.local', full_name: 'Elena Rostova' },
+          ],
+        }
+      }
+      if (sql.includes("role = 'supervisor'")) {
+        // Broad supervisor query should NOT be hit when department supervisor exists
+        return {
+          rows: [
+            { id: 'user-jordan', email: 'jordan@pds.local', full_name: 'Jordan Williams' },
+          ],
+        }
+      }
+      return { rows: [] }
+    },
+  }
+
+  const workflow = {
+    id: 'wf-test-1',
+    module: 'competency',
+    title: 'Skill development: Yuan Amboy',
+    subject_employee_id: 'emp-yuan',
+  }
+  const destination = {
+    key: 'track_progress',
+    label: 'Track learning progress',
+    roles: ['employee', 'supervisor'],
+  }
+
+  const recipients = await resolveNextOwners(mockClient, workflow, destination)
+
+  // Verify only Yuan and Elena are recipients
+  const emails = recipients.map(r => r.email)
+  assert.equal(recipients.length, 2)
+  assert.ok(emails.includes('yuan.amby@gmail.com'), 'Subject employee must be notified')
+  assert.ok(emails.includes('elena@pds.local'), 'Department supervisor must be notified')
+  assert.ok(!emails.includes('hexaanonuevo31@gmail.com'), 'Other employees must NOT be notified')
+  assert.ok(!emails.includes('jannahmaenueva01@gmail.com'), 'Other employees must NOT be notified')
+  assert.ok(!emails.includes('eymardbuyser09@gmail.com'), 'Other employees must NOT be notified')
+  assert.ok(!emails.includes('jordan@pds.local'), 'Supervisors from other departments must NOT be notified')
+})
+
