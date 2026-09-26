@@ -286,7 +286,7 @@ async function callOpenRouter(context) {
         { role: 'user', content: user },
       ],
       temperature: 0.4,
-      max_tokens: 900,
+      max_tokens: 500,
     }),
   })
 
@@ -306,6 +306,21 @@ function normalize(content, fallbackTitle) {
   const titleMatch = content.match(/^#\s+(.+)$/m)
   const title = titleMatch?.[1]?.trim() || fallbackTitle
   return [{ title, summary: content.trim() }]
+}
+
+function getFallbackInsights(context, isEmployeeScope) {
+  if (isEmployeeScope) return employeeInsights(context)
+  if (context.moduleWorkflow?.module === 'executive') {
+    const exec = context.executiveMetrics || context.moduleMetrics || context
+    return dashboardInsights({
+      workforce: exec.workforce,
+      departments: exec.departments,
+      activeWorkflows: exec.activeWorkflows || [],
+      succession: exec.succession,
+      recognition: exec.recognition,
+    })
+  }
+  return context.moduleWorkflow ? (moduleInsights(context) || dashboardInsights(context)) : dashboardInsights(context)
 }
 
 // ------------------------------ Development Plan API ------------------------
@@ -452,8 +467,7 @@ export async function generateInsights(context) {
   const isEmployeeScope = Boolean(context.employeeMetrics && context.moduleWorkflow?.scope === 'employee-specific')
 
   if (!config.openRouterApiKey) {
-    if (isEmployeeScope) return employeeInsights(context)
-    return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
+    return getFallbackInsights(context, isEmployeeScope)
   }
 
   try {
@@ -468,8 +482,7 @@ export async function generateInsights(context) {
     return normalize(content, fallbackTitle)
   } catch (error) {
     console.warn('[openrouter] Falling back to template insights:', error.message)
-    if (isEmployeeScope) return employeeInsights(context)
-    return context.moduleWorkflow ? moduleInsights(context) : dashboardInsights(context)
+    return getFallbackInsights(context, isEmployeeScope)
   }
 }
 

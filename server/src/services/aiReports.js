@@ -559,13 +559,17 @@ export async function calculateMetrics(module, { employeeId = null, department =
       run(EXECUTIVE_METRIC_QUERIES.training),
     ])
     const activeWorkflows = workflows.rows.sort((a, b) => Number(b.count) - Number(a.count))
-    return {
+    const executiveMetrics = {
       workforce: workforce.rows[0],
       departments: departments.rows,
       activeWorkflows,
       succession: succession.rows[0],
       recognition: recognition.rows[0],
       training: training.rows[0],
+    }
+    return {
+      metrics: executiveMetrics,
+      ...executiveMetrics,
     }
   }
 
@@ -594,7 +598,7 @@ export async function generateAI(module, metrics, details = {}) {
   let content = built.summary
   try {
     const insights = await generateInsights({ moduleWorkflow: { module, stage: 'completed', scope: 'organization-wide' }, moduleMetrics: metrics, moduleDetails: details, executiveMetrics: metrics, dataContext: built.dataContext })
-    if (insights[0]?.summary && built.sections.every(section => insights[0].summary.includes(`## ${section.heading}`))) content = insights[0].summary
+    if (Array.isArray(insights) && insights[0]?.summary && built.sections.every(section => insights[0].summary.includes(`## ${section.heading}`))) content = insights[0].summary
   } catch (error) {
     console.warn('[aiReports] LLM enrichment failed, using structured summary:', error.message)
   }
