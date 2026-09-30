@@ -145,15 +145,7 @@ export default function Header({ user, onToggle, dark, onOpenMobileNav, onOpenAi
           <kbd className="search-shortcut-badge">Ctrl K</kbd>
         </button>
 
-        <button
-          className="header-pill-btn ai-header-pill"
-          type="button"
-          onClick={() => onOpenAiChat && onOpenAiChat()}
-          title="Open AI Workforce Assistant"
-        >
-          <span className="ai-pill-spark"><Sparkles size={14} /></span>
-          <span>AI Assistant</span>
-        </button>
+        {/* AI Assistant header button hidden for clean UI */}
 
         {canSeeOutbox && (
           <button

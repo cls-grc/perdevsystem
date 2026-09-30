@@ -177,7 +177,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
       type="button"
       className="ai-chat-floating-btn"
       onClick={handleOpen}
-      title="Open AI Assistant Chatbox"
+      title="Open AI Assistant"
       aria-label="Open AI Assistant"
       style={{
         position: 'fixed',
@@ -186,21 +186,20 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
         zIndex: 9990,
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '10px 18px',
-        borderRadius: 28,
+        justifyContent: 'center',
+        width: 52,
+        height: 52,
+        borderRadius: '50%',
         background: 'linear-gradient(135deg, #111827 0%, #402b98 100%)',
         color: '#ffffff',
         border: '1.5px solid rgba(255, 255, 255, 0.25)',
         boxShadow: '0 8px 24px rgba(17, 24, 39, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)',
         cursor: 'pointer',
-        fontSize: 13,
-        fontWeight: 600,
         transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         outline: 'none',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+        e.currentTarget.style.transform = 'translateY(-3px) scale(1.06)'
         e.currentTarget.style.boxShadow = '0 12px 30px rgba(17, 24, 39, 0.55), 0 4px 12px rgba(0, 0, 0, 0.2)'
       }}
       onMouseLeave={e => {
@@ -208,14 +207,16 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(17, 24, 39, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18)'
       }}
     >
-      <Sparkles size={15} style={{ opacity: 0.9 }} />
-      <span>PerDevSys Assistant</span>
+      <Sparkles size={22} style={{ opacity: 0.95 }} />
       {isMinimized && (
         <span
           title="Active Chat Session"
           style={{
-            width: 8,
-            height: 8,
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 9,
+            height: 9,
             borderRadius: '50%',
             background: '#34d399',
             boxShadow: '0 0 8px #34d399',
@@ -301,7 +302,7 @@ export default function AIChatDrawer({ isOpen, onClose, onOpen }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Sparkles size={18} className="text-gray-400" />
-                <h2 style={{ margin: 0, fontSize: 15, color: '#fff', fontWeight: 700 }}>PerDevSys Knowledge Assistant</h2>
+                <h2 style={{ margin: 0, fontSize: 15, color: '#fff', fontWeight: 700 }}>PerDevSys Assistant</h2>
                 {isMaximized && (
                   <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, color: '#d8d1f7' }}>
                     Expanded

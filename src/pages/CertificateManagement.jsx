@@ -105,6 +105,7 @@ export default function CertificateManagement({ embedded = false }) {
   const [sortBy, setSortBy] = useState('newest')
   const [saving, setSaving] = useState(false)
   const [retiring, setRetiring] = useState(null)
+  const [activeStep, setActiveStep] = useState(0)
   // Only show full skeleton on very first load (no cache). Subsequent loads show stale data instantly.
   const [loading, setLoading] = useState(certCache.certificates === null)
   const [hrLoading, setHrLoading] = useState(hr && certCache.templates === null)
@@ -256,6 +257,7 @@ export default function CertificateManagement({ embedded = false }) {
       await api.issueCertificates({ templateId: template.id, employeeIds: recipientIds, achievementText: achievement, awardedAt: new Date().toISOString().slice(0, 10) })
       setNotice('Certificates generated and archived.')
       setRecipientIds([])
+      setActiveStep(0)
       certCache.ts = 0 // bust cache
       await load(true)
     } catch (requestError) { setError(requestError.message) }
@@ -557,89 +559,129 @@ export default function CertificateManagement({ embedded = false }) {
 
       <section className="certificate-issue">
         <div className="certificate-controls">
-          {/* Step 1 — Template Selection */}
-          <div className="certificate-section">
-            <div className="section-label">
-              <span>1</span>
-              <div><h2>Select a template</h2><p>Choose the certificate design and authorized signatory.</p></div>
-            </div>
-            <div className="template-grid">
-              {loading ? (
-                [1, 2, 3].map(n => (
-                  <div className="template-card" key={n} style={{ minHeight: 280, opacity: 0.6 }}>
-                    <div className="skeleton-bar" style={{ height: 210, borderRadius: 6, marginBottom: 8 }} />
-                    <div className="skeleton-bar" style={{ height: 12, width: '60%', borderRadius: 4 }} />
-                  </div>
-                ))
-              ) : (
-                <>
-                  {templates.map(item => (
-                    <div
-                      className={`template-card ${template?.id === item.id ? 'selected' : ''}`}
-                      key={item.id}
-                      onClick={() => setTemplate(item)}
-                    >
-                      <div className="template-card-preview">
-                        <Preview template={item} compact/>
-                      </div>
-                      <div className="template-card-footer">
-                        <b title={item.name}>{item.name}</b>
-                        <div className="template-card-actions">
-                          <button
-                            type="button"
-                            className="tmpl-btn edit"
-                            title="Edit template"
-                            onClick={(e) => { e.stopPropagation(); setTemplate(item); editTemplate(item) }}
-                          >
-                            <Pencil className="w-3.5 h-3.5 inline mr-1" /> Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="tmpl-btn delete"
-                            title="Retire template"
-                            disabled={retiring === item.id}
-                            onClick={(e) => { e.stopPropagation(); retireTemplate(item) }}
-                          >
-                            {retiring === item.id ? '…' : <><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Retire</>}
-                          </button>
+
+          {/* ── Stepper header ── */}
+          <div className="cert-stepper">
+            {[
+              { n: 1, label: 'Select Template',   sub: 'Choose design & signatory' },
+              { n: 2, label: 'Select Employees',  sub: 'Pick certificate recipients' },
+              { n: 3, label: 'Review & Issue',    sub: 'Confirm and generate' },
+            ].map(({ n, label, sub }, i) => {
+              const done   = activeStep > i
+              const active = activeStep === i
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  className={`cert-step${active ? ' active' : ''}${done ? ' done' : ''}`}
+                  onClick={() => setActiveStep(i)}
+                >
+                  <span className="cert-step-circle">{done ? '✓' : n}</span>
+                  <span className="cert-step-text">
+                    <b>{label}</b>
+                    <small>{sub}</small>
+                  </span>
+                  {i < 2 && <span className="cert-step-line" />}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* ── Step 1 — Template Selection ── */}
+          {activeStep === 0 && (
+            <div className="certificate-section">
+              <div className="template-grid">
+                {loading ? (
+                  [1, 2, 3].map(n => (
+                    <div className="template-card" key={n} style={{ minHeight: 280, opacity: 0.6 }}>
+                      <div className="skeleton-bar" style={{ height: 210, borderRadius: 6, marginBottom: 8 }} />
+                      <div className="skeleton-bar" style={{ height: 12, width: '60%', borderRadius: 4 }} />
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {templates.map(item => (
+                      <div
+                        className={`template-card ${template?.id === item.id ? 'selected' : ''}`}
+                        key={item.id}
+                        onClick={() => { setTemplate(item); setActiveStep(1) }}
+                      >
+                        <div className="template-card-preview">
+                          <Preview template={item} compact/>
+                        </div>
+                        <div className="template-card-footer">
+                          <b title={item.name}>{item.name}</b>
+                          <div className="template-card-actions">
+                            <button
+                              type="button"
+                              className="tmpl-btn edit"
+                              title="Edit template"
+                              onClick={(e) => { e.stopPropagation(); setTemplate(item); editTemplate(item) }}
+                            >
+                              <Pencil className="w-3.5 h-3.5 inline mr-1" /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="tmpl-btn delete"
+                              title="Retire template"
+                              disabled={retiring === item.id}
+                              onClick={(e) => { e.stopPropagation(); retireTemplate(item) }}
+                            >
+                              {retiring === item.id ? '…' : <><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Retire</>}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  <button className="template-card create" onClick={openCreateForm}>+ Create template</button>
-                </>
+                    ))}
+                    <button className="template-card create" onClick={openCreateForm}>+ Create template</button>
+                  </>
+                )}
+              </div>
+              {template && (
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="certificate-primary" onClick={() => setActiveStep(1)}>
+                    Next: Select employees →
+                  </button>
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Step 2 — Employee Selection */}
-          <div className="certificate-section">
-            <div className="section-label">
-              <span>2</span>
-              <div><h2>Select qualified employees</h2><p>Search employees from all development modules.</p></div>
+          {/* ── Step 2 — Employee Selection ── */}
+          {activeStep === 1 && (
+            <div className="certificate-section">
+              {employeeSearch}
+              {employees.filter(p => `${p.full_name} ${p.department} ${p.job_title}`.toLowerCase().includes(employeeQuery.toLowerCase())).map(p => (
+                <label className="recipient-row" key={p.id}>
+                  <input type="checkbox" checked={recipientIds.includes(p.id)} onChange={() => setRecipientIds(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}/>
+                  <span>{p.full_name.split(' ').map(x => x[0]).join('').slice(0, 2)}</span>
+                  <div><b>{p.full_name}</b><small>{p.job_title} · {p.department}</small></div>
+                </label>
+              ))}
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between' }}>
+                <button className="cert-step-back-btn" type="button" onClick={() => setActiveStep(0)}>← Back</button>
+                {recipientIds.length > 0 && (
+                  <button className="certificate-primary" onClick={() => setActiveStep(2)}>
+                    Next: Review & issue →
+                  </button>
+                )}
+              </div>
             </div>
-            {employeeSearch}
-            {employees.filter(p => `${p.full_name} ${p.department} ${p.job_title}`.toLowerCase().includes(employeeQuery.toLowerCase())).map(p => (
-              <label className="recipient-row" key={p.id}>
-                <input type="checkbox" checked={recipientIds.includes(p.id)} onChange={() => setRecipientIds(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}/>
-                <span>{p.full_name.split(' ').map(x => x[0]).join('').slice(0, 2)}</span>
-                <div><b>{p.full_name}</b><small>{p.job_title} · {p.department}</small></div>
-              </label>
-            ))}
-          </div>
+          )}
 
-          {/* Step 3 — Review & Issue */}
-          <div className="certificate-section">
-            <div className="section-label">
-              <span>3</span>
-              <div><h2>Review details</h2><p>HR retains final control before issuance.</p></div>
+          {/* ── Step 3 — Review & Issue ── */}
+          {activeStep === 2 && (
+            <div className="certificate-section">
+              <textarea value={achievement} onChange={e => setAchievement(e.target.value)}/>
+              <div className="review-recipients">
+                {recipients.map(p => <span key={p.id}>{p.full_name}</span>)}
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between' }}>
+                <button className="cert-step-back-btn" type="button" onClick={() => setActiveStep(1)}>← Back</button>
+                <button className="certificate-primary" onClick={issue}>Generate certificates</button>
+              </div>
             </div>
-            <textarea value={achievement} onChange={e => setAchievement(e.target.value)}/>
-            <div className="review-recipients">
-              {recipients.map(p => <span key={p.id}>{p.full_name}</span>)}
-            </div>
-            <button className="certificate-primary" onClick={issue}>Generate certificates</button>
-          </div>
+          )}
         </div>
 
         {/* Live Preview */}
