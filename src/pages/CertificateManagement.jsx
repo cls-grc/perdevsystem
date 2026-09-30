@@ -255,6 +255,7 @@ export default function CertificateManagement({ embedded = false }) {
     try {
       await api.issueCertificates({ templateId: template.id, employeeIds: recipientIds, achievementText: achievement, awardedAt: new Date().toISOString().slice(0, 10) })
       setNotice('Certificates generated and archived.')
+      setRecipientIds([])
       certCache.ts = 0 // bust cache
       await load(true)
     } catch (requestError) { setError(requestError.message) }

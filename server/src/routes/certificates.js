@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import crypto from 'node:crypto'
 import { z } from 'zod'
 import QRCode from 'qrcode'
 import { query, transaction } from '../db.js'
