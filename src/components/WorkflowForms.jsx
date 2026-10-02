@@ -2862,7 +2862,7 @@ function TalentPoolBuilder({ value = [], onChange }) {
   const toggle = index => onChange(value.map((p, i) => i === index ? { ...p, selected: !p.selected } : p))
   return (
     <div className="builder talent-builder">
-      <div className="builder-note">Select candidates for the critical position.</div>
+      <div className="builder-note">Select candidates for the succession position.</div>
       {value.map((p, index) => (
         <label key={index} className={p.selected ? 'selected' : ''}>
           <input type="checkbox" checked={Boolean(p.selected)} onChange={() => toggle(index)} />
@@ -2991,13 +2991,14 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
       const assessData = res.assessment || null
       setAssessment(assessData)
       if (assessData) {
-        const defaultTarget = value.targetPosition || assessData.recommendedPosition || (positions[0]?.title || '')
+        // AI recommendation always auto-selects the dropdown — user can still override manually
+        const aiSuggestedPosition = assessData.recommendedPosition || value.targetPosition || (positions[0]?.title || '')
         onChange({
           ...value,
           assessment: assessData,
           employeeId: targetEmpId,
           employee: currentEmployee?.full_name || '',
-          targetPosition: defaultTarget,
+          targetPosition: aiSuggestedPosition,
           readinessScore: assessData.readinessScore,
           readinessBand: assessData.readinessBand,
           recommendedPosition: assessData.recommendedPosition,
@@ -3082,7 +3083,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         </div>
       )}
 
-      {/* 2. AI Next Position & Critical Role Recommendation / On-Demand Analyzer */}
+      {/* 2. AI Next Position & Key Role Recommendation / On-Demand Analyzer */}
       {analyzing ? (
         <div className="srb-loading">
           <Sparkles size={24} className="srb-loading-icon" />
@@ -3093,7 +3094,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
         <div className="srb-ai-card">
           <div className="srb-ai-card-header">
             <div className="srb-ai-card-title">
-              <Sparkles size={16} /> Recommended Next Position / Critical Role
+              <Sparkles size={16} /> Recommended Next Position / Key Role
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="srb-ai-badge">AI-Assisted &amp; Grounded</span>
@@ -3174,7 +3175,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
             AI Capability &amp; Role Recommendation
           </div>
           <p style={{ margin: '0 auto 16px', maxWidth: 460, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-            Analyze <strong>{currentEmployee?.full_name}</strong>'s performance scores, core competency levels, and learning progress against hotel critical positions using AI.
+            Analyze <strong>{currentEmployee?.full_name}</strong>'s performance scores, core competency levels, and learning progress against hotel key positions using AI.
           </p>
           <button
             type="button"
@@ -3229,16 +3230,21 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
           <div className="srb-fields-grid">
             <label className="srb-field-label">
               Proposed Target Position *
+              {assessment?.recommendedPosition && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', marginLeft: 8, background: '#ede9fe', borderRadius: 5, padding: '1px 7px' }}>
+                  ✦ AI suggests: {assessment.recommendedPosition}
+                </span>
+              )}
               <select
                 value={value.targetPosition || ''}
                 onChange={e => onChange({ ...value, targetPosition: e.target.value })}
                 disabled={isSelf}
                 className="srb-select"
               >
-                <option value="">Select target system position…</option>
+                <option value="">Select target position…</option>
                 {positions.map(p => (
                   <option key={p.id} value={p.title}>
-                    {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
+                    {p.title} ({p.department}){p.is_critical ? ' ★ Key Role' : ''}
                   </option>
                 ))}
               </select>
@@ -3264,7 +3270,7 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
             <textarea
               value={value.note || ''}
               onChange={e => onChange({ ...value, note: e.target.value })}
-              placeholder="Explain why this candidate is nominated for this critical role, key strengths, leadership qualifications, or business justification..."
+              placeholder="Explain why this candidate is nominated for this role, key strengths, leadership qualifications, or business justification..."
               rows={3}
               disabled={isSelf}
               className="srb-textarea"
@@ -3316,20 +3322,27 @@ function SuccessionReviewBuilder({ value = {}, onChange, people = [], subject, w
 
             <div className="srb-fields-grid">
               <label className="srb-field-label">
-                Confirmed Target Position *
-                <select
-                  value={value.targetPosition || ''}
-                  onChange={e => onChange({ ...value, targetPosition: e.target.value })}
-                  disabled={isSelf}
-                  className="srb-select"
-                >
-                  <option value="">Select target system position…</option>
-                  {positions.map(p => (
-                    <option key={p.id} value={p.title}>
-                      {p.title} ({p.department}){p.is_critical ? ' ★ Critical' : ''}
-                    </option>
-                  ))}
-                </select>
+                Confirmed Target Position
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(17, 24, 39, 0.05)',
+                  border: '1px solid rgba(17, 24, 39, 0.2)',
+                  marginTop: 5,
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>
+                    {nominationData?.targetPosition || value.targetPosition || '—'}
+                  </span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 5, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                    🔒 Fixed from Stage 2
+                  </span>
+                </div>
+                <small style={{ color: '#94a3b8', fontSize: 11, marginTop: 4, display: 'block' }}>
+                  This position was proposed in Stage 2 and is locked for this review. To change it, return the nomination for revision.
+                </small>
               </label>
 
               <label className="srb-field-label">

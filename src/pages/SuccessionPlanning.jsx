@@ -6,7 +6,7 @@ export default function SuccessionPlanning() {
     <WorkflowPage
       module="succession"
       title="Succession planning"
-      description="Assess candidate readiness, generate AI-assisted critical role recommendations, and complete authorized management review."
+      description="Assess candidate readiness, generate AI-assisted key role recommendations, and complete authorized management review."
       action={{
         hr: 'Start succession assessment',
         supervisor: 'Start succession assessment',
@@ -15,7 +15,7 @@ export default function SuccessionPlanning() {
       }}
       stages={[
         ['Initiate assessment', 'Select candidate and initiate succession assessment cycle.', ['hr', 'supervisor', 'operations_manager', 'management']],
-        ['Candidate assessment', 'Review employee capability data and AI critical role recommendation.', ['hr', 'supervisor', 'operations_manager', 'management']],
+        ['Candidate assessment', 'Review employee capability data and AI key role recommendation.', ['hr', 'supervisor', 'operations_manager', 'management']],
         ['Review readiness', 'Review readiness scores, competency matches, and skill gaps.', ['hr', 'supervisor', 'management', 'operations_manager']],
         ['Approval & position update', 'Authorize succession promotion, update employee position, and preserve history.', ['hr', 'management', 'operations_manager']],
       ]}

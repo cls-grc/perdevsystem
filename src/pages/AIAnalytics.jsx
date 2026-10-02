@@ -382,6 +382,7 @@ export default function AIAnalytics() {
         </div>
 
         <div className="exec-banner-actions">
+          {/* Generate AI Report button — temporarily hidden
           {canGenerateExecutive && (
             <button
               type="button"
@@ -400,6 +401,7 @@ export default function AIAnalytics() {
               <span>{generating ? 'Generating AI Report...' : 'Generate AI Report'}</span>
             </button>
           )}
+          */}
 
           {(report || insights) && (
             <button

@@ -509,7 +509,7 @@ function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) 
             className={`bench-filter-pill ${successionView === 'bench' ? 'active' : ''}`}
             onClick={() => setSuccessionView('bench')}
           >
-            Critical Roles Bench Strength
+            Key Roles Bench Strength
           </button>
           <button
             type="button"
@@ -529,7 +529,7 @@ function SuccessionBusiness({ data, workflows, completedWorkflows, breakdown }) 
       </div>
 
       {successionView === 'bench' && (
-        <Section title="Critical Leadership Bench Strength" note="Pipeline readiness for core hospitality leadership positions">
+        <Section title="Key Leadership Bench Strength" note="Pipeline readiness for core hospitality leadership positions">
           <InteractiveBenchStrength employees={employees} />
         </Section>
       )}

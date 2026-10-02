@@ -842,14 +842,14 @@ const training = {
 const succession = {
   module: 'succession',
   title: 'Succession Planning',
-  description: 'Nominate candidates, assess readiness and build the succession pipeline for critical roles.',
+  description: 'Nominate candidates, assess readiness and build the succession pipeline for key roles.',
   dashboard: {
     heading: 'Succession pipeline',
     widgets: [
       { key: 'readyNow', label: 'Ready Now', type: 'count', source: 'readyNow' },
       { key: 'readySoon', label: 'Ready Soon', type: 'count', source: 'readySoon' },
       { key: 'highPotential', label: 'High Potential', type: 'count', source: 'highPotential' },
-      { key: 'criticalPositions', label: 'Critical Positions', type: 'count', source: 'criticalPositions' },
+      { key: 'criticalPositions', label: 'Key Positions', type: 'count', source: 'criticalPositions' },
     ],
   },
   stepForms: {
