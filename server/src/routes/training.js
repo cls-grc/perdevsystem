@@ -18,27 +18,41 @@ function formatTime12h(date) {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
+/**
+ * Parse a datetime string as Philippine Time (UTC+8).
+ * Bare datetime-local strings like "2026-10-03T03:10" have no timezone suffix,
+ * so Node.js would normally parse them as UTC. We explicitly append +08:00 so
+ * they are stored as the correct UTC equivalent of the user's local PHT time.
+ */
+function parseAsPHT(str) {
+  if (!str) return null
+  // If the string already carries timezone info (Z, +, or trailing -HH:MM), parse as-is
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(str)) return new Date(str)
+  // Treat bare datetime strings as PHT (UTC+8)
+  return new Date(str + '+08:00')
+}
+
 function normalizeSessionSchedule(input) {
-  let startDt = input.startDateTime ? new Date(input.startDateTime) : null
+  let startDt = input.startDateTime ? parseAsPHT(input.startDateTime) : null
   if ((!startDt || isNaN(startDt.getTime())) && input.startDate && input.startTime) {
     const timePart = input.startTime.length === 5 ? `${input.startTime}:00` : input.startTime
-    startDt = new Date(`${input.startDate}T${timePart}`)
+    startDt = parseAsPHT(`${input.startDate}T${timePart}`)
   }
 
-  let endDt = input.endDateTime ? new Date(input.endDateTime) : null
+  let endDt = input.endDateTime ? parseAsPHT(input.endDateTime) : null
   if ((!endDt || isNaN(endDt.getTime())) && input.endDate && input.endTime) {
     const timePart = input.endTime.length === 5 ? `${input.endTime}:00` : input.endTime
-    endDt = new Date(`${input.endDate}T${timePart}`)
+    endDt = parseAsPHT(`${input.endDate}T${timePart}`)
   } else if ((!endDt || isNaN(endDt.getTime())) && startDt && !isNaN(startDt.getTime())) {
     endDt = new Date(startDt.getTime() + 2 * 60 * 60 * 1000)
   }
 
-  let windowStart = input.attendanceWindowStart ? new Date(input.attendanceWindowStart) : null
+  let windowStart = input.attendanceWindowStart ? parseAsPHT(input.attendanceWindowStart) : null
   if ((!windowStart || isNaN(windowStart.getTime())) && startDt && !isNaN(startDt.getTime())) {
     windowStart = new Date(startDt.getTime() - 10 * 60 * 1000) // 10 mins before start
   }
 
-  let windowEnd = input.attendanceWindowEnd ? new Date(input.attendanceWindowEnd) : null
+  let windowEnd = input.attendanceWindowEnd ? parseAsPHT(input.attendanceWindowEnd) : null
   if ((!windowEnd || isNaN(windowEnd.getTime())) && startDt && !isNaN(startDt.getTime())) {
     windowEnd = new Date(startDt.getTime() + 15 * 60 * 1000) // 15 mins after start
   }
