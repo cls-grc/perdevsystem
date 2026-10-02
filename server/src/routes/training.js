@@ -57,10 +57,27 @@ function normalizeSessionSchedule(input) {
     windowEnd = new Date(startDt.getTime() + 15 * 60 * 1000) // 15 mins after start
   }
 
-  const startDate = input.startDate || (startDt && !isNaN(startDt.getTime()) ? startDt.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
-  const startTime = input.startTime || (startDt && !isNaN(startDt.getTime()) ? startDt.toTimeString().slice(0, 8) : '09:00:00')
-  const endDate = input.endDate || (endDt && !isNaN(endDt.getTime()) ? endDt.toISOString().slice(0, 10) : startDate)
-  const endTime = input.endTime || (endDt && !isNaN(endDt.getTime()) ? endDt.toTimeString().slice(0, 8) : '17:00:00')
+  // Derive date/time strings in PHT.
+  // Priority: explicit input fields → extract from datetime input string (already PHT local) → compute from UTC timestamp offset by +8h
+  function phtDateFromDt(dt) {
+    if (!dt || isNaN(dt.getTime())) return null
+    return new Date(dt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  }
+  function phtTimeFromDt(dt) {
+    if (!dt || isNaN(dt.getTime())) return null
+    return new Date(dt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(11, 19)
+  }
+  function dateFromStr(str) { return str ? str.slice(0, 10) : null }
+  function timeFromStr(str) {
+    if (!str || str.length <= 10) return null
+    const t = str.slice(11)
+    return t.length === 5 ? t + ':00' : t
+  }
+
+  const startDate = input.startDate || dateFromStr(input.startDateTime) || phtDateFromDt(startDt) || new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const startTime = input.startTime || timeFromStr(input.startDateTime) || phtTimeFromDt(startDt) || '09:00:00'
+  const endDate = input.endDate || dateFromStr(input.endDateTime) || phtDateFromDt(endDt) || startDate
+  const endTime = input.endTime || timeFromStr(input.endDateTime) || phtTimeFromDt(endDt) || '17:00:00'
 
   return {
     startDt: startDt && !isNaN(startDt.getTime()) ? startDt : null,
@@ -73,6 +90,7 @@ function normalizeSessionSchedule(input) {
     endTime,
   }
 }
+
 
 // Schema definitions
 const createSessionSchema = z.object({
