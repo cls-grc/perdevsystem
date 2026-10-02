@@ -28,8 +28,8 @@ export default function RoleHome({ role, name }) {
     setError('')
     try {
       const calls = []
-      // HR & operations_manager can access the full dashboard analytics.
-      if (hr || operationsManager) calls.push(api.analytics().catch(() => null))
+      // HR, operations_manager, supervisor & management can access dashboard analytics.
+      if (hr || operationsManager || supervisor || management) calls.push(api.analytics().catch(() => null))
       // Everyone with an employee record can see their own analytics.
       if (supervisor || management || employee || operationsManager) calls.push(api.analyticsMe().catch(() => null))
       // Workflow statistics relevant to the role.
@@ -41,7 +41,7 @@ export default function RoleHome({ role, name }) {
 
       const results = await Promise.all(calls)
       let index = 0
-      const dashboard = (hr || operationsManager) ? results[index++] : null
+      const dashboard = (hr || operationsManager || supervisor || management) ? results[index++] : null
       const me = (supervisor || management || employee || operationsManager) ? results[index++] : null
       const workflowData = results[index++] || { workflows: [], total: 0 }
       const certData = (operationsManager || employee) ? results[index++] : null
@@ -82,13 +82,13 @@ export default function RoleHome({ role, name }) {
           ['Learning progress', pct(totals.learning_completion || 0), 'Live average learning progress.', 'Live', 'book', 'emerald'],
         ]
       } else if (supervisor) {
-        const perf = myEmployee?.performance_score ?? null
-        const learning = myEmployee?.learning_progress ?? null
+        const perf = dashboard?.totals?.average_performance ?? myEmployee?.performance_score ?? null
+        const learning = dashboard?.totals?.learning_completion ?? myEmployee?.learning_progress ?? null
         const activeCount = activeWorkflows.length
         const recognitionPending = workflows.filter(w => w.module === 'recognition' && w.status === 'active').length
         cards = [
-          ['Team performance', perf !== null ? pct(perf) : '—', 'Your recorded performance score.', perf !== null ? 'Live' : 'No record', 'trend', 'purple'],
-          ['Learning completion', learning !== null ? pct(learning) : '—', 'Your recorded learning progress.', learning !== null ? 'Live' : 'No record', 'book', 'emerald'],
+          ['Team performance', perf !== null ? pct(perf) : '—', 'Department performance average.', perf !== null ? 'Live' : 'No record', 'trend', 'purple'],
+          ['Learning completion', learning !== null ? pct(learning) : '—', 'Department learning progress.', learning !== null ? 'Live' : 'No record', 'book', 'emerald'],
           ['Active workflows', activeCount, 'Workflows currently awaiting action.', 'Live', 'grid', 'cyan'],
           ['Recognition pending', recognitionPending, 'Recognition workflows in progress.', 'Live', 'heart', 'rose'],
         ]

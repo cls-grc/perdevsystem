@@ -38,13 +38,13 @@ router.post('/read', async (req, res, next) => {
 })
 
 // GET /api/notifications/outbox — Live email outbox inspector (HR & management only)
-router.get('/outbox', authorize('hr', 'management'), (req, res) => {
+router.get('/outbox', authorize('hr', 'operations_manager', 'management'), (req, res) => {
   const queue = getOutboxQueue()
   res.json({ emails: queue, total: queue.length })
 })
 
 // GET /api/notifications/smtp-status — Diagnostic: confirm which env vars are present on the server
-router.get('/smtp-status', authorize('hr', 'management'), (req, res) => {
+router.get('/smtp-status', authorize('hr', 'operations_manager', 'management'), (req, res) => {
   res.json({
     SMTP_HOST: process.env.SMTP_HOST || '❌ NOT SET',
     SMTP_PORT: process.env.SMTP_PORT || '❌ NOT SET',
@@ -56,7 +56,7 @@ router.get('/smtp-status', authorize('hr', 'management'), (req, res) => {
 })
 
 // POST /api/notifications/test-email — Send a test email to verify live delivery
-router.post('/test-email', authorize('hr', 'management'), async (req, res, next) => {
+router.post('/test-email', authorize('hr', 'operations_manager', 'management'), async (req, res, next) => {
   try {
     const input = testEmailSchema.parse(req.body)
     const result = await sendEmail({

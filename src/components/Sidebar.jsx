@@ -79,6 +79,8 @@ const sectionsByRole = {
     {
       title: 'Administration',
       links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Hotel Certificates', icon: 'award' },
         { to: '/orgchart', label: 'Hotel Org Chart', icon: 'sitemap' },
         { to: '/audit', label: 'Audit & System Health', icon: 'settings' }
       ]

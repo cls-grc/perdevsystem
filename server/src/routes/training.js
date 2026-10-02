@@ -170,7 +170,7 @@ router.get('/sessions/:id', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // 3. POST /api/training/sessions — HR creates a new session
 // ---------------------------------------------------------------------------
-router.post('/sessions', authorize('hr'), async (req, res, next) => {
+router.post('/sessions', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const input = createSessionSchema.parse(req.body)
 
@@ -216,7 +216,7 @@ router.post('/sessions', authorize('hr'), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // 4. PATCH /api/training/sessions/:id — Edit session details
 // ---------------------------------------------------------------------------
-router.patch('/sessions/:id', authorize('hr'), async (req, res, next) => {
+router.patch('/sessions/:id', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const { id } = req.params
     const patch = updateSessionSchema.parse(req.body)
@@ -261,7 +261,7 @@ router.patch('/sessions/:id', authorize('hr'), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // 5. POST /api/training/sessions/:id/cancel — Cancel training session
 // ---------------------------------------------------------------------------
-router.post('/sessions/:id/cancel', authorize('hr'), async (req, res, next) => {
+router.post('/sessions/:id/cancel', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const { id } = req.params
 

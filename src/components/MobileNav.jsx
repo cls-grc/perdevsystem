@@ -62,6 +62,8 @@ const sectionsByRole = {
     {
       title: 'Operations',
       links: [
+        { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/certificates', label: 'Certificates', icon: 'award' },
         { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
         { to: '/succession', label: 'Succession', icon: 'crown' },
         { to: '/recognition', label: 'Recognition', icon: 'heart' },

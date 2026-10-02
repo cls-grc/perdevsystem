@@ -27,15 +27,15 @@ export const WORKFLOWS = {
     ['published', 'Publish analytics', ['hr']],
   ],
   succession: [
-    ['initiate', 'Initiate succession assessment', ['hr', 'supervisor', 'operations_manager']],
-    ['nominate', 'Candidate nomination & AI assessment', ['hr', 'supervisor', 'operations_manager']],
+    ['initiate', 'Initiate succession assessment', ['hr', 'supervisor', 'operations_manager', 'management']],
+    ['nominate', 'Candidate nomination & AI assessment', ['hr', 'supervisor', 'operations_manager', 'management']],
     ['review_readiness', 'Review readiness & AI recommendations', ['hr', 'supervisor', 'management', 'operations_manager']],
     ['approved', 'Management & HR approval', ['hr', 'management', 'supervisor', 'operations_manager']],
   ],
   recognition: [
-    ['submitted', 'Submit nomination', ['employee', 'hr', 'supervisor']],
-    ['supervisor_validation', 'Supervisor validation', ['supervisor']],
-    ['hr_review', 'HR review', ['hr']],
+    ['submitted', 'Submit nomination', ['employee', 'hr', 'supervisor', 'operations_manager']],
+    ['supervisor_validation', 'Supervisor validation', ['supervisor', 'operations_manager']],
+    ['hr_review', 'HR review', ['hr', 'operations_manager', 'management']],
   ],
 }
 
@@ -55,6 +55,10 @@ export function canActOnStage(stageRoles, role, subjectEmployeeId, actorEmployee
   }
   if (stageRoles.includes(role)) return true
   if (stageRoles.includes('employee') && actorEmployeeId && subjectEmployeeId && actorEmployeeId === subjectEmployeeId) {
+    return true
+  }
+  // Operations Manager has executive operational oversight on non-employee administrative stages
+  if (role === 'operations_manager' && stageRoles.includes('hr') && !stageRoles.includes('employee')) {
     return true
   }
   return false

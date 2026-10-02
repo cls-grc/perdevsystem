@@ -194,7 +194,7 @@ router.get('/competency-comparison/employee/:employeeId', async (req, res, next)
 router.post('/', async (req, res, next) => {
   try {
     const input = createSchema.parse(req.body); const [initialStage] = stagesFor(input.module)
-    if (!initialStage[2].includes(req.user.role)) return res.status(403).json({ error: 'Your role cannot start this workflow.' })
+    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr' && req.user.role !== 'operations_manager') return res.status(403).json({ error: 'Your role cannot start this workflow.' })
     const subjectEmployeeId = input.subjectEmployeeId || (req.user.role === 'employee' ? req.user.employeeId : null)
     if (subjectEmployeeId) {
       await verifyEmployeeAccess(req.user, subjectEmployeeId)
@@ -206,11 +206,11 @@ router.post('/', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-router.post('/bulk', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
+router.post('/bulk', authorize('hr', 'supervisor', 'operations_manager', 'management'), async (req, res, next) => {
   try {
     const input = bulkCreateSchema.parse(req.body)
     const [initialStage] = stagesFor(input.module)
-    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr') {
+    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr' && req.user.role !== 'operations_manager' && req.user.role !== 'management') {
       return res.status(403).json({ error: 'Your role cannot initiate this workflow cycle.' })
     }
 
@@ -325,7 +325,7 @@ const assignGapSchema = z.object({
   gapScore: z.number().optional(),
 })
 
-router.post('/assign-learning-gap', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/assign-learning-gap', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
     const input = assignGapSchema.parse(req.body)
     await verifyEmployeeAccess(req.user, input.subjectEmployeeId)
@@ -412,7 +412,7 @@ router.get('/:id/ai-reports', async (req, res, next) => {
 })
 
 // POST /:id/generate-report - Generate an AI report on demand for a completed workflow.
-router.post('/:id/generate-report', authorize('hr', 'supervisor', 'employee'), async (req, res, next) => {
+router.post('/:id/generate-report', authorize('hr', 'operations_manager', 'management', 'supervisor', 'employee'), async (req, res, next) => {
   try {
     const workflow = await verifyWorkflowAccess(req.user, req.params.id)
     const report = await generateOnDemand(req.params.id, req.user.sub)

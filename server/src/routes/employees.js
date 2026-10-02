@@ -325,7 +325,7 @@ router.post('/invite', authorize('hr'), async (req, res, next) => {
 })
 
 // GET /api/employees — list active employees (scoped to department for supervisors)
-router.get('/', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.get('/', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     const scope = await getScopeFilter(req.user)
     const params = []
@@ -351,9 +351,16 @@ router.get('/', authorize('hr', 'operations_manager', 'supervisor'), async (req,
   } catch (error) { next(error) }
 })
 
-// GET /api/employees/all — list all employees including inactive (HR only)
-router.get('/all', authorize('hr'), async (req, res, next) => {
+// GET /api/employees/all — list all employees including inactive (scoped for supervisors)
+router.get('/all', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
+    const scope = await getScopeFilter(req.user)
+    const params = []
+    let where = ''
+    if (scope.isScoped && scope.department) {
+      params.push(scope.department)
+      where = `WHERE e.department = $${params.length}`
+    }
     const { rows } = await query(`
       SELECT e.id, e.employee_number, e.full_name, e.department, e.department_id, e.job_title,
              e.manager_id, m.full_name AS manager_name,
@@ -364,14 +371,15 @@ router.get('/all', authorize('hr'), async (req, res, next) => {
       FROM employees e
       LEFT JOIN employees m ON m.id = e.manager_id
       LEFT JOIN departments d ON d.id = e.department_id
+      ${where}
       ORDER BY e.is_active DESC, e.full_name
-    `)
+    `, params)
     res.json({ employees: rows })
   } catch (error) { next(error) }
 })
 
 // GET /api/employees/reportees/:id — employees who report to given manager
-router.get('/reportees/:id', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.get('/reportees/:id', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     await verifyEmployeeAccess(req.user, req.params.id)
     const { rows } = await query('SELECT id, full_name, job_title FROM employees WHERE manager_id = $1 AND is_active = true ORDER BY full_name', [req.params.id])
@@ -380,7 +388,7 @@ router.get('/reportees/:id', authorize('hr', 'operations_manager', 'supervisor')
 })
 
 // GET /api/employees/:id — single employee
-router.get('/:id', authorize('hr', 'operations_manager', 'supervisor', 'employee'), async (req, res, next) => {
+router.get('/:id', authorize('hr', 'operations_manager', 'management', 'supervisor', 'employee'), async (req, res, next) => {
   try {
     await verifyEmployeeAccess(req.user, req.params.id)
     const { rows } = await query(`
@@ -494,7 +502,7 @@ if (!rows[0]) return res.status(404).json({ error: 'Inactive employee not found.
 })
 
 // GET /api/employees/:id/history — score history time-series
-router.get('/:id/history', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.get('/:id/history', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     const { rows } = await query(`
       SELECT id, performance_score, competency_score, learning_progress, recorded_at

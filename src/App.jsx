@@ -202,7 +202,7 @@ function ModuleRoutes({ user }) {
           <Route
             path="/certificates"
             element={
-              ['hr', 'employee', 'supervisor', 'operations_manager'].includes(user.role) ? (
+              ['hr', 'employee', 'supervisor', 'operations_manager', 'management'].includes(user.role) ? (
                 <CertificateManagement key={`cert-${user.id}`} />
               ) : (
                 <Navigate to="/" replace />
@@ -212,7 +212,7 @@ function ModuleRoutes({ user }) {
           <Route
             path="/employees"
             element={
-              ['hr', 'operations_manager', 'supervisor'].includes(user.role) ? (
+              ['hr', 'operations_manager', 'management', 'supervisor'].includes(user.role) ? (
                 <EmployeeManagement key={`emp-${user.id}`} />
               ) : (
                 <Navigate to="/" replace />

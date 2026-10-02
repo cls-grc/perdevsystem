@@ -314,15 +314,19 @@ const current = normalizedStages.find(stage => stage.key === workflow?.current_s
     () => normalizedStages,
     [normalizedStages],
   )
-const canStart = Boolean(normalizedStages[0]?.roles.includes(role))
-  // The actor may act if their role is assigned to the current stage, OR if the
-  // stage is employee-assigned and the actor IS the workflow's subject (so the
-  // subject can complete their own self-assessment regardless of role label).
+  const canStart = Boolean(
+    normalizedStages[0]?.roles.includes(role) ||
+    ((role === 'hr' || role === 'operations_manager') && normalizedStages.length > 0)
+  )
+  const isSubject = Boolean(employeeId && workflow?.subject_employee_id && employeeId === workflow.subject_employee_id)
   const canAct = Boolean(
     workflow &&
     current &&
-    (current.roles.includes(role) ||
-      (current.roles.length === 1 && current.roles[0] === 'employee' && Boolean(employeeId && workflow.subject_employee_id && employeeId === workflow.subject_employee_id))),
+    (
+      current.roles.includes(role) ||
+      (current.roles.includes('employee') && isSubject) ||
+      ((role === 'hr' || role === 'operations_manager') && !current.roles.includes('employee'))
+    ),
   )
   const assigned = itemIsEmployee
     ? people.find(person => person.full_name.toLowerCase() === selected[0].toLowerCase())

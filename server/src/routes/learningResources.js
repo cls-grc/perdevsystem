@@ -448,7 +448,7 @@ router.get('/', async (req, res, next) => {
 })
 
 // Create resource — HR only.
-router.post('/', authorize('hr'), async (req, res, next) => {
+router.post('/', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const input = resourceSchema.parse(req.body)
     const result = await transaction(async client => {
@@ -482,7 +482,7 @@ router.post('/', authorize('hr'), async (req, res, next) => {
 })
 
 // Update resource — HR only.
-router.patch('/:id', authorize('hr'), async (req, res, next) => {
+router.patch('/:id', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const input = resourceSchema.parse(req.body)
     const result = await transaction(async client => {
@@ -518,7 +518,7 @@ router.patch('/:id', authorize('hr'), async (req, res, next) => {
 })
 
 // Archive (soft-delete) resource — HR only.
-router.delete('/:id', authorize('hr'), async (req, res, next) => {
+router.delete('/:id', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
 const { rows } = await query('UPDATE learning_resources SET is_active=false, updated_at=NOW() WHERE id=$1 AND is_active=true RETURNING id', [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Active learning resource not found.' })
@@ -528,7 +528,7 @@ const { rows } = await query('UPDATE learning_resources SET is_active=false, upd
 })
 
 // Assign a resource to employee(s) — HR or supervisor.
-router.post('/assign', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/assign', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
     const input = assignSchema.parse(req.body)
     for (const empId of input.employeeIds) {
@@ -696,7 +696,7 @@ router.patch('/assignments/:id/progress', async (req, res, next) => {
 // Record completion + assessment — HR or supervisor. This is the ONLY place
 // an employee is marked as having completed a course (official verification).
 // Verifying completion automatically updates linked competency scores and closes skill gaps!
-router.post('/completions', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/completions', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
     const input = completionSchema.parse(req.body)
     await verifyEmployeeAccess(req.user, input.employeeId)

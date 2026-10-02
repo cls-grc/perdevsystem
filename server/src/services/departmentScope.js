@@ -35,7 +35,19 @@ export async function getScopeFilter(user) {
   
   const userDept = await getUserDepartment(user)
 
-  if (user.role === 'supervisor' || user.role === 'operations_manager') {
+  if (user.role === 'operations_manager') {
+    return {
+      isHr: false,
+      isScoped: false,
+      isEmployee: false,
+      isOperationsManager: true,
+      department: userDept.department,
+      departmentId: userDept.department_id,
+      employeeId: user.employeeId || null,
+    }
+  }
+
+  if (user.role === 'supervisor') {
     return {
       isHr: false,
       isScoped: true,
@@ -72,6 +84,7 @@ export async function getScopeFilter(user) {
 /**
  * Enforce that the authenticated user can access the target employee.
  * HR -> Organization-wide
+ * Operations Manager & Management -> Organization-wide
  * Supervisor -> Target employee must belong to supervisor's assigned department
  * Employee -> Can only access own record
  */
@@ -95,7 +108,7 @@ export async function verifyEmployeeAccess(user, targetEmployeeId) {
     throw Object.assign(new Error('Employee not found.'), { status: 404 })
   }
 
-  if (user.role === 'hr' || user.role === 'management') {
+  if (user.role === 'hr' || user.role === 'management' || user.role === 'operations_manager') {
     return targetEmployee
   }
 
@@ -106,7 +119,7 @@ export async function verifyEmployeeAccess(user, targetEmployeeId) {
     return targetEmployee
   }
 
-  if (user.role === 'supervisor' || user.role === 'operations_manager') {
+  if (user.role === 'supervisor') {
     const userDept = await getUserDepartment(user)
     if (!userDept.department) {
       throw Object.assign(new Error('Access denied: Your account requires an assigned department.'), { status: 403 })
@@ -117,16 +130,12 @@ export async function verifyEmployeeAccess(user, targetEmployeeId) {
     return targetEmployee
   }
 
-  if (user.role === 'management') {
-    return targetEmployee
-  }
-
   throw Object.assign(new Error('You do not have access to this employee.'), { status: 403 })
 }
 
 /**
  * Enforce that the authenticated user can access/manipulate the target workflow.
- * HR -> Organization-wide
+ * HR, Operations Manager, Management -> Organization-wide
  * Supervisor -> Subject employee must belong to supervisor's assigned department
  * Employee -> Subject employee must be self
  */
@@ -150,7 +159,7 @@ export async function verifyWorkflowAccess(user, workflowId) {
     throw Object.assign(new Error('Workflow not found.'), { status: 404 })
   }
 
-  if (user.role === 'hr') {
+  if (user.role === 'hr' || user.role === 'management' || user.role === 'operations_manager') {
     return workflow
   }
 
@@ -161,7 +170,7 @@ export async function verifyWorkflowAccess(user, workflowId) {
     return workflow
   }
 
-  if (user.role === 'supervisor' || user.role === 'operations_manager') {
+  if (user.role === 'supervisor') {
     const userDept = await getUserDepartment(user)
     if (!userDept.department) {
       throw Object.assign(new Error('Access denied: Your account requires an assigned department.'), { status: 403 })
@@ -177,10 +186,6 @@ export async function verifyWorkflowAccess(user, workflowId) {
         throw Object.assign(new Error('Access denied: Workflow belongs to another department.'), { status: 403 })
       }
     }
-    return workflow
-  }
-
-  if (user.role === 'management') {
     return workflow
   }
 

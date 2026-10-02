@@ -16,12 +16,12 @@ import { getScopeFilter, getUserDepartment, verifyEmployeeAccess } from '../serv
 const router = Router()
 router.use(authenticate)
 
-router.get('/dashboard', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.get('/dashboard', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     const scope = await getScopeFilter(req.user)
     const departmentScope = scope.isScoped ? scope.department : null
     if (scope.isScoped && !departmentScope) {
-      return res.status(403).json({ error: 'Department Head and Operations Manager accounts require an active department assignment.' })
+      return res.status(403).json({ error: 'Department Head accounts require an active department assignment.' })
     }
     const employeeWhere = departmentScope ? ' AND department=$1' : ''
     const workflowJoin = departmentScope ? ' JOIN employees e ON e.id=w.subject_employee_id WHERE e.department=$1' : ''
@@ -155,7 +155,7 @@ router.get('/me', async (req, res, next) => {
 
 const insightRequest = z.object({ employeeName: z.string().min(2).max(120).optional() })
 const moduleInsightRequest = z.object({ module: z.enum(['performance','competency','learning','training','succession','recognition']), stage: z.string().min(2).max(140) })
-router.post('/insights', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/insights', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     const { employeeName } = insightRequest.parse(req.body || {})
     const scope = await getScopeFilter(req.user)
@@ -215,8 +215,8 @@ router.get('/executive-report', authorize('hr', 'operations_manager', 'managemen
   } catch (error) { next(error) }
 })
 
-// POST /executive-report - generate + save a new executive report (HR only).
-router.post('/executive-report', authorize('hr'), async (req, res, next) => {
+// POST /executive-report - generate + save a new executive report (HR & Ops Manager).
+router.post('/executive-report', authorize('hr', 'operations_manager', 'management'), async (req, res, next) => {
   try {
     const { metrics } = await calculateMetrics('executive')
     const report = await generateAI('executive', metrics)
