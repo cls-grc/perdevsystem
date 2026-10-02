@@ -56,6 +56,16 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
         category: session.category,
       })
 
+  // Stable references for props and state to avoid restarting camera on re-renders
+  const sessionRef = useRef(session)
+  useEffect(() => { sessionRef.current = session }, [session])
+
+  const onAttendanceUpdatedRef = useRef(onAttendanceUpdated)
+  useEffect(() => { onAttendanceUpdatedRef.current = onAttendanceUpdated }, [onAttendanceUpdated])
+
+  const soundEnabledRef = useRef(soundEnabled)
+  useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
+
   const handleProcessScan = useCallback(async (code) => {
     if (!code) return
     const now = Date.now()
@@ -78,9 +88,10 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     setStatusMessage('Verifying employee badge...')
 
     try {
-      const res = await api.scanTrainingAttendance(session.id, { code })
+      const currentSessionId = sessionRef.current?.id || session.id
+      const res = await api.scanTrainingAttendance(currentSessionId, { code })
       if (res.success) {
-        if (soundEnabled) playSuccessChime()
+        if (soundEnabledRef.current) playSuccessChime()
         const attStatus = (res.attendance || 'present').toUpperCase()
         const formattedTime = res.timeIn 
           ? new Date(res.timeIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) 
@@ -100,7 +111,9 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
           },
           ...prev.filter(l => l.id !== res.employee.id)
         ])
-        if (onAttendanceUpdated) onAttendanceUpdated()
+        if (onAttendanceUpdatedRef.current) {
+          onAttendanceUpdatedRef.current()
+        }
       }
     } catch (err) {
       setScanningStatus('error')
@@ -111,7 +124,10 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
         setScanningStatus('idle')
       }, 3500)
     }
-  }, [session.id, soundEnabled, onAttendanceUpdated])
+  }, [session.id])
+
+  const handleProcessScanRef = useRef(handleProcessScan)
+  useEffect(() => { handleProcessScanRef.current = handleProcessScan }, [handleProcessScan])
 
   useEffect(() => {
     if (activeTab !== 'scanner' || !cameraActive) {
@@ -127,44 +143,75 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     let streamInstance = null
     let active = true
 
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: facingMode }, width: { ideal: 640 }, height: { ideal: 480 } }
-    })
-      .then(stream => {
-        if (!active) {
-          stream.getTracks().forEach(t => t.stop())
+    async function initCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Camera access is not supported by your browser or connection.')
+        return
+      }
+
+      let stream = null
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode }, width: { ideal: 640 }, height: { ideal: 480 } }
+        })
+      } catch (err1) {
+        try {
+          // Fallback to basic video constraint (e.g. desktop webcam without facingMode support)
+          stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        } catch (err2) {
+          if (!active) return
+          let msg = 'Camera access denied or unavailable. You can use the manual badge input below.'
+          if (err2.name === 'NotAllowedError' || err2.name === 'PermissionDeniedError') {
+            msg = 'Camera permission denied. Please allow camera access in your browser address bar (lock icon) and click Start Camera.'
+          } else if (err2.name === 'NotFoundError' || err2.name === 'DevicesNotFoundError') {
+            msg = 'No camera found on this device. You can use the manual badge input below.'
+          } else if (err2.name === 'NotReadableError' || err2.name === 'TrackStartError') {
+            msg = 'Camera is currently in use by another application. Please close other camera apps and retry.'
+          }
+          setCameraError(msg)
           return
         }
-        streamInstance = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.setAttribute('playsinline', 'true')
-          videoRef.current.play().catch(() => {})
-        }
-        setCameraError('')
-      })
-      .catch(err => {
-        setCameraError('Camera access denied or unavailable. You can use the manual badge input below.')
-      })
+      }
+
+      if (!active) {
+        stream.getTracks().forEach(t => t.stop())
+        return
+      }
+
+      streamInstance = stream
+      setCameraError('')
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.setAttribute('playsinline', 'true')
+        videoRef.current.muted = true
+        videoRef.current.play().catch(() => {})
+      }
+    }
+
+    initCamera()
 
     const scanFrame = () => {
       if (!active) return
       const video = videoRef.current
       const canvas = canvasRef.current
 
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA && !isProcessingRef.current) {
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-        
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
-        })
+      if (video && canvas && video.readyState >= 2 && !isProcessingRef.current) {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          const ctx = canvas.getContext('2d', { willReadFrequently: true })
+          if (ctx) {
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
 
-        if (qrCode && qrCode.data) {
-          handleProcessScan(qrCode.data)
+            if (qrCode && qrCode.data) {
+              handleProcessScanRef.current?.(qrCode.data)
+            }
+          }
         }
       }
       animFrameId.current = requestAnimationFrame(scanFrame)
@@ -177,9 +224,12 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
       if (streamInstance) {
         streamInstance.getTracks().forEach(t => t.stop())
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
       if (animFrameId.current) cancelAnimationFrame(animFrameId.current)
     }
-  }, [activeTab, cameraActive, facingMode, handleProcessScan])
+  }, [activeTab, cameraActive, facingMode])
 
   const handleManualSubmit = (e) => {
     e.preventDefault()
@@ -210,27 +260,6 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     setTimeout(() => { printWin.print() }, 400)
   }
 
-  // One-shot: attempt to prompt camera permission immediately when the modal opens.
-  // Uses a ref flag so it only runs once — avoids the glitch loop from re-running on every error.
-  const hasAutoStarted = useRef(false)
-  useEffect(() => {
-    if (hasAutoStarted.current) return
-    hasAutoStarted.current = true
-    // Trigger permission prompt by requesting the camera briefly.
-    // The main camera useEffect (keyed to cameraActive) will take over after this.
-    navigator.mediaDevices?.getUserMedia({ video: true })
-      .then(stream => {
-        // Got permission — stop this temporary stream immediately; the main effect starts the real one.
-        stream.getTracks().forEach(t => t.stop())
-        setCameraError('')
-        setCameraActive(true)
-      })
-      .catch(() => {
-        // Permission denied — show fallback, don't retry automatically.
-        setCameraError('Camera access denied or unavailable. You can use the manual badge input below.')
-        setCameraActive(false)
-      })
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const filteredBadges = employees.filter(e =>
@@ -282,26 +311,34 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
           <div className="qr-scanner-view-grid">
             <div className="qr-camera-column">
               <div className="qr-camera-wrap">
+                <video
+                  ref={videoRef}
+                  className="qr-camera-feed"
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ display: cameraActive && !cameraError ? 'block' : 'none' }}
+                />
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
                 {cameraActive && !cameraError ? (
-                  <>
-                    <video ref={videoRef} className="qr-camera-feed" />
-                    <canvas ref={canvasRef} style={{ display: 'none' }} />
-                    <div className="qr-target-overlay">
-                      <div className="qr-scan-corners" />
-                      <div className="qr-laser-line" />
-                      <div className="qr-scan-hint">Align Employee Badge QR Code inside frame</div>
-                    </div>
-                  </>
+                  <div className="qr-target-overlay">
+                    <div className="qr-scan-corners" />
+                    <div className="qr-laser-line" />
+                    <div className="qr-scan-hint">Align Employee Badge QR Code inside frame</div>
+                  </div>
                 ) : (
                   <div className="qr-camera-fallback">
                     <Camera size={42} style={{ opacity: 0.3, marginBottom: 8 }} />
                     <p style={{ margin: '0 0 6px', fontWeight: 600, fontSize: 13 }}>Camera scanner is paused or unavailable.</p>
-                    <small style={{ color: '#94a3b8' }}>{cameraError || 'Click below to turn camera back on or use manual code entry.'}</small>
+                    <small style={{ color: '#94a3b8' }}>{cameraError || 'Click below to turn camera on or use manual code entry.'}</small>
                     <button
                       type="button"
                       className="session-action-btn primary"
                       style={{ marginTop: 12, padding: '6px 14px', fontSize: 12 }}
-                      onClick={() => { setCameraError(''); setCameraActive(true) }}
+                      onClick={() => {
+                        setCameraError('')
+                        setCameraActive(true)
+                      }}
                     >
                       <RefreshCw size={12} className="inline mr-1" /> Start Camera
                     </button>
