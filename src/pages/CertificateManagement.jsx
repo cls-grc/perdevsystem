@@ -51,8 +51,8 @@ const CACHE_TTL_MS = 60_000 // 1 minute
 
 function Preview({ template, certificate, compact = false }) {
   const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
-  const name = certificate?.employee_name || '{{Employee Name}}'
-  const text = (certificate?.achievement_text || template?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', name)
+  const name = certificate?.employee_name || 'Employee Name'
+  const text = (certificate?.achievement_text || template?.body_text || defaults.bodyText).replace(/\{\{\s*employee[_ ]?name\s*\}\}/gi, name)
   const verifyCode = certificate?.verification_code || certificate?.id || certificate?.certificate_number
   const verifyUrl = verifyCode ? `${publicAppUrl}/verify/certificate/${verifyCode}` : `${publicAppUrl}/verify/certificate/SAMPLE-VERIFICATION-CODE`
 
@@ -323,8 +323,8 @@ export default function CertificateManagement({ embedded = false }) {
     const orgName = tmpl?.organization_name || certificate?.organization_name || 'PerDevSys Hospitality'
     const title = tmpl?.certificate_title || certificate?.certificate_title || 'Certificate of Excellence'
     const subtitle = tmpl?.subtitle || certificate?.subtitle || 'Recognition of achievement'
-    const empName = certificate?.employee_name || '{{Employee Name}}'
-    const bodyText = (certificate?.achievement_text || tmpl?.body_text || defaults.bodyText).replaceAll('{{employee_name}}', empName)
+    const empName = certificate?.employee_name || 'Employee Name'
+    const bodyText = (certificate?.achievement_text || tmpl?.body_text || defaults.bodyText).replace(/\{\{\s*employee[_ ]?name\s*\}\}/gi, empName)
     const awardedDate = date(certificate?.awarded_at || certificate?.issued_at)
     const signatory = tmpl?.signatory_name || certificate?.signatory_name || 'Authorized Signatory'
     const signatoryPos = tmpl?.signatory_position || certificate?.signatory_position || ''
@@ -732,6 +732,9 @@ export default function CertificateManagement({ embedded = false }) {
                 ))}
                 <label className="full">Certificate body text
                   <textarea value={form.bodyText} onChange={e => setForm({ ...form, bodyText: e.target.value })}/>
+                  <small style={{ color: '#6b7280', fontSize: 11, marginTop: 3, display: 'block' }}>
+                    Use <code style={{ background: '#f3f4f6', padding: '1px 5px', borderRadius: 4 }}>{'{{employee_name}}'}</code> in the text — it will be replaced with the actual recipient's name when the certificate is issued.
+                  </small>
                 </label>
                 <label className="full">Organization logo
                   <input type="file" accept="image/*" onChange={e => upload('logoUrl', e.target.files?.[0])}/>
