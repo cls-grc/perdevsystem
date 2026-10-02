@@ -40,7 +40,15 @@ export function errorHandler(error, req, res, _next) {
     userId: req.user?.sub || null,
     stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined,
   })
-  if (error instanceof ZodError) return res.status(400).json({ error: 'Please check the submitted information.', fields: error.flatten().fieldErrors })
+  if (error instanceof ZodError) {
+    const flat = error.flatten()
+    const firstEntry = Object.entries(flat.fieldErrors)[0]
+    const detail = firstEntry ? `${firstEntry[0]}: ${firstEntry[1]?.join(', ')}` : ''
+    return res.status(400).json({
+      error: detail ? `Please check the submitted information (${detail})` : 'Please check the submitted information.',
+      fields: flat.fieldErrors,
+    })
+  }
   res.status(error.status || 500).json({ error: error.status ? error.message : 'Something went wrong. Please try again.' })
 }
 

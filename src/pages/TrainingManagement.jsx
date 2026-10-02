@@ -9,6 +9,37 @@ import '../trainingCalendar.css'
 
 const CATEGORIES = ['Customer Service', 'Food Safety', 'Leadership', 'Compliance', 'Kitchen Operations', 'Technical Skills']
 
+const DEFAULT_DEPARTMENTS = [
+  'All Departments',
+  'Engineering',
+  'Executive Office',
+  'Finance',
+  'Food & Beverage',
+  'Front Office',
+  'Housekeeping',
+  'Human Resources',
+  'Kitchen',
+  'Operations',
+  'Sales & Marketing',
+  'Security',
+]
+
+const DEFAULT_FACILITATORS = [
+  { id: '809128ca-50e6-49b2-b67e-bdbf9060c5c9', full_name: 'Noah Santos', job_title: 'General Manager', department: 'Executive Office', role: 'management', is_department_head: true },
+  { id: 'e1b014e2-be2f-4879-951e-6adb75a8fb39', full_name: 'Samir Patel', job_title: 'Director of Operations', department: 'Operations', role: 'operations_manager', is_department_head: true },
+  { id: '348ae338-4538-4676-86b9-e18f1b43ea65', full_name: 'Ava Reyes', job_title: 'HR Administrator', department: 'Human Resources', role: 'hr', is_department_head: true },
+  { id: '726feba9-2a1b-4e29-aafb-60ed4f736986', full_name: 'Celsi Garcia', job_title: 'HR Administrator', department: 'Human Resources', role: 'hr', is_department_head: true },
+  { id: 'c0de9f8d-6329-4a91-a879-860e33f4b2a7', full_name: 'Charles Sainz', job_title: 'HR Administrator', department: 'Human Resources', role: 'hr', is_department_head: true },
+  { id: 'd39bddda-e74e-4411-8f8e-15cfa469e2a5', full_name: 'Jordan Williams', job_title: 'Front Office Manager', department: 'Front Office', role: 'supervisor', is_department_head: true },
+  { id: '1ec60357-851a-4e07-a305-36573943c239', full_name: 'Anna Kowalski', job_title: 'Executive Housekeeper', department: 'Housekeeping', role: 'supervisor', is_department_head: true },
+  { id: 'c80d8a63-5b6c-405e-aae9-f704f833c685', full_name: 'Marco Rossi', job_title: 'Executive Chef', department: 'Kitchen', role: 'supervisor', is_department_head: true },
+  { id: '01322715-8347-4e47-9ae2-329652f48d3d', full_name: 'Robert Johnson', job_title: 'Food & Beverage Director', department: 'Food & Beverage', role: 'supervisor', is_department_head: true },
+  { id: '7191153e-c5ad-48c5-83f8-8c73dac530a6', full_name: 'Victor Cruz', job_title: 'Chief Engineer', department: 'Engineering', role: 'supervisor', is_department_head: true },
+  { id: '7f801e53-c972-4279-b67a-9b73bee7f83d', full_name: 'Daniel Zhang', job_title: 'Financial Controller', department: 'Finance', role: 'supervisor', is_department_head: true },
+  { id: 'fa2ce0ca-5297-45fd-98ef-2c9ce1c6bc0f', full_name: 'Elena Rostova', job_title: 'Director of Sales', department: 'Sales & Marketing', role: 'supervisor', is_department_head: true },
+  { id: 'c91958f0-bf1e-4cdd-b296-e46be97ea81c', full_name: 'Marcus Vance', job_title: 'Director of Security', department: 'Security', role: 'supervisor', is_department_head: true },
+]
+
 const toLocalISOString = (d) => {
   const pad = n => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -152,6 +183,27 @@ export default function TrainingManagement() {
   // Session Form State with unified datetime, dropdown trainer/venue, and scanning window
   const [newSession, setNewSession] = useState(getDefaultSessionForm())
   const [savingSession, setSavingSession] = useState(false)
+  const [departmentsList, setDepartmentsList] = useState(DEFAULT_DEPARTMENTS)
+  const [createModalError, setCreateModalError] = useState('')
+
+  // Facilitators list prioritizing all Department Heads & Leadership
+  const facilitatorsList = useMemo(() => {
+    const map = new Map()
+    DEFAULT_FACILITATORS.forEach(f => map.set(f.full_name, f))
+    trainers.forEach(t => {
+      const existing = map.get(t.full_name) || {}
+      map.set(t.full_name, { ...existing, ...t })
+    })
+    return Array.from(map.values())
+  }, [trainers])
+
+  const departmentHeads = useMemo(() => {
+    return facilitatorsList.filter(f => f.is_department_head || ['supervisor', 'operations_manager', 'management', 'hr'].includes(f.role))
+  }, [facilitatorsList])
+
+  const otherFacilitators = useMemo(() => {
+    return facilitatorsList.filter(f => !f.is_department_head && !['supervisor', 'operations_manager', 'management', 'hr'].includes(f.role))
+  }, [facilitatorsList])
 
   // Participant Search & Selection
   const [selectedEmpIds, setSelectedEmpIds] = useState([])
@@ -196,16 +248,22 @@ export default function TrainingManagement() {
   const loadSessions = async () => {
     setLoading(true)
     try {
-      const [sessRes, empRes, venRes, trainRes] = await Promise.all([
+      const [sessRes, empRes, venRes, trainRes, deptRes] = await Promise.all([
         api.trainingSessions().catch(() => ({ sessions: [] })),
         api.employees().catch(() => ({ employees: [] })),
         api.trainingVenues().catch(() => ({ venues: [] })),
         api.trainingTrainers().catch(() => ({ trainers: [] })),
+        api.departments().catch(() => ({ departments: [] })),
       ])
       setSessions(sessRes.sessions || [])
       setEmployees(empRes.employees || [])
       setVenues(venRes.venues || [])
       setTrainers(trainRes.trainers || [])
+
+      if (deptRes?.departments?.length) {
+        const names = deptRes.departments.map(d => d.name).filter(Boolean)
+        setDepartmentsList(Array.from(new Set(['All Departments', ...DEFAULT_DEPARTMENTS, ...names])))
+      }
 
       // Load attendance records
       if (canRecordAttendance) {
@@ -361,17 +419,71 @@ export default function TrainingManagement() {
   // Handle Session Creation
   const handleCreateSession = async e => {
     e.preventDefault()
-    setSavingSession(true)
+    setCreateModalError('')
     setError('')
+
+    const trimmedTitle = (newSession.title || '').trim()
+    if (!trimmedTitle || trimmedTitle.length < 3) {
+      setCreateModalError('Training Session Title must be at least 3 characters.')
+      return
+    }
+
+    const selectedVenue = newSession.venueId || newSession.venue
+    if (!selectedVenue) {
+      setCreateModalError('Please select a Facility / Venue.')
+      return
+    }
+
+    const selectedTrainer = newSession.trainerId || newSession.trainer
+    if (!selectedTrainer) {
+      setCreateModalError('Please select a Trainer / Facilitator.')
+      return
+    }
+
+    if (newSession.startDateTime && newSession.endDateTime) {
+      const s = new Date(newSession.startDateTime)
+      const end = new Date(newSession.endDateTime)
+      if (end <= s) {
+        setCreateModalError('Training End date and time must be after Training Start.')
+        return
+      }
+    }
+
+    if (newSession.attendanceWindowStart && newSession.attendanceWindowEnd) {
+      const wStart = new Date(newSession.attendanceWindowStart)
+      const wEnd = new Date(newSession.attendanceWindowEnd)
+      if (wEnd <= wStart) {
+        setCreateModalError('Attendance Window Closes time must be after Attendance Window Opens.')
+        return
+      }
+    }
+
+    setSavingSession(true)
     try {
-      const res = await api.createTrainingSession(newSession)
+      const matchedVenue = venues.find(v => v.id === newSession.venueId || v.name === newSession.venue)
+      const matchedTrainer = facilitatorsList.find(t => t.id === newSession.trainerId || t.full_name === newSession.trainer)
+
+      const payload = {
+        ...newSession,
+        title: trimmedTitle,
+        venue: newSession.venue || matchedVenue?.name || 'Training Room A',
+        venueId: newSession.venueId || matchedVenue?.id || null,
+        trainer: newSession.trainer || matchedTrainer?.full_name || 'Staff Facilitator',
+        trainerId: newSession.trainerId || matchedTrainer?.id || null,
+        capacity: Number(newSession.capacity) > 0 ? Number(newSession.capacity) : 30,
+        budget: Number(newSession.budget) >= 0 ? Number(newSession.budget) : 0,
+      }
+      const res = await api.createTrainingSession(payload)
       setNotice(`Training session "${res.session.title}" created successfully!`)
       setShowScheduleModal(false)
       setNewSession(getDefaultSessionForm())
+      setCreateModalError('')
       window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await loadSessions()
     } catch (err) {
-      setError(err.message || 'Failed to save training session.')
+      const msg = err.message || 'Failed to save training session.'
+      setCreateModalError(msg)
+      setError(msg)
     } finally {
       setSavingSession(false)
     }
@@ -1343,25 +1455,53 @@ export default function TrainingManagement() {
         <div className="training-modal-overlay">
           <div className="training-modal-content">
             <div className="training-modal-header">
-              <h3>Create Training Session</h3>
-              <button className="training-modal-close" onClick={() => setShowScheduleModal(false)}><X className="w-4 h-4" /></button>
+              <div>
+                <h3>
+                  <Calendar className="w-5 h-5 text-indigo-600" /> Create Training Session
+                </h3>
+                <p className="training-modal-subtitle">
+                  Schedule sessions, assign facilitators, configure attendance scanning windows, and target specific departments.
+                </p>
+              </div>
+              <button 
+                type="button" 
+                className="training-modal-close" 
+                onClick={() => {
+                  setShowScheduleModal(false)
+                  setCreateModalError('')
+                }}
+                aria-label="Close dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <form onSubmit={handleCreateSession}>
+
+            <form onSubmit={handleCreateSession} className="training-modal-form">
               <div className="training-modal-body">
+                {createModalError && (
+                  <div className="training-modal-inline-error">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{createModalError}</span>
+                  </div>
+                )}
+
                 <label className="form-field">
-                  <span>Training Session Title *</span>
+                  <span>Training Session Title <span className="req-star">*</span></span>
                   <input
                     type="text"
                     required
                     value={newSession.title}
-                    onChange={e => setNewSession({ ...newSession, title: e.target.value })}
-                    placeholder="e.g. Food Safety and Hygiene Training"
+                    onChange={e => {
+                      setNewSession({ ...newSession, title: e.target.value })
+                      if (createModalError) setCreateModalError('')
+                    }}
+                    placeholder="e.g. Reservation and Guest Cycle Management"
                   />
                 </label>
 
                 <div className="form-row-2">
                   <label className="form-field">
-                    <span>Category / Training Type *</span>
+                    <span>Category / Training Type <span className="req-star">*</span></span>
                     <select
                       value={newSession.category}
                       onChange={e => setNewSession({ ...newSession, category: e.target.value })}
@@ -1378,12 +1518,9 @@ export default function TrainingManagement() {
                       value={newSession.department}
                       onChange={e => setNewSession({ ...newSession, department: e.target.value })}
                     >
-                      <option value="All Departments">All Departments</option>
-                      <option value="Front Office">Front Office</option>
-                      <option value="Housekeeping">Housekeeping</option>
-                      <option value="Food & Beverage">Food & Beverage</option>
-                      <option value="Kitchen">Kitchen</option>
-                      <option value="Engineering">Engineering</option>
+                      {departmentsList.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -1391,7 +1528,7 @@ export default function TrainingManagement() {
                 {/* Unified Datetime Scheduling */}
                 <div className="form-row-2">
                   <label className="form-field">
-                    <span>Training Start (Date & Time) *</span>
+                    <span>Training Start (Date & Time) <span className="req-star">*</span></span>
                     <input
                       type="datetime-local"
                       required
@@ -1417,17 +1554,21 @@ export default function TrainingManagement() {
                           attendanceWindowStart: newWinStart,
                           attendanceWindowEnd: newWinEnd,
                         })
+                        if (createModalError) setCreateModalError('')
                       }}
                     />
                   </label>
 
                   <label className="form-field">
-                    <span>Training End (Date & Time) *</span>
+                    <span>Training End (Date & Time) <span className="req-star">*</span></span>
                     <input
                       type="datetime-local"
                       required
                       value={newSession.endDateTime}
-                      onChange={e => setNewSession({ ...newSession, endDateTime: e.target.value })}
+                      onChange={e => {
+                        setNewSession({ ...newSession, endDateTime: e.target.value })
+                        if (createModalError) setCreateModalError('')
+                      }}
                     />
                     <small style={{ color: '#64748b', fontSize: 11 }}>Supports multi-day scheduling</small>
                   </label>
@@ -1436,7 +1577,7 @@ export default function TrainingManagement() {
                 {/* Trainer & Venue Dropdowns */}
                 <div className="form-row-2">
                   <label className="form-field">
-                    <span>Facility / Venue *</span>
+                    <span>Facility / Venue <span className="req-star">*</span></span>
                     <select
                       required
                       value={newSession.venueId || newSession.venue}
@@ -1448,6 +1589,7 @@ export default function TrainingManagement() {
                           venueId: found?.id || '',
                           venue: found?.name || val,
                         })
+                        if (createModalError) setCreateModalError('')
                       }}
                     >
                       <option value="">-- Select Facility / Venue --</option>
@@ -1458,57 +1600,65 @@ export default function TrainingManagement() {
                       ))}
                       {!venues.length && (
                         <>
-                          <option value="Training Room A">Training Room A (Cap: 35)</option>
-                          <option value="Training Room B">Training Room B (Cap: 30)</option>
-                          <option value="Conference Room A">Conference Room A (Cap: 25)</option>
-                          <option value="Grand Palm Ballroom / Training Hall B">Grand Palm Ballroom (Cap: 100)</option>
+                          <option value="Training Room A">Training Room A (Main Hotel · 2nd Floor · Cap: 35)</option>
+                          <option value="Training Room B">Training Room B (Main Hotel · 2nd Floor · Cap: 30)</option>
+                          <option value="Conference Room A">Conference Room A (Executive Tower · 3rd Floor · Cap: 25)</option>
+                          <option value="Executive Boardroom">Executive Boardroom (Executive Tower · 5th Floor · Cap: 20)</option>
+                          <option value="Grand Palm Ballroom / Training Hall B">Grand Palm Ballroom (Convention Center · Cap: 100)</option>
+                          <option value="Operations Training Area">Operations Training Area (Service Wing · Cap: 50)</option>
+                          <option value="Main Culinary Kitchen / Lecture Room 1">Main Culinary Kitchen (Culinary Center · Cap: 30)</option>
                         </>
                       )}
                     </select>
                   </label>
 
                   <label className="form-field">
-                    <span>Trainer / Facilitator *</span>
+                    <span>Trainer / Facilitator <span className="req-star">*</span></span>
                     <select
                       required
                       value={newSession.trainerId || newSession.trainer}
                       onChange={e => {
                         const val = e.target.value
-                        const found = trainers.find(t => t.id === val || t.full_name === val)
+                        const found = facilitatorsList.find(t => t.id === val || t.full_name === val)
                         setNewSession({
                           ...newSession,
-                          trainerId: found?.id || '',
+                          trainerId: found?.id || (val.includes('-') ? val : ''),
                           trainer: found?.full_name || val,
                         })
+                        if (createModalError) setCreateModalError('')
                       }}
                     >
-                      <option value="">-- Select Trainer --</option>
-                      {trainers.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.full_name} ({t.job_title} · {t.department})
-                        </option>
-                      ))}
-                      {!trainers.length && (
-                        <>
-                          <option value="Ava Reyes">Ava Reyes (HR Administrator)</option>
-                          <option value="Anna Kowalski">Anna Kowalski (Executive Housekeeper)</option>
-                          <option value="Daniel Zhang">Daniel Zhang (Financial Controller)</option>
-                        </>
+                      <option value="">-- Select Trainer / Facilitator --</option>
+                      <optgroup label="Department Heads & Leadership">
+                        {departmentHeads.map(t => (
+                          <option key={t.id || t.full_name} value={t.id || t.full_name}>
+                            {t.full_name} — {t.job_title} ({t.department})
+                          </option>
+                        ))}
+                      </optgroup>
+                      {otherFacilitators.length > 0 && (
+                        <optgroup label="Certified Trainers & Supervisors">
+                          {otherFacilitators.map(t => (
+                            <option key={t.id || t.full_name} value={t.id || t.full_name}>
+                              {t.full_name} — {t.job_title} ({t.department})
+                            </option>
+                          ))}
+                        </optgroup>
                       )}
                     </select>
                   </label>
                 </div>
 
                 {/* HR-Configured Attendance Scanning Window */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, margin: '4px 0 14px 0' }}>
+                <div className="training-modal-scanning-box">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
                     <b style={{ color: '#1e293b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Clock size={14} className="text-indigo-600" /> HR Attendance Scanning Window
+                      <Clock size={15} className="text-indigo-600" /> HR Attendance Scanning Window
                     </b>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button
                         type="button"
-                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        className="training-window-preset-btn"
                         onClick={() => {
                           const s = new Date(newSession.startDateTime)
                           if (!isNaN(s.getTime())) {
@@ -1524,7 +1674,7 @@ export default function TrainingManagement() {
                       </button>
                       <button
                         type="button"
-                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        className="training-window-preset-btn"
                         onClick={() => {
                           const s = new Date(newSession.startDateTime)
                           if (!isNaN(s.getTime())) {
@@ -1540,7 +1690,7 @@ export default function TrainingManagement() {
                       </button>
                       <button
                         type="button"
-                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        className="training-window-preset-btn"
                         onClick={() => {
                           const s = new Date(newSession.startDateTime)
                           if (!isNaN(s.getTime())) {
@@ -1561,21 +1711,27 @@ export default function TrainingManagement() {
                   </p>
                   <div className="form-row-2">
                     <label className="form-field">
-                      <span>Attendance Opens *</span>
+                      <span>Attendance Opens <span className="req-star">*</span></span>
                       <input
                         type="datetime-local"
                         required
                         value={newSession.attendanceWindowStart}
-                        onChange={e => setNewSession({ ...newSession, attendanceWindowStart: e.target.value })}
+                        onChange={e => {
+                          setNewSession({ ...newSession, attendanceWindowStart: e.target.value })
+                          if (createModalError) setCreateModalError('')
+                        }}
                       />
                     </label>
                     <label className="form-field">
-                      <span>Attendance Closes *</span>
+                      <span>Attendance Closes <span className="req-star">*</span></span>
                       <input
                         type="datetime-local"
                         required
                         value={newSession.attendanceWindowEnd}
-                        onChange={e => setNewSession({ ...newSession, attendanceWindowEnd: e.target.value })}
+                        onChange={e => {
+                          setNewSession({ ...newSession, attendanceWindowEnd: e.target.value })
+                          if (createModalError) setCreateModalError('')
+                        }}
                       />
                     </label>
                   </div>
@@ -1588,7 +1744,7 @@ export default function TrainingManagement() {
                       type="number"
                       min={1}
                       value={newSession.capacity}
-                      onChange={e => setNewSession({ ...newSession, capacity: Number(e.target.value) })}
+                      onChange={e => setNewSession({ ...newSession, capacity: e.target.value === '' ? '' : Number(e.target.value) })}
                     />
                   </label>
 
@@ -1598,7 +1754,7 @@ export default function TrainingManagement() {
                       type="number"
                       min={0}
                       value={newSession.budget}
-                      onChange={e => setNewSession({ ...newSession, budget: Number(e.target.value) })}
+                      onChange={e => setNewSession({ ...newSession, budget: e.target.value === '' ? '' : Number(e.target.value) })}
                     />
                   </label>
                 </div>
@@ -1614,8 +1770,15 @@ export default function TrainingManagement() {
                 </label>
               </div>
 
-              <div className="form-actions" style={{ padding: '0 24px 24px 24px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="session-action-btn" onClick={() => setShowScheduleModal(false)}>
+              <div className="training-modal-footer">
+                <button 
+                  type="button" 
+                  className="session-action-btn" 
+                  onClick={() => {
+                    setShowScheduleModal(false)
+                    setCreateModalError('')
+                  }}
+                >
                   Cancel
                 </button>
                 <button type="submit" className="session-action-btn primary" disabled={savingSession}>
@@ -1938,10 +2101,9 @@ export default function TrainingManagement() {
                     onChange={e => setEmpDeptFilter(e.target.value)}
                   >
                     <option value="">All Departments</option>
-                    <option value="Front Office">Front Office</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Food & Beverage">Food & Beverage</option>
-                    <option value="Kitchen">Kitchen</option>
+                    {departmentsList.filter(d => d !== 'All Departments').map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
                   </select>
                 </div>
 

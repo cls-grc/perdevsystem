@@ -62,23 +62,29 @@ function normalizeSessionSchedule(input) {
 
 // Schema definitions
 const createSessionSchema = z.object({
-  title: z.string().min(3).max(140),
-  description: z.string().optional(),
+  title: z.string().min(2, 'Session title must be at least 2 characters.').max(140),
+  description: z.string().optional().nullable().default(''),
   category: z.string().min(2).max(100),
-  trainer: z.string().optional(),
-  trainerId: z.string().uuid().optional().nullable(),
-  venue: z.string().min(2).max(140),
-  venueId: z.string().uuid().optional().nullable(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  trainer: z.string().optional().nullable().default(''),
+  trainerId: z.preprocess(v => (!v ? null : v), z.string().uuid().optional().nullable()),
+  venue: z.string().min(1, 'Please select or specify a facility/venue.').max(140),
+  venueId: z.preprocess(v => (!v ? null : v), z.string().uuid().optional().nullable()),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional().nullable(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional().nullable(),
   startDateTime: z.string().optional().nullable(),
   endDateTime: z.string().optional().nullable(),
   attendanceWindowStart: z.string().optional().nullable(),
   attendanceWindowEnd: z.string().optional().nullable(),
-  capacity: z.number().int().positive().default(30),
-  budget: z.number().nonnegative().default(0),
+  capacity: z.preprocess(v => {
+    const num = Number(v)
+    return isNaN(num) || num <= 0 ? 30 : Math.floor(num)
+  }, z.number().int().positive().default(30)),
+  budget: z.preprocess(v => {
+    const num = Number(v)
+    return isNaN(num) || num < 0 ? 0 : num
+  }, z.number().nonnegative().default(0)),
   department: z.string().default('All Departments'),
 })
 
@@ -133,15 +139,39 @@ router.get('/trainers', async (req, res, next) => {
       SELECT 
         u.id, 
         u.full_name, 
-        u.role, 
+        u.role::text AS role, 
         u.email, 
         e.id AS employee_id, 
-        COALESCE(e.job_title, u.role) AS job_title, 
-        COALESCE(e.department, 'Hospitality') AS department
+        COALESCE(e.job_title, u.role::text) AS job_title, 
+        COALESCE(e.department, 'All Departments') AS department,
+        CASE 
+          WHEN u.role IN ('supervisor', 'operations_manager', 'management', 'hr') 
+            OR e.job_title ILIKE '%Director%' 
+            OR e.job_title ILIKE '%Manager%' 
+            OR e.job_title ILIKE '%Chef%' 
+            OR e.job_title ILIKE '%Chief%' 
+            OR e.job_title ILIKE '%Controller%' 
+            OR e.job_title ILIKE '%Administrator%'
+            OR e.job_title ILIKE '%Lead%'
+          THEN true 
+          ELSE false 
+        END AS is_department_head
       FROM users u
       LEFT JOIN employees e ON u.employee_id = e.id
       WHERE u.is_active = true
-      ORDER BY u.full_name ASC
+      ORDER BY 
+        CASE 
+          WHEN u.role IN ('supervisor', 'operations_manager', 'management', 'hr') 
+            OR e.job_title ILIKE '%Director%' 
+            OR e.job_title ILIKE '%Manager%' 
+            OR e.job_title ILIKE '%Chef%' 
+            OR e.job_title ILIKE '%Chief%' 
+            OR e.job_title ILIKE '%Controller%' 
+          THEN 0 
+          ELSE 1 
+        END,
+        e.department ASC NULLS LAST,
+        u.full_name ASC
     `)
     res.json({ trainers: rows })
   } catch (error) {
@@ -393,7 +423,7 @@ router.post('/sessions', authorize('hr', 'operations_manager'), async (req, res,
     const input = createSessionSchema.parse(req.body)
     const schedule = normalizeSessionSchedule(input)
 
-    let finalVenue = input.venue
+    let finalVenue = input.venue || 'Training Room A'
     let finalVenueId = input.venueId || null
     if (finalVenueId) {
       const v = await query('SELECT name FROM training_venues WHERE id = $1', [finalVenueId])
@@ -408,6 +438,12 @@ router.post('/sessions', authorize('hr', 'operations_manager'), async (req, res,
     if (finalTrainerId) {
       const t = await query('SELECT full_name FROM users WHERE id = $1', [finalTrainerId])
       if (t.rows.length > 0) finalTrainer = t.rows[0].full_name
+    } else if (finalTrainer) {
+      const t = await query('SELECT id FROM users WHERE full_name = $1 LIMIT 1', [finalTrainer])
+      if (t.rows.length > 0) finalTrainerId = t.rows[0].id
+    }
+    if (!finalTrainer) {
+      finalTrainer = 'Staff Facilitator'
     }
 
     const sql = `
@@ -486,13 +522,19 @@ router.patch('/sessions/:id', authorize('hr', 'operations_manager'), async (req,
     if (patch.venueId) {
       const v = await query('SELECT name FROM training_venues WHERE id = $1', [patch.venueId])
       if (v.rows.length > 0) finalVenue = v.rows[0].name
+    } else if (patch.venue) {
+      const v = await query('SELECT id FROM training_venues WHERE name = $1', [patch.venue])
+      if (v.rows.length > 0) finalVenueId = v.rows[0].id
     }
 
     let finalTrainer = patch.trainer ?? s.trainer
-    let finalTrainerId = patch.trainerId ?? s.trainer_id
+    let finalTrainerId = patch.trainerId !== undefined ? patch.trainerId : s.trainer_id
     if (patch.trainerId) {
       const t = await query('SELECT full_name FROM users WHERE id = $1', [patch.trainerId])
       if (t.rows.length > 0) finalTrainer = t.rows[0].full_name
+    } else if (patch.trainer) {
+      const t = await query('SELECT id FROM users WHERE full_name = $1 LIMIT 1', [patch.trainer])
+      if (t.rows.length > 0) finalTrainerId = t.rows[0].id
     }
 
     const sql = `
