@@ -1202,24 +1202,12 @@ router.post('/sessions/:id/complete', authorize('hr', 'operations_manager'), asy
     const partRes = await query('SELECT * FROM training_participants WHERE session_id = $1', [id])
     const participants = partRes.rows
 
+    // Compute checklist for informational purposes but do NOT block completion —
+    // HR should be able to complete a session at any time regardless of participant/attendance state.
     const checklist = {
       hasParticipants: participants.length > 0,
       hasAttendance: participants.length > 0 && participants.every(p => p.attendance !== 'pending'),
       hasEvaluations: participants.length > 0 && participants.some(p => p.evaluation && Object.keys(p.evaluation).length > 0),
-    }
-
-    const isReady = checklist.hasParticipants && checklist.hasAttendance
-
-    if (!isReady) {
-      const missing = []
-      if (!checklist.hasParticipants) missing.push('No participants invited yet.')
-      if (!checklist.hasAttendance) missing.push('Attendance recording is incomplete.')
-      
-      return res.status(400).json({
-        error: 'Session cannot be completed yet. Complete the required prerequisites first.',
-        missing,
-        checklist,
-      })
     }
 
     const { rows } = await query(

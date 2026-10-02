@@ -210,19 +210,28 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     setTimeout(() => { printWin.print() }, 400)
   }
 
-  // Auto-retry camera once on mount if it fails (handles the case where
-  // permission prompt needs a moment before getUserMedia can succeed)
+  // One-shot: attempt to prompt camera permission immediately when the modal opens.
+  // Uses a ref flag so it only runs once — avoids the glitch loop from re-running on every error.
+  const hasAutoStarted = useRef(false)
   useEffect(() => {
-    let retryTimer
-    if (cameraError) {
-      retryTimer = setTimeout(() => {
+    if (hasAutoStarted.current) return
+    hasAutoStarted.current = true
+    // Trigger permission prompt by requesting the camera briefly.
+    // The main camera useEffect (keyed to cameraActive) will take over after this.
+    navigator.mediaDevices?.getUserMedia({ video: true })
+      .then(stream => {
+        // Got permission — stop this temporary stream immediately; the main effect starts the real one.
+        stream.getTracks().forEach(t => t.stop())
         setCameraError('')
+        setCameraActive(true)
+      })
+      .catch(() => {
+        // Permission denied — show fallback, don't retry automatically.
+        setCameraError('Camera access denied or unavailable. You can use the manual badge input below.')
         setCameraActive(false)
-        requestAnimationFrame(() => setCameraActive(true))
-      }, 800)
-    }
-    return () => clearTimeout(retryTimer)
-  }, [cameraError])
+      })
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const filteredBadges = employees.filter(e =>
     (e.full_name + ' ' + e.employee_number + ' ' + e.department + ' ' + e.job_title).toLowerCase().includes(badgeSearch.toLowerCase())
