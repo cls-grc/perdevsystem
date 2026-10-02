@@ -81,10 +81,49 @@ const getUserId = () => {
 
 const getEmployeeId = () => {
   try {
-    return JSON.parse(localStorage.getItem('pds-user') || '{}').employeeId
+    const u = JSON.parse(localStorage.getItem('pds-user') || '{}')
+    return u.employeeId || u.employee_id || u.emp_id || u.id
   } catch {
     return undefined
   }
+}
+
+// Intelligent workflow selection: maintains user selection, prioritizes actionable
+// workflows (especially for employees who must see their active tasks), then subject match.
+const selectActiveWorkflow = (workflowList = [], currentWorkflowId = null, { role, employeeId, moduleStages = [], targetSubjectId = null } = {}) => {
+  const activeList = (workflowList || []).filter(w => w && w.status === 'active')
+  if (!activeList.length) return null
+
+  // 1. Maintain currently selected workflow if it is still active
+  if (currentWorkflowId) {
+    const current = activeList.find(w => w.id === currentWorkflowId)
+    if (current) return current
+  }
+
+  // 2. Prioritize actionable workflows where the logged-in user can act on the current stage
+  const actionable = activeList.find(w => {
+    const stageObj = moduleStages.find(s => s.key === w.current_stage)
+    if (!stageObj) return false
+    const stageRoles = Array.isArray(stageObj.roles) ? stageObj.roles : []
+    if (role === 'employee') {
+      const isSub = Boolean(employeeId && w.subject_employee_id && employeeId === w.subject_employee_id)
+      return isSub && stageRoles.includes('employee')
+    }
+    if (stageRoles.includes(role)) return true
+    if (role === 'operations_manager' && stageRoles.includes('hr') && !stageRoles.includes('employee') && !stageRoles.includes('supervisor')) return true
+    if (role === 'management' && stageRoles.includes('hr') && !stageRoles.includes('employee') && !stageRoles.includes('supervisor')) return true
+    return false
+  })
+  if (actionable) return actionable
+
+  // 3. If targetSubjectId is provided, prefer matching active workflow for that subject
+  if (targetSubjectId) {
+    const targetMatch = activeList.find(w => w.subject_employee_id === targetSubjectId)
+    if (targetMatch) return targetMatch
+  }
+
+  // 4. Default to first active workflow
+  return activeList[0] || null
 }
 
 const moduleKeys = {
@@ -222,6 +261,21 @@ const [workflow, setWorkflow] = useState(null)
   const [workflowPickerQuery, setWorkflowPickerQuery] = useState('')
   const workflowPickerRef = useRef(null)
 
+  // Stable refs — written on every render so callbacks always see latest values
+  // without those values needing to be in dependency arrays (which would cause
+  // infinite refresh loops when props like `stages` are inline array literals).
+  const workflowRef = useRef(workflow)
+  const evaluatingSubjectRef = useRef(evaluatingSubject)
+  const roleRef = useRef(role)
+  const employeeIdRef = useRef(employeeId)
+  const stagesRef = useRef(stages)
+  const definitionsRef = useRef([])
+  workflowRef.current = workflow
+  evaluatingSubjectRef.current = evaluatingSubject
+  roleRef.current = role
+  employeeIdRef.current = employeeId
+  stagesRef.current = stages
+
   // Close workflow picker when clicking outside
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -242,18 +296,23 @@ const [workflow, setWorkflow] = useState(null)
   const load = useCallback(async () => {
     setLoading(true)
     try {
-const [list, completedList, definitionResult, subjectResult] = await Promise.all([
+      const [list, completedList, definitionResult, subjectResult] = await Promise.all([
         api.workflows(moduleKey),
         api.workflows(moduleKey, { status: 'completed' }),
         api.workflowDefinitions(),
         api.workflowSubjects(),
       ])
-// Only an IN-PROGRESS workflow can be the active workspace item.
-      // Completed workflows belong in history/reports/AI, never in the active view.
-      const active = (list.workflows || []).find(w => w.status === 'active') || null
+      const moduleDefs = definitionResult?.workflows?.[moduleKey] || []
+      definitionsRef.current = moduleDefs
+      const active = selectActiveWorkflow(list.workflows || [], workflowRef.current?.id, {
+        role: roleRef.current,
+        employeeId: employeeIdRef.current,
+        moduleStages: moduleDefs.length ? moduleDefs : stagesRef.current.map(normalizeStage).filter(Boolean),
+        targetSubjectId: evaluatingSubjectRef.current?.id,
+      })
       setWorkflows(list.workflows || [])
       setCompletedWorkflows(completedList.workflows || [])
-      setDefinitions(definitionResult.workflows[moduleKey] || [])
+      setDefinitions(moduleDefs)
       setPeople(subjectResult.employees || [])
       setSubject(previous => previous || subjectResult.employees?.[0] || null)
       if (!selected[0] && subjectResult.employees?.[0]) {
@@ -263,7 +322,7 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
       if (active?.subject_name && subjectResult.employees) {
         const match = subjectResult.employees.find(p => p.full_name === active.subject_name || p.id === active.subject_employee_id)
         if (match) setEvaluatingSubject(match)
-      } else if (!evaluatingSubject && subjectResult.employees?.[0]) {
+      } else if (!evaluatingSubjectRef.current && subjectResult.employees?.[0]) {
         setEvaluatingSubject(subjectResult.employees[0])
       }
       setWorkflow(active)
@@ -277,7 +336,7 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
     } finally {
       setLoading(false)
     }
-  }, [moduleKey])
+  }, [moduleKey]) // stable — all other values read from refs above
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
@@ -292,14 +351,24 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
         api.workflows(moduleKey),
         api.workflows(moduleKey, { status: 'completed' }),
       ])
-      const active = (list.workflows || []).find(w => w.status === 'active') || null
       setWorkflows(list.workflows || [])
       setCompletedWorkflows(completedList.workflows || [])
-      setWorkflow(active)
+      setWorkflow(prev => {
+        const defs = definitionsRef.current
+        const resolvedStages = defs.length
+          ? defs
+          : stagesRef.current.map(normalizeStage).filter(Boolean)
+        return selectActiveWorkflow(list.workflows || [], prev?.id, {
+          role: roleRef.current,
+          employeeId: employeeIdRef.current,
+          moduleStages: resolvedStages,
+          targetSubjectId: evaluatingSubjectRef.current?.id,
+        })
+      })
     } catch {
       // Silent — never surface polling errors
     }
-  }, [moduleKey])
+  }, [moduleKey]) // stable — all other values read from refs above
 
   usePolling(silentLoad, 45000)
 
@@ -308,24 +377,63 @@ const [list, completedList, definitionResult, subjectResult] = await Promise.all
     return stages.map(normalizeStage).filter(Boolean)
   }, [definitions, stages])
 
-const current = normalizedStages.find(stage => stage.key === workflow?.current_stage)
-  // All workflow stages are visible in the stepper so every role can see the full pipeline.
+  const current = normalizedStages.find(stage => stage.key === workflow?.current_stage)
+  const isSubject = Boolean(employeeId && workflow?.subject_employee_id && employeeId === workflow.subject_employee_id)
+
+  // Scope & RBAC: Only display steps that are within the scope, role, permissions, or assigned workflow of the currently logged-in user.
+  const isStageInUserScope = useCallback((stage) => {
+    if (!stage || !stage.roles) return false
+    const stageRoles = Array.isArray(stage.roles) ? stage.roles : []
+
+    // 1. Direct role match
+    if (stageRoles.includes(role)) {
+      // If stage is employee-only, non-employee roles only see it if they are the subject
+      if (stageRoles.length === 1 && stageRoles[0] === 'employee') {
+        return role === 'employee' || isSubject
+      }
+      return true
+    }
+
+    // 2. Employee-assigned stage: accessible if user is employee OR user is the subject employee of this workflow
+    if (stageRoles.includes('employee') && (role === 'employee' || isSubject)) {
+      return true
+    }
+
+    // 3. Operations manager operational oversight on HR administrative steps (excluding employee-only and supervisor-only direct evaluations)
+    if (role === 'operations_manager' && stageRoles.includes('hr') && !stageRoles.includes('employee') && !stageRoles.includes('supervisor')) {
+      return true
+    }
+
+    // 4. Management executive oversight on HR administrative / approval steps (excluding employee-only and supervisor-only direct evaluations)
+    if (role === 'management' && stageRoles.includes('hr') && !stageRoles.includes('employee') && !stageRoles.includes('supervisor')) {
+      return true
+    }
+
+    return false
+  }, [role, isSubject])
+
+  // Stepper displays ONLY steps that are actually within the user's workflow scope
   const roleStages = useMemo(
-    () => normalizedStages,
-    [normalizedStages],
+    () => {
+      const filtered = normalizedStages.filter(stage => isStageInUserScope(stage))
+      return filtered.length > 0 ? filtered : normalizedStages
+    },
+    [normalizedStages, isStageInUserScope],
   )
+
   const canStart = Boolean(
     normalizedStages[0]?.roles.includes(role) ||
-    ((role === 'hr' || role === 'operations_manager') && normalizedStages.length > 0)
+    ((role === 'hr' || role === 'operations_manager' || role === 'management') && normalizedStages.length > 0)
   )
-  const isSubject = Boolean(employeeId && workflow?.subject_employee_id && employeeId === workflow.subject_employee_id)
+  const isCurrentStageInScope = current ? isStageInUserScope(current) : false
   const canAct = Boolean(
     workflow &&
     current &&
+    isCurrentStageInScope &&
     (
       current.roles.includes(role) ||
       (current.roles.includes('employee') && isSubject) ||
-      ((role === 'hr' || role === 'operations_manager') && !current.roles.includes('employee'))
+      ((role === 'hr' || role === 'operations_manager') && !current.roles.includes('employee') && !current.roles.includes('supervisor'))
     ),
   )
   const assigned = itemIsEmployee
@@ -336,7 +444,7 @@ const current = normalizedStages.find(stage => stage.key === workflow?.current_s
   const currentDescription = current?.description || 'Review the current step details and complete when ready.'
   const detailTarget = current
   const canReturn = Boolean(workflow && canAct && roleCurrentIndex > 0)
-  const canCancel = Boolean(workflow && (role === 'hr' || userId === workflow.created_by))
+  const canCancel = Boolean(workflow && (role === 'hr' || role === 'operations_manager' || role === 'management' || userId === workflow.created_by))
   const previousStageOptions = workflow && canAct
     ? normalizedStages
         .filter(stage => stage.key !== workflow.current_stage && roleStages.findIndex(s => s.key === stage.key) < roleCurrentIndex)
@@ -465,14 +573,15 @@ const setFormValue = useCallback((patchOrValue, meta) => {
       const v = currentFormValue
       const ratings = v?.kpiRatings || []
       if (!ratings.length) return false
-      return ratings.every(r => (r.rating !== undefined && Number(r.rating) >= 1 && Number(r.rating) <= 5) || (r.score !== undefined && Number(r.score) >= 0 && Number(r.score) <= 100))
+      return ratings.every(r => r.rating !== undefined && r.rating !== null && r.rating !== '' && Number(r.rating) >= 1 && Number(r.rating) <= 5)
     }
     if (currentFormConfig.builder === 'calibration') {
       const v = currentFormValue
       const decision = v?.decision || ''
       if (!decision) return false
-      if (decision.includes('Override') && (v?.finalScore === '' || v?.finalScore === undefined || v?.finalScore === null)) return false
-      if ((decision.includes('Override') || decision.includes('Return')) && !String(v?.reason || '').trim()) return false
+      const isCustom = decision.includes('Override') || decision.includes('Custom')
+      if (isCustom && (v?.finalScore === '' || v?.finalScore === undefined || v?.finalScore === null || Number(v?.finalScore) <= 0)) return false
+      if ((isCustom || decision.includes('Return')) && !String(v?.reason || '').trim()) return false
       return true
     }
     const fields = currentFormConfig.fields || []
@@ -769,8 +878,12 @@ const complete = async () => {
         }
       }
       if (currentFormConfig.builder === 'assessment') {
-        setError('Please rate all evaluation criteria (1 to 5) before completing this step.')
-        return
+        const ratings = currentFormValue?.kpiRatings || []
+        const unanswered = ratings.filter(r => r.rating === undefined || r.rating === null || r.rating === '' || !(Number(r.rating) >= 1 && Number(r.rating) <= 5))
+        if (!ratings.length || unanswered.length > 0) {
+          setError(`Please evaluate and provide a 1–5 score for all criteria before completing this step (${unanswered.length} criteria remaining).`)
+          return
+        }
       }
       if (currentFormConfig.builder === 'calibration') {
         const v = currentFormValue
@@ -778,11 +891,12 @@ const complete = async () => {
           setError('Please select an HR Calibration Decision before completing this step.')
           return
         }
-        if (v.decision.includes('Override') && (v.finalScore === '' || v.finalScore === undefined || v.finalScore === null)) {
-          setError('Please enter a Final Calibrated Score (%) for the override decision.')
+        const isCustom = v.decision.includes('Override') || v.decision.includes('Custom')
+        if (isCustom && (v.finalScore === '' || v.finalScore === undefined || v.finalScore === null || Number(v.finalScore) <= 0)) {
+          setError('Please enter a valid Custom Calibrated Score (%) greater than 0% for the override decision.')
           return
         }
-        if ((v.decision.includes('Override') || v.decision.includes('Return')) && !String(v.reason || '').trim()) {
+        if ((isCustom || v.decision.includes('Return')) && !String(v.reason || '').trim()) {
           setError('Please provide calibration notes / justification for this decision.')
           return
         }
@@ -1222,16 +1336,25 @@ const saveSchedule = async () => {
           )}
         </div>
 
-        {/* Step stepper — richer states: complete / current / upcoming / locked / ai / finalized */}
+        {/* Step stepper — displays only steps in currently logged-in user scope */}
         <div className="module-steps">
           {roleStages.map((stage, index) => {
             const isAi = moduleCfg?.stepForms?.[stage.key]?.aiOnly
             const isFinalized = workflow?.status === 'completed'
+            const stageGlobalIndex = normalizedStages.findIndex(s => s.key === stage.key)
+            const currentGlobalIndex = workflow ? normalizedStages.findIndex(s => s.key === workflow.current_stage) : -1
+
             let stStatus
             if (isFinalized) {
               stStatus = 'finalized'
             } else if (workflow) {
-              stStatus = index < roleCurrentIndex ? 'complete' : index === roleCurrentIndex ? 'active' : 'pending'
+              if (stage.key === workflow.current_stage) {
+                stStatus = 'active'
+              } else if (stageGlobalIndex < currentGlobalIndex) {
+                stStatus = 'complete'
+              } else {
+                stStatus = 'pending'
+              }
             } else {
               stStatus = index === 0 && canStart ? 'active' : 'locked'
             }
@@ -1287,8 +1410,8 @@ const saveSchedule = async () => {
                 </div>
               )}
 
-{/* Per-step business form */}
-              {currentFormConfig && !currentFormConfig.aiOnly && (
+{/* Per-step business form - only rendered if the current step is within user scope */}
+              {currentFormConfig && !currentFormConfig.aiOnly && isCurrentStageInScope && (
                 <div className="workflow-form-wrap">
                   <StepFormErrorBoundary stageKey={workflow?.current_stage}>
                     <WorkflowForms

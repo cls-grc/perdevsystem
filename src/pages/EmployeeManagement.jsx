@@ -13,6 +13,8 @@ const roleLabels = { employee: 'Employee', supervisor: 'Supervisor', management:
 const initials = name => (name || '').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()
 
 export default function EmployeeManagement() {
+  const user = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}') } catch { return {} } })()
+  const isHr = user.role === 'hr'
   const [employees, setEmployees] = useState([])
   const [departments, setDepartments] = useState([])
   const [usersByEmployee, setUsersByEmployee] = useState({})
@@ -240,12 +242,12 @@ export default function EmployeeManagement() {
         icon={<Users className="w-5 h-5 text-white" />}
         actions={
           <>
-            <button className="saas-btn-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export all employee records to CSV">
+            <button className="saas-btn-secondary flex items-center gap-1.5" onClick={exportCsv} title="Export employee records to CSV">
               <Download className="w-4 h-4 inline" />
               <span>Export CSV</span>
             </button>
-            <button className="saas-btn-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>
-            <button className="saas-btn-primary" onClick={() => { resetForm(); setShowForm(true) }} style={{ background: '#111827', color: '#ffffff', border: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(17,24,39,0.35)' }}>+ Add employee</button>
+            {isHr && <button className="saas-btn-secondary" onClick={() => setInviteOpen(true)}>Send invite</button>}
+            {isHr && <button className="saas-btn-primary" onClick={() => { resetForm(); setShowForm(true) }} style={{ background: '#111827', color: '#ffffff', border: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(17,24,39,0.35)' }}>+ Add employee</button>}
           </>
         }
       />
@@ -327,11 +329,13 @@ export default function EmployeeManagement() {
                   <td><span className={`er-status ${emp.is_active ? 'active' : 'inactive'}`}>{emp.is_active ? 'Active' : 'Inactive'}</span></td>
                   <td>
                     <div className="er-row-actions">
-                      <button title="Edit" onClick={() => openEdit(emp)}>Edit</button>
+                      {isHr && <button title="Edit" onClick={() => openEdit(emp)}>Edit</button>}
                       <button title="Score history" onClick={() => showHistory(emp)}>History</button>
-                      <button className={emp.is_active ? 'danger' : 'ok'} title={emp.is_active ? 'Deactivate' : 'Reactivate'} onClick={() => toggleActive(emp)}>
-                        {emp.is_active ? 'Deactivate' : 'Reactivate'}
-                      </button>
+                      {isHr && (
+                        <button className={emp.is_active ? 'danger' : 'ok'} title={emp.is_active ? 'Deactivate' : 'Reactivate'} onClick={() => toggleActive(emp)}>
+                          {emp.is_active ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

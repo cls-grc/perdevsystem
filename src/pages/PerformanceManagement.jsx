@@ -42,7 +42,8 @@ export default function PerformanceManagement() {
   const isHr = currentUser.role === 'hr'
   const isSupervisor = currentUser.role === 'supervisor'
   const isOpsManager = currentUser.role === 'operations_manager'
-  const canSync = isHr || isSupervisor || isOpsManager
+  const isManagement = currentUser.role === 'management'
+  const canSync = isHr || isSupervisor || isOpsManager || isManagement
 
   // Load attendance data
   const loadAttendance = useCallback(async () => {

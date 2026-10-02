@@ -31,12 +31,13 @@ const MODULE_METRIC_QUERIES = {
     (SELECT count(*)::int FROM workflows WHERE module='competency' AND status='active') AS active_count,
     (SELECT count(*)::int FROM workflows WHERE module='competency' AND status='completed') AS completed_count
     FROM employees WHERE is_active=true`,
-learning: `SELECT
+  learning: `SELECT
     (SELECT count(*)::int FROM learning_resources WHERE is_active=true) AS resource_count,
     (SELECT count(*)::int FROM learning_assignments) AS assigned_count,
     (SELECT count(*)::int FROM learning_completions) AS completed_count,
-    (SELECT count(*)::int FROM learning_assignments WHERE status='in_progress') AS active_count,
-    (SELECT coalesce(round(avg(la.progress))::int,0) AS p FROM learning_assignments la) AS average_score`,
+    (SELECT count(*)::int FROM learning_assignments WHERE status IN ('in_progress', 'assessment_pending')) AS active_count,
+    (SELECT coalesce(round(avg(la.progress))::int,0) FROM learning_assignments la) AS average_score,
+    (SELECT coalesce(round(avg(score))::int, 0) FROM learning_assessment_attempts) AS average_assessment_score`,
   training: `SELECT 
     (SELECT count(*)::int FROM training_sessions WHERE status='scheduled' OR status='ongoing') AS active_count,
     (SELECT count(*)::int FROM training_sessions WHERE status='completed') AS completed_count,
@@ -76,8 +77,9 @@ const EMPLOYEE_METRIC_QUERIES = {
     coalesce(e.performance_score,0)::int AS performance_score,
     coalesce(e.competency_score,0)::int AS competency_score,
     coalesce(e.learning_progress,0)::int AS learning_progress,
-    (CASE WHEN e.learning_progress >= 100 THEN 1 ELSE 0 END)::int AS completed_count,
-    (SELECT count(*)::int FROM workflows w WHERE w.module='learning' AND w.subject_employee_id=e.id AND w.status='active') AS active_count
+    (SELECT count(*)::int FROM learning_completions lc WHERE lc.employee_id=e.id) AS completed_count,
+    (SELECT count(*)::int FROM learning_assignments la WHERE la.employee_id=e.id AND la.status IN ('in_progress', 'assessment_pending')) AS active_count,
+    (SELECT coalesce(round(avg(laa.score))::int, 0) FROM learning_assessment_attempts laa WHERE laa.employee_id=e.id) AS avg_assessment_score
     FROM employees e WHERE e.id=$1 AND e.is_active=true`,
   training: `SELECT e.full_name AS employee_name, e.department, e.job_title,
     coalesce(e.performance_score,0)::int AS performance_score,

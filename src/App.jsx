@@ -184,16 +184,43 @@ function ModuleRoutes({ user }) {
             }
           />
           <Route path="/performance" element={<PerformanceManagement key={`perf-${user.id}`} />} />
-          <Route path="/competency" element={<CompetencyManagement key={`comp-${user.id}`} />} />
-          <Route path="/learning" element={<LearningManagement key={`learn-${user.id}`} />} />
-          <Route path="/training" element={<TrainingManagement key={`train-${user.id}`} />} />
+          <Route
+            path="/competency"
+            element={
+              ['hr', 'operations_manager', 'supervisor', 'employee'].includes(user.role) ? (
+                <CompetencyManagement key={`comp-${user.id}`} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/learning"
+            element={
+              ['hr', 'operations_manager', 'supervisor', 'employee'].includes(user.role) ? (
+                <LearningManagement key={`learn-${user.id}`} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/training"
+            element={
+              ['hr', 'operations_manager', 'supervisor', 'employee'].includes(user.role) ? (
+                <TrainingManagement key={`train-${user.id}`} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
           <Route
             path="/succession"
             element={
-              ['hr', 'supervisor', 'management', 'operations_manager'].includes(user.role) ? (
+              ['hr', 'supervisor', 'management'].includes(user.role) ? (
                 <SuccessionPlanning key={`succ-${user.id}`} />
               ) : (
-                <RoleHome key={`home-${user.id}`} role={user.role} name={user.name} />
+                <Navigate to="/" replace />
               )
             }
           />
@@ -219,7 +246,16 @@ function ModuleRoutes({ user }) {
               )
             }
           />
-          <Route path="/reports" element={<ReportsHub key={`reports-${user.id}`} />} />
+          <Route
+            path="/reports"
+            element={
+              ['hr', 'operations_manager', 'management', 'supervisor'].includes(user.role) ? (
+                <ReportsHub key={`reports-${user.id}`} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
           <Route
             path="/audit"
             element={

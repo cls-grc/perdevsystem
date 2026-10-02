@@ -300,7 +300,7 @@ router.get('/system-health', authorize('hr', 'operations_manager', 'management',
 })
 
 // GET /workflows/:id/reports - fetch saved AI reports for a workflow (audit trail).
-router.get('/workflows/:id/reports', authorize('hr', 'supervisor', 'management', 'employee'), async (req, res, next) => {
+router.get('/workflows/:id/reports', authorize('hr', 'supervisor', 'management', 'operations_manager', 'employee'), async (req, res, next) => {
   try {
     const reports = await getReportsForWorkflow(req.params.id)
     res.json({ reports })
@@ -310,7 +310,7 @@ router.get('/workflows/:id/reports', authorize('hr', 'supervisor', 'management',
 // GET /reports/:id/pdf - download a saved AI report as a lightweight PDF.
 // Produces a simple text-based PDF from the report title + content so users
 // can retain and share AI reports without adding a heavy PDF dependency.
-router.get('/reports/:id/pdf', authorize('hr', 'supervisor', 'management', 'employee'), async (req, res, next) => {
+router.get('/reports/:id/pdf', authorize('hr', 'supervisor', 'management', 'operations_manager', 'employee'), async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM ai_reports WHERE id=$1', [req.params.id])
     const report = rows[0]
@@ -362,7 +362,7 @@ router.get('/reports/:id/pdf', authorize('hr', 'supervisor', 'management', 'empl
 })
 
 // GET /reports/:type - Fetch formal standalone report dataset with summary KPIs & executive AI insights
-router.get('/reports/:type', authorize('hr', 'supervisor', 'management', 'operations_manager', 'employee'), async (req, res, next) => {
+router.get('/reports/:type', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
   try {
     const { type } = req.params
     const { department, search, status, period } = req.query

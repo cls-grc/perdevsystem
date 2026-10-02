@@ -693,7 +693,7 @@ create_review: {
     },
   },
   quickActions: [
-    { label: 'Start review cycle', stage: 'create_review', roles: ['hr'] },
+    { label: 'Start review cycle', stage: 'create_review', roles: ['hr', 'operations_manager', 'management'] },
     { label: 'Complete self assessment', stage: 'self_assessment', roles: ['employee'] },
   ],
 }
@@ -737,8 +737,8 @@ define_requirements: {
     },
   },
   quickActions: [
-    { label: 'Define requirements', stage: 'define_requirements', roles: ['hr'] },
-    { label: 'Assign development plan', stage: 'assign_plan', roles: ['hr', 'supervisor'] },
+    { label: 'Define requirements', stage: 'define_requirements', roles: ['hr', 'operations_manager'] },
+    { label: 'Assign development plan', stage: 'assign_plan', roles: ['hr', 'operations_manager', 'supervisor'] },
   ],
 }
 
@@ -792,8 +792,8 @@ const learning = {
     },
   },
   quickActions: [
-    { label: 'Create learning path', stage: 'publish_resources', roles: ['hr'] },
-    { label: 'Assign learning', stage: 'complete_activities', roles: ['hr', 'supervisor'] },
+    { label: 'Create learning path', stage: 'publish_resources', roles: ['hr', 'operations_manager'] },
+    { label: 'Assign learning', stage: 'complete_activities', roles: ['hr', 'operations_manager', 'supervisor'] },
   ],
 }
 
@@ -831,7 +831,7 @@ const training = {
     },
   },
   quickActions: [
-    { label: 'Invite participants', stage: 'invite', roles: ['hr', 'supervisor'] },
+    { label: 'Invite participants', stage: 'invite', roles: ['hr', 'operations_manager', 'supervisor'] },
     { label: 'Training evaluation', stage: 'effectiveness', roles: ['employee', 'supervisor'] },
   ],
 }
@@ -878,8 +878,8 @@ const succession = {
     },
   },
   quickActions: [
-    { label: 'Start succession assessment', stage: 'initiate', roles: ['hr', 'supervisor', 'operations_manager'] },
-    { label: 'Review succession candidates', stage: 'review_readiness', roles: ['hr', 'supervisor', 'management', 'operations_manager'] },
+    { label: 'Start succession assessment', stage: 'initiate', roles: ['hr', 'supervisor', 'management'] },
+    { label: 'Review succession candidates', stage: 'review_readiness', roles: ['hr', 'supervisor', 'management'] },
   ],
 }
 
@@ -929,8 +929,8 @@ const recognition = {
     },
   },
   quickActions: [
-    { label: 'Submit nomination', stage: 'submitted', roles: ['employee', 'hr', 'supervisor'] },
-    { label: 'Review nomination', stage: 'hr_review', roles: ['hr'] },
+    { label: 'Submit nomination', stage: 'submitted', roles: ['employee', 'hr', 'supervisor', 'operations_manager', 'management'] },
+    { label: 'Review nomination', stage: 'hr_review', roles: ['hr', 'operations_manager', 'management'] },
   ],
 }
 

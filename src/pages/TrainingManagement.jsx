@@ -4,16 +4,127 @@ import AIReport from '../components/AIReport'
 import ModuleAIInsights from '../components/ModuleAIInsights'
 import TrainingAttendanceQRModal from '../components/TrainingAttendanceQRModal'
 import EmployeeAttendanceQRModal from '../components/EmployeeAttendanceQRModal'
-import { CheckCircle, AlertTriangle, X, Trash2, Star, QrCode, Camera, ShieldCheck, UserCheck } from 'lucide-react'
+import { CheckCircle, AlertTriangle, X, Trash2, Star, QrCode, Camera, ShieldCheck, UserCheck, Clock, Calendar, MapPin, User, Search, Filter, History, CheckCircle2, AlertCircle } from 'lucide-react'
 import '../trainingCalendar.css'
 
 const CATEGORIES = ['Customer Service', 'Food Safety', 'Leadership', 'Compliance', 'Kitchen Operations', 'Technical Skills']
 
+const toLocalISOString = (d) => {
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const getDefaultSessionForm = () => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(9, 0, 0, 0)
+  
+  const end = new Date(tomorrow)
+  end.setHours(17, 0, 0, 0)
+
+  const winStart = new Date(tomorrow)
+  winStart.setMinutes(tomorrow.getMinutes() - 10)
+
+  const winEnd = new Date(tomorrow)
+  winEnd.setMinutes(tomorrow.getMinutes() + 15)
+
+  return {
+    title: '',
+    category: CATEGORIES[0],
+    venue: '',
+    venueId: '',
+    trainer: '',
+    trainerId: '',
+    startDateTime: toLocalISOString(tomorrow),
+    endDateTime: toLocalISOString(end),
+    attendanceWindowStart: toLocalISOString(winStart),
+    attendanceWindowEnd: toLocalISOString(winEnd),
+    capacity: 30,
+    budget: 5000,
+    department: 'All Departments',
+    description: '',
+  }
+}
+
+function formatTime12h(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+function formatDateFriendly(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatSessionSchedule(s) {
+  if (!s) return ''
+  const startDate = s.start_datetime ? new Date(s.start_datetime) : (s.start_date ? new Date(`${s.start_date}T${s.start_time || '09:00:00'}`) : null)
+  const endDate = s.end_datetime ? new Date(s.end_datetime) : (s.end_date ? new Date(`${s.end_date}T${s.end_time || '17:00:00'}`) : null)
+  
+  if (!startDate) return s.start_date || 'TBD'
+  
+  const startStr = `${formatDateFriendly(startDate)} · ${formatTime12h(startDate)}`
+  if (!endDate) return startStr
+  
+  const isSameDay = startDate.toDateString() === endDate.toDateString()
+  if (isSameDay) {
+    return `${formatDateFriendly(startDate)} · ${formatTime12h(startDate)} – ${formatTime12h(endDate)}`
+  }
+  return `${formatDateFriendly(startDate)} ${formatTime12h(startDate)} → ${formatDateFriendly(endDate)} ${formatTime12h(endDate)}`
+}
+
+function getWindowStatus(session) {
+  if (!session) return { status: 'unknown', label: 'Window not set', color: '#6b7280', badgeBg: '#f3f4f6', badgeColor: '#374151' }
+  const now = new Date()
+  const wStart = session.attendance_window_start ? new Date(session.attendance_window_start) : null
+  const wEnd = session.attendance_window_end ? new Date(session.attendance_window_end) : null
+  
+  if (!wStart || !wEnd) return { status: 'none', label: 'Standard window', color: '#6b7280', badgeBg: '#f3f4f6', badgeColor: '#374151' }
+  
+  if (now < wStart) {
+    return {
+      status: 'upcoming',
+      label: `Opens at ${formatTime12h(wStart)}`,
+      color: '#d97706',
+      badgeBg: '#fef3c7',
+      badgeColor: '#b45309',
+    }
+  }
+  if (now >= wStart && now <= wEnd) {
+    return {
+      status: 'open',
+      label: `Attendance Open (Closes ${formatTime12h(wEnd)})`,
+      color: '#059669',
+      badgeBg: '#dcfce7',
+      badgeColor: '#15803d',
+    }
+  }
+  return {
+    status: 'closed',
+    label: `Window Closed at ${formatTime12h(wEnd)}`,
+    color: '#dc2626',
+    badgeBg: '#fee2e2',
+    badgeColor: '#b91c1c',
+  }
+}
+
 export default function TrainingManagement() {
-  const [activeTab, setActiveTab] = useState('active') // 'active', 'archived', 'overview'
+  const [activeTab, setActiveTab] = useState('active') // 'active', 'archived', 'attendance_records', 'my_attendance', 'overview'
   const [viewMode, setViewMode] = useState('calendar') // 'calendar' | 'cards'
   const [sessions, setSessions] = useState([])
   const [employees, setEmployees] = useState([])
+  const [venues, setVenues] = useState([])
+  const [trainers, setTrainers] = useState([])
+  const [myAttendanceRecords, setMyAttendanceRecords] = useState([])
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState([])
+  const [attFilterSession, setAttFilterSession] = useState('')
+  const [attFilterStatus, setAttFilterStatus] = useState('')
+  const [attSearch, setAttSearch] = useState('')
+  const [attDeptFilter, setAttDeptFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -38,19 +149,8 @@ export default function TrainingManagement() {
   const [aiReportData, setAiReportData] = useState(null)
   const [generatingAi, setGeneratingAi] = useState(false)
 
-  // Session Form State
-  const [newSession, setNewSession] = useState({
-    title: '',
-    category: CATEGORIES[0],
-    venue: '',
-    startDate: new Date().toISOString().slice(0, 10),
-    startTime: '09:00',
-    capacity: 30,
-    budget: 5000,
-    trainer: '',
-    department: 'All Departments',
-    description: '',
-  })
+  // Session Form State with unified datetime, dropdown trainer/venue, and scanning window
+  const [newSession, setNewSession] = useState(getDefaultSessionForm())
   const [savingSession, setSavingSession] = useState(false)
 
   // Participant Search & Selection
@@ -86,21 +186,35 @@ export default function TrainingManagement() {
   const isHr = role === 'hr'
   const isOpsManager = role === 'operations_manager'
   const isSupervisor = role === 'supervisor'
-  const canManageSessions = isHr
-  const canInvite = isHr || isSupervisor
+  const isEmployee = role === 'employee'
+  const canManageSessions = isHr || isOpsManager
+  const canInvite = isHr || isSupervisor || isOpsManager
   const canRecordAttendance = isHr || isSupervisor || isOpsManager
   const canCompleteSession = isHr || isOpsManager
 
-  // Fetch real sessions from database
+  // Fetch real sessions, venues, trainers, and attendance records from database
   const loadSessions = async () => {
     setLoading(true)
     try {
-      const [sessRes, empRes] = await Promise.all([
+      const [sessRes, empRes, venRes, trainRes] = await Promise.all([
         api.trainingSessions().catch(() => ({ sessions: [] })),
         api.employees().catch(() => ({ employees: [] })),
+        api.trainingVenues().catch(() => ({ venues: [] })),
+        api.trainingTrainers().catch(() => ({ trainers: [] })),
       ])
       setSessions(sessRes.sessions || [])
       setEmployees(empRes.employees || [])
+      setVenues(venRes.venues || [])
+      setTrainers(trainRes.trainers || [])
+
+      // Load attendance records
+      if (canRecordAttendance) {
+        const attRes = await api.trainingAttendanceRecords().catch(() => ({ records: [] }))
+        setAllAttendanceRecords(attRes.records || [])
+      }
+      const myAttRes = await api.trainingMyAttendance().catch(() => ({ records: [] }))
+      setMyAttendanceRecords(myAttRes.records || [])
+
       setError('')
     } catch (err) {
       setError(err.message || 'Failed to load training sessions.')
@@ -109,12 +223,20 @@ export default function TrainingManagement() {
     }
   }
 
-  // Silently refresh session counts WITHOUT showing the loading spinner
-  // Used after attendance scans so the numbers update instantly on screen
+  // Silently refresh sessions & attendance WITHOUT showing the loading spinner
   const silentRefreshSessions = async () => {
     try {
-      const sessRes = await api.trainingSessions().catch(() => ({ sessions: [] }))
+      const [sessRes, myAttRes] = await Promise.all([
+        api.trainingSessions().catch(() => ({ sessions: [] })),
+        api.trainingMyAttendance().catch(() => ({ records: [] })),
+      ])
       setSessions(sessRes.sessions || [])
+      setMyAttendanceRecords(myAttRes.records || [])
+
+      if (canRecordAttendance) {
+        const attRes = await api.trainingAttendanceRecords().catch(() => ({ records: [] }))
+        setAllAttendanceRecords(attRes.records || [])
+      }
     } catch {}
   }
 
@@ -245,18 +367,7 @@ export default function TrainingManagement() {
       const res = await api.createTrainingSession(newSession)
       setNotice(`Training session "${res.session.title}" created successfully!`)
       setShowScheduleModal(false)
-      setNewSession({
-        title: '',
-        category: CATEGORIES[0],
-        venue: '',
-        startDate: new Date().toISOString().slice(0, 10),
-        startTime: '09:00',
-        capacity: 30,
-        budget: 5000,
-        trainer: '',
-        department: 'All Departments',
-        description: '',
-      })
+      setNewSession(getDefaultSessionForm())
       window.dispatchEvent(new CustomEvent('pds:refresh-dashboard'))
       await loadSessions()
     } catch (err) {
@@ -523,6 +634,20 @@ export default function TrainingManagement() {
           onClick={() => setActiveTab('archived')}
         >
           Archived Sessions ({archivedSessions.length})
+        </button>
+        {canRecordAttendance && (
+          <button
+            className={activeTab === 'attendance_records' ? 'active' : ''}
+            onClick={() => setActiveTab('attendance_records')}
+          >
+            Attendance Records ({allAttendanceRecords.length})
+          </button>
+        )}
+        <button
+          className={activeTab === 'my_attendance' ? 'active' : ''}
+          onClick={() => setActiveTab('my_attendance')}
+        >
+          {isEmployee ? 'My Attendance History' : 'View as Employee'}
         </button>
         <button
           className={activeTab === 'overview' ? 'active' : ''}
@@ -822,7 +947,240 @@ export default function TrainingManagement() {
         </div>
       )}
 
-      {/* TAB 3: TRAINING OVERVIEW DASHBOARD */}
+      {/* TAB 3: HR ATTENDANCE RECORDS (HR / Supervisor / Ops Manager) */}
+      {activeTab === 'attendance_records' && canRecordAttendance && (
+        <div>
+          {/* Filters row */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Search Participant</label>
+              <div style={{ position: 'relative' }}>
+                <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                <input
+                  type="text"
+                  placeholder="Employee name, badge number, or training title..."
+                  value={attSearch}
+                  onChange={e => setAttSearch(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 28, padding: '7px 10px 7px 28px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Session</label>
+              <select
+                value={attFilterSession}
+                onChange={e => setAttFilterSession(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+              >
+                <option value="">All Sessions</option>
+                {sessions.map(s => (
+                  <option key={s.id} value={s.id}>{s.title} ({String(s.start_date).slice(0, 10)})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Status</label>
+              <select
+                value={attFilterStatus}
+                onChange={e => setAttFilterStatus(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="present">Present</option>
+                <option value="late">Late</option>
+                <option value="absent">Absent</option>
+                <option value="excused">Excused</option>
+              </select>
+            </div>
+            <button
+              className="session-action-btn"
+              style={{ padding: '7px 14px', fontSize: 12 }}
+              onClick={() => { setAttSearch(''); setAttFilterSession(''); setAttFilterStatus(''); setAttDeptFilter('') }}
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          {/* Attendance Records Table */}
+          <div className="attendance-table-wrap">
+            <table className="attendance-sheet-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Participant</th>
+                  <th>Training Session</th>
+                  <th>Date</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Time In</th>
+                  <th>Status</th>
+                  <th>Scan Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const filtered = allAttendanceRecords.filter(r => {
+                    if (attFilterSession && r.session_id !== attFilterSession) return false
+                    if (attFilterStatus && r.status !== attFilterStatus) return false
+                    if (attDeptFilter && r.department !== attDeptFilter) return false
+                    if (attSearch) {
+                      const q = attSearch.toLowerCase()
+                      if (!`${r.employee_name} ${r.employee_number} ${r.training_title}`.toLowerCase().includes(q)) return false
+                    }
+                    return true
+                  })
+
+                  if (filtered.length === 0) return (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>
+                      No attendance records found. Records are created when participants scan in during training.
+                    </td></tr>
+                  )
+
+                  return filtered.map(r => {
+                    const methodStr = r.scan_method === 'qr_self_scan'
+                      ? '📱 Self QR'
+                      : r.scan_method === 'badge_scan'
+                        ? '📷 Badge Scan'
+                        : r.scan_method === 'manual_hr'
+                          ? '✍ Manual HR'
+                          : r.scan_method || '—'
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <b>{r.employee_name}</b>
+                          <small style={{ display: 'block', color: '#6b7280' }}>{r.employee_number} · {r.department} · {r.job_title}</small>
+                        </td>
+                        <td>
+                          <b style={{ fontSize: 13 }}>{r.training_title}</b>
+                          <small style={{ display: 'block', color: '#6b7280' }}>{r.category} · {r.venue}</small>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                          {r.attendance_date ? formatDateFriendly(new Date(r.attendance_date).toISOString()) : '—'}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <b style={{ color: r.status === 'late' ? '#b45309' : '#15803d', fontSize: 13 }}>
+                            <Clock size={11} className="inline mr-1" />
+                            {r.time_in ? formatTime12h(r.time_in) : '—'}
+                          </b>
+                        </td>
+                        <td>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                            background: r.status === 'present' ? '#dcfce7' : r.status === 'late' ? '#fef3c7' : r.status === 'absent' ? '#fee2e2' : '#f3f4f6',
+                            color: r.status === 'present' ? '#15803d' : r.status === 'late' ? '#b45309' : r.status === 'absent' ? '#b91c1c' : '#374151',
+                          }}>
+                            {(r.status || 'pending').toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12, color: '#6b7280' }}>{methodStr}</td>
+                      </tr>
+                    )
+                  })
+                })()}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ marginTop: 10, fontSize: 12, color: '#94a3b8', textAlign: 'right' }}>
+            Showing {allAttendanceRecords.filter(r => {
+              if (attFilterSession && r.session_id !== attFilterSession) return false
+              if (attFilterStatus && r.status !== attFilterStatus) return false
+              if (attSearch && !`${r.employee_name} ${r.employee_number} ${r.training_title}`.toLowerCase().includes(attSearch.toLowerCase())) return false
+              return true
+            }).length} records
+          </p>
+        </div>
+      )}
+
+      {/* TAB 4: MY ATTENDANCE HISTORY (all roles see this for their own records) */}
+      {activeTab === 'my_attendance' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <History size={18} className="text-indigo-600" />
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                {isEmployee ? 'My Training Attendance History' : 'Employee Training Attendance View'}
+              </h3>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#6b7280' }}>
+                {isEmployee
+                  ? 'Your personal attendance records from all training sessions you have participated in.'
+                  : 'Personal attendance records as seen from the employee perspective.'}
+              </p>
+            </div>
+          </div>
+
+          {myAttendanceRecords.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
+              <History size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <p style={{ fontSize: 16, fontWeight: 600 }}>No attendance records yet.</p>
+              <p style={{ fontSize: 13 }}>
+                {isEmployee
+                  ? 'When you scan in to a training session, your attendance record will appear here.'
+                  : 'No attendance records available for this account.'}
+              </p>
+            </div>
+          ) : (
+            <div className="attendance-table-wrap">
+              <table className="attendance-sheet-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Training Session</th>
+                    <th>Date</th>
+                    <th>Time In</th>
+                    <th>Status</th>
+                    <th>Venue</th>
+                    <th>Trainer</th>
+                    <th>Scan Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myAttendanceRecords.map(r => {
+                    const methodStr = r.scan_method === 'qr_self_scan'
+                      ? '📱 Self QR'
+                      : r.scan_method === 'badge_scan'
+                        ? '📷 Badge Scan'
+                        : r.scan_method === 'manual_hr'
+                          ? '✍ Manual HR'
+                          : r.scan_method || '—'
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <b style={{ fontSize: 13.5 }}>{r.training_title}</b>
+                          <small style={{ display: 'block', color: '#6b7280' }}>{r.category}</small>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                          {r.attendance_date ? formatDateFriendly(new Date(r.attendance_date).toISOString()) : '—'}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <b style={{
+                            color: r.status === 'late' ? '#b45309' : '#15803d',
+                            fontSize: 13,
+                          }}>
+                            <Clock size={11} className="inline mr-1" />
+                            {r.time_in ? formatTime12h(r.time_in) : '—'}
+                          </b>
+                        </td>
+                        <td>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20,
+                            background: r.status === 'present' ? '#dcfce7' : r.status === 'late' ? '#fef3c7' : r.status === 'absent' ? '#fee2e2' : '#f3f4f6',
+                            color: r.status === 'present' ? '#15803d' : r.status === 'late' ? '#b45309' : r.status === 'absent' ? '#b91c1c' : '#374151',
+                          }}>
+                            {r.status === 'present' && '✓ '}
+                            {r.status === 'late' && '⚠ '}
+                            {(r.status || 'PENDING').toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12, color: '#374151' }}>{r.venue || '—'}</td>
+                        <td style={{ fontSize: 12, color: '#374151' }}>{r.trainer || '—'}</td>
+                        <td style={{ fontSize: 12, color: '#6b7280' }}>{methodStr}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: TRAINING OVERVIEW DASHBOARD */}
       {activeTab === 'overview' && (
         <div className="training-overview-dashboard">
 
@@ -1030,49 +1388,197 @@ export default function TrainingManagement() {
                   </label>
                 </div>
 
+                {/* Unified Datetime Scheduling */}
                 <div className="form-row-2">
                   <label className="form-field">
-                    <span>Start Date *</span>
+                    <span>Training Start (Date & Time) *</span>
                     <input
-                      type="date"
+                      type="datetime-local"
                       required
-                      value={newSession.startDate}
-                      onChange={e => setNewSession({ ...newSession, startDate: e.target.value })}
+                      value={newSession.startDateTime}
+                      onChange={e => {
+                        const val = e.target.value
+                        const startD = new Date(val)
+                        let newEnd = newSession.endDateTime
+                        let newWinStart = newSession.attendanceWindowStart
+                        let newWinEnd = newSession.attendanceWindowEnd
+                        if (!isNaN(startD.getTime())) {
+                          const endD = new Date(startD.getTime() + 2 * 60 * 60 * 1000)
+                          const wStartD = new Date(startD.getTime() - 10 * 60 * 1000)
+                          const wEndD = new Date(startD.getTime() + 15 * 60 * 1000)
+                          newEnd = toLocalISOString(endD)
+                          newWinStart = toLocalISOString(wStartD)
+                          newWinEnd = toLocalISOString(wEndD)
+                        }
+                        setNewSession({
+                          ...newSession,
+                          startDateTime: val,
+                          endDateTime: newEnd,
+                          attendanceWindowStart: newWinStart,
+                          attendanceWindowEnd: newWinEnd,
+                        })
+                      }}
                     />
                   </label>
 
                   <label className="form-field">
-                    <span>Start Time *</span>
+                    <span>Training End (Date & Time) *</span>
                     <input
-                      type="time"
+                      type="datetime-local"
                       required
-                      value={newSession.startTime}
-                      onChange={e => setNewSession({ ...newSession, startTime: e.target.value })}
+                      value={newSession.endDateTime}
+                      onChange={e => setNewSession({ ...newSession, endDateTime: e.target.value })}
                     />
+                    <small style={{ color: '#64748b', fontSize: 11 }}>Supports multi-day scheduling</small>
                   </label>
                 </div>
 
+                {/* Trainer & Venue Dropdowns */}
                 <div className="form-row-2">
                   <label className="form-field">
-                    <span>Venue / Room Location *</span>
-                    <input
-                      type="text"
+                    <span>Facility / Venue *</span>
+                    <select
                       required
-                      value={newSession.venue}
-                      onChange={e => setNewSession({ ...newSession, venue: e.target.value })}
-                      placeholder="e.g. Training Room A"
-                    />
+                      value={newSession.venueId || newSession.venue}
+                      onChange={e => {
+                        const val = e.target.value
+                        const found = venues.find(v => v.id === val || v.name === val)
+                        setNewSession({
+                          ...newSession,
+                          venueId: found?.id || '',
+                          venue: found?.name || val,
+                        })
+                      }}
+                    >
+                      <option value="">-- Select Facility / Venue --</option>
+                      {venues.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} {v.floor ? `(${v.floor})` : ''} · Cap: {v.capacity}
+                        </option>
+                      ))}
+                      {!venues.length && (
+                        <>
+                          <option value="Training Room A">Training Room A (Cap: 35)</option>
+                          <option value="Training Room B">Training Room B (Cap: 30)</option>
+                          <option value="Conference Room A">Conference Room A (Cap: 25)</option>
+                          <option value="Grand Palm Ballroom / Training Hall B">Grand Palm Ballroom (Cap: 100)</option>
+                        </>
+                      )}
+                    </select>
                   </label>
 
                   <label className="form-field">
-                    <span>Trainer / Facilitator</span>
-                    <input
-                      type="text"
-                      value={newSession.trainer}
-                      onChange={e => setNewSession({ ...newSession, trainer: e.target.value })}
-                      placeholder="e.g. Maria Santos"
-                    />
+                    <span>Trainer / Facilitator *</span>
+                    <select
+                      required
+                      value={newSession.trainerId || newSession.trainer}
+                      onChange={e => {
+                        const val = e.target.value
+                        const found = trainers.find(t => t.id === val || t.full_name === val)
+                        setNewSession({
+                          ...newSession,
+                          trainerId: found?.id || '',
+                          trainer: found?.full_name || val,
+                        })
+                      }}
+                    >
+                      <option value="">-- Select Trainer --</option>
+                      {trainers.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.full_name} ({t.job_title} · {t.department})
+                        </option>
+                      ))}
+                      {!trainers.length && (
+                        <>
+                          <option value="Ava Reyes">Ava Reyes (HR Administrator)</option>
+                          <option value="Anna Kowalski">Anna Kowalski (Executive Housekeeper)</option>
+                          <option value="Daniel Zhang">Daniel Zhang (Financial Controller)</option>
+                        </>
+                      )}
+                    </select>
                   </label>
+                </div>
+
+                {/* HR-Configured Attendance Scanning Window */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, margin: '4px 0 14px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                    <b style={{ color: '#1e293b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Clock size={14} className="text-indigo-600" /> HR Attendance Scanning Window
+                    </b>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        onClick={() => {
+                          const s = new Date(newSession.startDateTime)
+                          if (!isNaN(s.getTime())) {
+                            setNewSession(prev => ({
+                              ...prev,
+                              attendanceWindowStart: toLocalISOString(new Date(s.getTime() - 10 * 60000)),
+                              attendanceWindowEnd: toLocalISOString(new Date(s.getTime() + 5 * 60000)),
+                            }))
+                          }
+                        }}
+                      >
+                        10m before – 5m after (15 min)
+                      </button>
+                      <button
+                        type="button"
+                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        onClick={() => {
+                          const s = new Date(newSession.startDateTime)
+                          if (!isNaN(s.getTime())) {
+                            setNewSession(prev => ({
+                              ...prev,
+                              attendanceWindowStart: toLocalISOString(new Date(s.getTime() - 15 * 60000)),
+                              attendanceWindowEnd: toLocalISOString(s),
+                            }))
+                          }
+                        }}
+                      >
+                        15m before – Start (15 min)
+                      </button>
+                      <button
+                        type="button"
+                        style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                        onClick={() => {
+                          const s = new Date(newSession.startDateTime)
+                          if (!isNaN(s.getTime())) {
+                            setNewSession(prev => ({
+                              ...prev,
+                              attendanceWindowStart: toLocalISOString(new Date(s.getTime() - 10 * 60000)),
+                              attendanceWindowEnd: toLocalISOString(new Date(s.getTime() + 15 * 60000)),
+                            }))
+                          }
+                        }}
+                      >
+                        10m before – 15m after (25 min)
+                      </button>
+                    </div>
+                  </div>
+                  <p style={{ margin: '0 0 10px', fontSize: 11.5, color: '#64748b' }}>
+                    Participants can <strong>only scan attendance during this configured period</strong>. Early and late scan attempts are strictly rejected by the server.
+                  </p>
+                  <div className="form-row-2">
+                    <label className="form-field">
+                      <span>Attendance Opens *</span>
+                      <input
+                        type="datetime-local"
+                        required
+                        value={newSession.attendanceWindowStart}
+                        onChange={e => setNewSession({ ...newSession, attendanceWindowStart: e.target.value })}
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Attendance Closes *</span>
+                      <input
+                        type="datetime-local"
+                        required
+                        value={newSession.attendanceWindowEnd}
+                        onChange={e => setNewSession({ ...newSession, attendanceWindowEnd: e.target.value })}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="form-row-2">
@@ -1201,53 +1707,108 @@ export default function TrainingManagement() {
                   )}
                 </div>
 
+                {/* Attendance Window Indicator Banner */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <small style={{ color: '#64748b', fontWeight: 600, display: 'block' }}>Configured Attendance Scanning Window</small>
+                    <b style={{ color: '#1e293b' }}>
+                      {selectedSessionDetail.attendance_window_start 
+                        ? `${formatTime12h(selectedSessionDetail.attendance_window_start)} – ${formatTime12h(selectedSessionDetail.attendance_window_end)}`
+                        : 'Standard 15-minute window'}
+                    </b>
+                  </div>
+                  <div>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      background: getWindowStatus(selectedSessionDetail).badgeBg,
+                      color: getWindowStatus(selectedSessionDetail).badgeColor,
+                    }}>
+                      {getWindowStatus(selectedSessionDetail).label}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="attendance-table-wrap">
                   <table className="attendance-sheet-table">
                     <thead>
                       <tr>
-                        <th>Employee</th>
+                        <th>Participant</th>
                         <th>Department</th>
+                        <th>Time In</th>
                         <th>Attendance Status</th>
+                        <th>Method</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(selectedSessionDetail.participants || []).map(p => (
-                        <tr key={p.employee_id}>
-                          <td><b>{p.full_name}</b><br/><small className="text-muted-sub">{p.job_title}</small></td>
-                          <td>{p.department}</td>
-                          <td>
-                            {canRecordAttendance ? (
-                              <div className="attendance-status-btn-group">
-                                {['present', 'absent', 'late', 'excused'].map(st => (
-                                  <button
-                                    key={st}
-                                    type="button"
-                                    className={`att-status-btn ${st} ${(attendanceRecords[p.employee_id] || p.attendance) === st ? 'active' : ''}`}
-                                    onClick={() => setAttendanceRecords({ ...attendanceRecords, [p.employee_id]: st })}
-                                  >
-                                    {st.toUpperCase()}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className={`session-status-badge ${p.attendance}`}>{p.attendance.toUpperCase()}</span>
-                            )}
-                          </td>
-                          <td>
-                            {canInvite && (
-                              <button style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 600 }} onClick={async () => {
-                                try {
-                                  await api.removeTrainingParticipant(selectedSession.id, p.employee_id)
-                                  await loadSessionDetail(selectedSession.id)
-                                } catch (err) { setError(err.message) }
-                               }}><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Remove</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {(selectedSessionDetail.participants || []).map(p => {
+                        const timeInStr = p.time_in || p.attendance_recorded_at
+                        const formattedTime = timeInStr ? formatTime12h(timeInStr) : null
+                        const methodStr = p.scan_method === 'qr_self_scan'
+                          ? '📱 Self QR'
+                          : (p.scan_method === 'badge_scan'
+                              ? '📷 Badge Scan'
+                              : (p.scan_method === 'manual_hr'
+                                  ? '✍ Manual HR'
+                                  : (formattedTime ? 'Recorded' : '—')))
+                        return (
+                          <tr key={p.employee_id}>
+                            <td>
+                              <b>{p.full_name}</b>
+                              <small className="text-muted-sub" style={{ display: 'block' }}>
+                                {p.employee_number ? `${p.employee_number} · ` : ''}{p.job_title}
+                              </small>
+                            </td>
+                            <td>{p.department}</td>
+                            <td>
+                              {formattedTime ? (
+                                <span style={{ fontWeight: 700, color: '#15803d' }}>
+                                  <Clock size={12} className="inline mr-1 text-emerald-600" />
+                                  {formattedTime}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: 12 }}>— Not scanned</span>
+                              )}
+                            </td>
+                            <td>
+                              {canRecordAttendance ? (
+                                <div className="attendance-status-btn-group">
+                                  {['present', 'absent', 'late', 'excused'].map(st => (
+                                    <button
+                                      key={st}
+                                      type="button"
+                                      className={`att-status-btn ${st} ${(attendanceRecords[p.employee_id] || p.attendance) === st ? 'active' : ''}`}
+                                      onClick={() => setAttendanceRecords({ ...attendanceRecords, [p.employee_id]: st })}
+                                    >
+                                      {st.toUpperCase()}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className={`session-status-badge ${p.attendance}`}>{p.attendance.toUpperCase()}</span>
+                              )}
+                            </td>
+                            <td>
+                              <small style={{ color: '#64748b' }}>{methodStr}</small>
+                            </td>
+                            <td>
+                              {canInvite && (
+                                <button style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 600 }} onClick={async () => {
+                                  try {
+                                    await api.removeTrainingParticipant(selectedSession.id, p.employee_id)
+                                    await loadSessionDetail(selectedSession.id)
+                                  } catch (err) { setError(err.message) }
+                                }}><Trash2 className="w-3.5 h-3.5 inline mr-1" /> Remove</button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                       {(selectedSessionDetail.participants || []).length === 0 && (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>No participants invited yet. Click "+ Invite Participants" to add employees.</td></tr>
+                        <tr><td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>No participants invited yet. Click "+ Invite Participants" to add employees.</td></tr>
                       )}
                     </tbody>
                   </table>

@@ -11,7 +11,7 @@ import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Target, BookOpen } 
 
 function SkillGapProgressPanel() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}') } catch { return {} } })()
-  const isHr = user.role === 'hr'
+  const isHr = ['hr', 'operations_manager', 'management'].includes(user.role)
   const isSupervisor = user.role === 'supervisor'
   const isEmployee = user.role === 'employee'
 

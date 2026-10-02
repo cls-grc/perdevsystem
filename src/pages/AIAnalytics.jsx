@@ -168,8 +168,8 @@ export default function AIAnalytics() {
   })()
   const role = user.role || ''
   const userName = user.name || 'Administrator'
-  const canGenerate = role !== 'operations_manager' && role !== 'management'
-  const isHr = role === 'hr'
+  const canGenerate = ['hr', 'operations_manager', 'management', 'supervisor'].includes(role)
+  const canGenerateExecutive = ['hr', 'operations_manager', 'management'].includes(role)
 
   const load = async () => {
     try {
@@ -268,7 +268,7 @@ export default function AIAnalytics() {
   }
 
   const generateExecutive = async () => {
-    if (!isHr) return
+    if (!canGenerateExecutive) return
     setGenerating(true)
     try {
       const result = await api.generateExecutiveReport()
@@ -382,7 +382,7 @@ export default function AIAnalytics() {
         </div>
 
         <div className="exec-banner-actions">
-          {isHr && (
+          {canGenerateExecutive && (
             <button
               type="button"
               className="saas-btn-primary"
@@ -1340,7 +1340,7 @@ export default function AIAnalytics() {
             <div className="flex items-center gap-1.5">
               {report && !selected && !insights && (
                 <>
-                  {isHr && (
+                  {canGenerateExecutive && (
                     <button
                       type="button"
                       className="ai-status-chip flex items-center gap-1"
@@ -1397,7 +1397,7 @@ export default function AIAnalytics() {
                 </div>
                 <AIReport content={report.content} title={report.title} />
                 <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {isHr && (
+                  {canGenerateExecutive && (
                     <button
                       type="button"
                       className="saas-btn-primary"

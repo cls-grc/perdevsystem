@@ -78,11 +78,15 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     setStatusMessage('Verifying employee badge...')
 
     try {
-      const res = await api.scanTrainingAttendance(session.id, { code, status: 'present' })
+      const res = await api.scanTrainingAttendance(session.id, { code })
       if (res.success) {
         if (soundEnabled) playSuccessChime()
+        const attStatus = (res.attendance || 'present').toUpperCase()
+        const formattedTime = res.timeIn 
+          ? new Date(res.timeIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) 
+          : new Date().toLocaleTimeString()
         setScanningStatus('success')
-        setStatusMessage('✓ Attendance is recorded: ' + res.employee.full_name + ' (' + res.employee.employee_number + ') — PRESENT')
+        setStatusMessage(`✓ Attendance recorded: ${res.employee.full_name} (${res.employee.employee_number}) — ${attStatus}`)
         setLastScanned(res.employee)
         setScannedLogs(prev => [
           {
@@ -91,8 +95,8 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
             number: res.employee.employee_number,
             department: res.employee.department,
             jobTitle: res.employee.job_title,
-            time: new Date().toLocaleTimeString(),
-            status: 'present'
+            time: formattedTime,
+            status: res.attendance || 'present'
           },
           ...prev.filter(l => l.id !== res.employee.id)
         ])

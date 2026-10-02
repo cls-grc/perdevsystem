@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, BookOpen, Play, FileText, Download, ExternalLink, Clock, Tag, ChevronRight, Sparkles } from 'lucide-react'
+import { X, BookOpen, Play, FileText, Download, ExternalLink, Clock, Tag, ChevronRight, Sparkles, CheckCircle, ClipboardList } from 'lucide-react'
 import { exportCourseAsPdf } from '../lib/exportUtils'
 import { getAiCurriculumForCourse } from '../workflowConfig'
 
@@ -70,7 +70,7 @@ function RichTextRenderer({ content = '' }) {
   return <div className="ccv-lesson-body">{elements}</div>
 }
 
-export default function CourseContentViewer({ resource, onClose }) {
+export default function CourseContentViewer({ resource, assignment, onClose, onMaterialComplete, onTakeAssessment }) {
   const rawVideoUrl = resource.video_url || resource.videoUrl || ''
   const isGenericUrlVideo = !rawVideoUrl && (getYouTubeId(resource.url || '') || getVimeoId(resource.url || ''))
   const videoUrl = rawVideoUrl || (isGenericUrlVideo ? resource.url : '')
@@ -90,6 +90,7 @@ export default function CourseContentViewer({ resource, onClose }) {
   const isVimeo = !!getVimeoId(videoUrl)
   const defaultTab = hasVideo ? 'video' : 'lesson'
   const [activeTab, setActiveTab] = useState(defaultTab)
+  const [markingComplete, setMarkingComplete] = useState(false)
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -296,6 +297,96 @@ export default function CourseContentViewer({ resource, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Assignment Progress & Evidence-Based Assessment Action Footer */}
+        {assignment && (
+          <div style={{
+            padding: '12px 20px',
+            borderTop: '1px solid #e2e8f0',
+            background: '#f8fafc',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 16,
+                background: assignment.status === 'completed' ? '#d1fae5' : assignment.status === 'assessment_pending' ? '#fef3c7' : '#e0e7ff',
+                color: assignment.status === 'completed' ? '#065f46' : assignment.status === 'assessment_pending' ? '#92400e' : '#3730a3',
+              }}>
+                {assignment.status === 'completed' ? 'Completed' :
+                 assignment.status === 'assessment_pending' ? 'Assessment Pending' :
+                 assignment.status === 'in_progress' ? 'In Progress' : 'Not Started'} — {assignment.progress || 0}%
+              </span>
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                {assignment.material_completed ? '✓ Material Finished' : '📖 Studying Material'}
+                {assignment.assessment_score != null && ` · Assessment Score: ${assignment.assessment_score}%`}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {!assignment.material_completed && onMaterialComplete && (
+                <button
+                  type="button"
+                  disabled={markingComplete}
+                  onClick={async () => {
+                    setMarkingComplete(true)
+                    try {
+                      await onMaterialComplete(assignment)
+                      onClose && onClose()
+                    } catch {
+                      setMarkingComplete(false)
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    background: '#10b981',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: markingComplete ? 'wait' : 'pointer',
+                    opacity: markingComplete ? 0.75 : 1,
+                  }}
+                >
+                  <CheckCircle size={14} /> {markingComplete ? 'Marking Complete…' : 'Mark Material as Complete'}
+                </button>
+              )}
+              {assignment.material_completed && onTakeAssessment && assignment.status !== 'completed' && (
+                <button
+                  type="button"
+                  onClick={() => onTakeAssessment(assignment)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    background: '#6366f1',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ClipboardList size={14} /> {assignment.attempts_count > 0 ? 'Retake Assessment' : 'Take Course Assessment'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

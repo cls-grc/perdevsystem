@@ -11,13 +11,13 @@ export default function SuccessionPlanning() {
         hr: 'Start succession assessment',
         supervisor: 'Start succession assessment',
         operations_manager: 'Start succession assessment',
-        management: 'Review succession candidates',
+        management: 'Start succession assessment',
       }}
       stages={[
-        ['Initiate assessment', 'Select candidate and initiate succession assessment cycle.', ['hr', 'supervisor', 'operations_manager']],
-        ['Candidate assessment', 'Review employee capability data and AI critical role recommendation.', ['hr', 'supervisor', 'operations_manager']],
+        ['Initiate assessment', 'Select candidate and initiate succession assessment cycle.', ['hr', 'supervisor', 'operations_manager', 'management']],
+        ['Candidate assessment', 'Review employee capability data and AI critical role recommendation.', ['hr', 'supervisor', 'operations_manager', 'management']],
         ['Review readiness', 'Review readiness scores, competency matches, and skill gaps.', ['hr', 'supervisor', 'management', 'operations_manager']],
-        ['Approval & position update', 'Authorize succession promotion, update employee position, and preserve history.', ['hr', 'management', 'supervisor', 'operations_manager']],
+        ['Approval & position update', 'Authorize succession promotion, update employee position, and preserve history.', ['hr', 'management', 'operations_manager']],
       ]}
       items={[]}
       itemLabel="Succession candidate"

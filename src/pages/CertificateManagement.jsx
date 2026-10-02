@@ -84,9 +84,16 @@ function Preview({ template, certificate, compact = false }) {
 }
 
 export default function CertificateManagement({ embedded = false }) {
-  const role = (() => { try { return JSON.parse(localStorage.getItem('pds-user') || '{}').role } catch { return '' } })()
-  const hr = role === 'hr'
-  const operationsManager = role === 'operations_manager'
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pds-user') || '{}')
+    } catch {
+      return {}
+    }
+  }, [])
+  const role = user.role || ''
+  const hr = role === 'hr' || role === 'operations_manager'
+  const isManagement = role === 'management'
   const Container = embedded ? 'section' : 'main'
 
   const [templates, setTemplates] = useState(certCache.templates || [])
@@ -530,8 +537,8 @@ export default function CertificateManagement({ embedded = false }) {
   if (!hr) return (
     <Container className={`certificate-workspace${embedded ? ' embedded' : ''}`}>
       <PageBanner
-        title={operationsManager ? 'Certificate Management' : 'My Certificates'}
-        description={operationsManager ? 'Review issued employee certificates and recognition records across the operation.' : 'View, print, or save certificates earned through PerDevSys.'}
+        title={isManagement ? 'Hotel Certificates' : 'My Certificates'}
+        description={isManagement ? 'Review issued employee certificates and recognition records across the hotel.' : 'View, print, or save certificates earned through PerDevSys.'}
         icon={<Award className="w-5 h-5 text-white" />}
       />
       <section className="certificate-archive">

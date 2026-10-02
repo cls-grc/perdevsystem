@@ -194,10 +194,22 @@ router.get('/competency-comparison/employee/:employeeId', async (req, res, next)
 router.post('/', async (req, res, next) => {
   try {
     const input = createSchema.parse(req.body); const [initialStage] = stagesFor(input.module)
-    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr' && req.user.role !== 'operations_manager') return res.status(403).json({ error: 'Your role cannot start this workflow.' })
+    if (!initialStage[2].includes(req.user.role) && req.user.role !== 'hr' && req.user.role !== 'operations_manager' && req.user.role !== 'management') return res.status(403).json({ error: 'Your role cannot start this workflow.' })
     const subjectEmployeeId = input.subjectEmployeeId || (req.user.role === 'employee' ? req.user.employeeId : null)
     if (subjectEmployeeId) {
       await verifyEmployeeAccess(req.user, subjectEmployeeId)
+      if (['performance', 'succession'].includes(input.module)) {
+        const existingActive = await query(
+          'SELECT id, title, current_stage FROM workflows WHERE module = $1 AND subject_employee_id = $2 AND status = $3 LIMIT 1',
+          [input.module, subjectEmployeeId, 'active']
+        )
+        if (existingActive.rows.length > 0) {
+          return res.status(409).json({
+            error: `An active ${input.module} cycle is already in progress for this employee ("${existingActive.rows[0].title}"). Please complete or cancel the existing cycle before initiating a new one.`,
+            existingWorkflow: existingActive.rows[0],
+          })
+        }
+      }
     }
     const { rows } = await query('INSERT INTO workflows (module, title, subject_employee_id, current_stage, created_by, due_date, metadata) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [input.module, input.title, subjectEmployeeId, initialStage[0], req.user.sub, input.dueDate || null, input.metadata])
     await query('INSERT INTO workflow_events (workflow_id, stage, event_type, actor_id, details) VALUES ($1,$2,$3,$4,$5)', [rows[0].id, initialStage[0], 'created', req.user.sub, input.metadata])
@@ -398,7 +410,9 @@ router.get('/:id', async (req, res, next) => {
   try {
     const workflow = await verifyWorkflowAccess(req.user, req.params.id)
     const events = await query('SELECT we.*, u.full_name AS actor_name FROM workflow_events we JOIN users u ON u.id=we.actor_id WHERE workflow_id=$1 ORDER BY created_at ASC', [req.params.id])
-    res.json({ workflow, events: events.rows, stages: stagesFor(workflow.module).map(([key,label,roles]) => ({ key,label,roles })) })
+    const allStages = stagesFor(workflow.module).map(([key,label,roles]) => ({ key,label,roles }))
+    const userStages = allStages.filter(s => canActOnStage(s.roles, req.user.role, workflow.subject_employee_id, req.user.employeeId))
+    res.json({ workflow, events: events.rows, stages: allStages, userStages })
   } catch (error) { next(error) }
 })
 
@@ -467,8 +481,8 @@ router.post('/:id/cancel', async (req, res, next) => {
       if (!workflow) throw Object.assign(new Error('Workflow not found.'), { status: 404 })
       if (workflow.status !== 'active') throw Object.assign(new Error('This workflow is already complete.'), { status: 409 })
       const isCreator = req.user.sub === workflow.created_by
-      const isHr = req.user.role === 'hr'
-      if (!isCreator && !isHr) throw Object.assign(new Error('Only the workflow owner or HR can cancel this workflow.'), { status: 403 })
+      const isPrivileged = ['hr', 'operations_manager', 'management'].includes(req.user.role)
+      if (!isCreator && !isPrivileged) throw Object.assign(new Error('Only the workflow owner or HR/management can cancel this workflow.'), { status: 403 })
       await client.query("UPDATE workflows SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [workflow.id])
       await client.query('INSERT INTO workflow_events (workflow_id,stage,event_type,actor_id,note,details) VALUES ($1,$2,$3,$4,$5,$6)', [workflow.id, workflow.current_stage, 'cancelled', req.user.sub, input.reason, input.data])
       return { cancelled: true, stage: workflow.current_stage }

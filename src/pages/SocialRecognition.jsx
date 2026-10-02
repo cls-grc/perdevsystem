@@ -103,9 +103,9 @@ export default function SocialRecognition() {
     }
   })()
   const userRole = currentUser.role || 'employee'
-  const isHr = userRole === 'hr' || userRole === 'operations_manager'
+  const isHr = ['hr', 'operations_manager', 'management'].includes(userRole)
   const isSupervisor = userRole === 'supervisor'
-  const isUpperUp = isHr || isSupervisor || userRole === 'management'
+  const isUpperUp = isHr || isSupervisor
   const selectedEmployee = staffList.find((s) => s.id === selectedStaffId) || null
 
   const loadData = async (monthOverride) => {

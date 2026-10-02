@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users, Lock } from 'lucide-react'
+import { Star, Check, Search, Sparkles, CheckCircle, AlertTriangle, Clock, Zap, MapPin, Calendar, Users, Lock, BookOpen, ClipboardList, ShieldCheck } from 'lucide-react'
 import {
   KPI_LIBRARY, LEARNING_TEMPLATES, COMPETENCY_TEMPLATES, GOAL_TEMPLATES,
   QUICK_COMMENTS, INTELLIGENT_DEFAULTS, COMPETENCY_LEVELS, LEARNING_CATEGORIES,
@@ -718,26 +718,30 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
   const savedFirstId = kpis.length > 0 ? (kpis[0]?.id || kpis[0]?.name) : null
   const baseFirstId = baseCriteria.length > 0 ? (baseCriteria[0]?.id || baseCriteria[0]?.name) : null
   const isMatchingDept = kpis.length > 0 && savedFirstId === baseFirstId
-  const activeRatings = isMatchingDept ? kpis : baseCriteria.map(c => ({ ...c, rating: 4, score: 80, comment: '' }))
+  const activeRatings = isMatchingDept ? kpis : baseCriteria.map(c => ({ ...c, rating: null, score: null, comment: '' }))
 
   // Only initialize when there is truly no saved data for this department.
   // NEVER overwrite kpiRatings that are already saved (submitted scores).
+  // Criteria must NOT have a default score automatically selected when opened.
   useEffect(() => {
     if (kpis.length > 0 && isMatchingDept) return  // Already has correct saved data — do not touch
     if (kpis.length > 0 && !isMatchingDept) {
       // Department changed — reset for new department
     } else if (kpis.length === 0) {
-      // No data yet — seed defaults
+      // No data yet — seed criteria structure with no preselected ratings
     } else {
       return
     }
 
-    const defaultRating = 4
     const initialRatings = baseCriteria.map((c, i) => {
       const isAtt = isAttendanceCriterion(c) || i === 2
-      let rating = defaultRating
+      let rating = null
+      let score = null
+      let comment = ''
       if (isAtt && hr2Attendance) {
         rating = getHr2Rating(hr2Attendance.attendance_score)
+        score = Math.round((rating / 5) * 100)
+        comment = `Verified via HR2 Biometrics: ${hr2Attendance.days_present}/${hr2Attendance.total_working_days || 60} days present, ${hr2Attendance.days_absent} absences, ${hr2Attendance.tardy_count} lates (${hr2Attendance.attendance_score}% DTR).`
       }
       return {
         id: c.id || c.name,
@@ -746,17 +750,20 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
         target: c.target || '90%',
         weight: c.weight,
         rating,
-        score: Math.round((rating / 5) * 100),
-        comment: isAtt && hr2Attendance ? `Verified via HR2 Biometrics: ${hr2Attendance.days_present}/${hr2Attendance.total_working_days || 60} days present, ${hr2Attendance.days_absent} absences, ${hr2Attendance.tardy_count} lates (${hr2Attendance.attendance_score}% DTR).` : '',
-        isLockedByHr2: isAtt,
+        score,
+        comment,
+        isLockedByHr2: isAtt && Boolean(hr2Attendance),
       }
     })
-    const avgRating = (initialRatings.reduce((sum, k) => sum + k.rating, 0) / initialRatings.length).toFixed(2)
-    const overall = calculateWeightedKpiAverage(initialRatings)
+    const answered = initialRatings.filter(k => k.rating !== null && k.rating !== undefined && Number(k.rating) > 0)
+    const avgRating = answered.length > 0
+      ? (answered.reduce((sum, k) => sum + k.rating, 0) / answered.length).toFixed(2)
+      : null
+    const overall = answered.length > 0 ? calculateWeightedKpiAverage(answered) : null
     onChange({ 
       ...value, 
       kpiRatings: initialRatings, 
-      averageRating: Number(avgRating), 
+      averageRating: avgRating !== null ? Number(avgRating) : null, 
       overall,
       strengths: value.strengths || '',
       improvements: value.improvements || '',
@@ -784,12 +791,15 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
             isLockedByHr2: true,
           }
         })
-        const avgRating = (updated.reduce((sum, k) => sum + Number(k.rating || 0), 0) / updated.length).toFixed(2)
-        const overall = calculateWeightedKpiAverage(updated)
+        const answered = updated.filter(k => k.rating !== null && k.rating !== undefined && Number(k.rating) > 0)
+        const avgRating = answered.length > 0
+          ? (answered.reduce((sum, k) => sum + Number(k.rating || 0), 0) / answered.length).toFixed(2)
+          : null
+        const overall = answered.length > 0 ? calculateWeightedKpiAverage(answered) : null
         onChange({
           ...value,
           kpiRatings: updated,
-          averageRating: Number(avgRating),
+          averageRating: avgRating !== null ? Number(avgRating) : null,
           overall,
         })
       }
@@ -808,20 +818,29 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
       const score = Math.round((ratingNum / 5) * 100)
       return { ...row, rating: ratingNum, score }
     })
-    const avgRating = (updated.reduce((sum, k) => sum + Number(k.rating || 0), 0) / updated.length).toFixed(2)
-    const overall = calculateWeightedKpiAverage(updated)
+    const answered = updated.filter(k => k.rating !== null && k.rating !== undefined && Number(k.rating) > 0)
+    const avgRating = answered.length > 0
+      ? (answered.reduce((sum, k) => sum + Number(k.rating || 0), 0) / answered.length).toFixed(2)
+      : null
+    const overall = answered.length > 0 ? calculateWeightedKpiAverage(answered) : null
     onChange({ 
       ...value, 
       kpiRatings: updated, 
-      averageRating: Number(avgRating), 
+      averageRating: avgRating !== null ? Number(avgRating) : null, 
       overall 
     })
   }
 
-  const totalAverage = value.averageRating ?? (activeRatings.reduce((s, k) => s + (k.rating || 4), 0) / activeRatings.length).toFixed(2)
-  const totalPercentage = value.overall ?? Math.round((totalAverage / 5) * 100)
+  const answeredRatings = activeRatings.filter(k => k.rating !== null && k.rating !== undefined && Number(k.rating) > 0)
+  const totalAverage = answeredRatings.length > 0
+    ? (answeredRatings.reduce((s, k) => s + Number(k.rating), 0) / answeredRatings.length).toFixed(2)
+    : null
+  const totalPercentage = answeredRatings.length > 0
+    ? calculateWeightedKpiAverage(answeredRatings)
+    : null
 
   const getPerformanceBadge = (pct) => {
+    if (pct === null || pct === undefined) return { label: 'Evaluation In Progress', color: '#64748b', bg: '#f1f5f9' }
     if (pct >= 90) return { label: 'Excellent (Role Model)', color: '#10b981', bg: '#ecfdf5' }
     if (pct >= 80) return { label: 'Good (Exceeds Standards)', color: '#111827', bg: '#f3f4f6' }
     if (pct >= 70) return { label: 'Satisfactory (Meets Standards)', color: '#0284c7', bg: '#f0f9ff' }
@@ -949,12 +968,13 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
           </thead>
           <tbody>
             {activeRatings.map((row, index) => {
-              const selectedRating = row.rating || 4
-              const rowPercentage = Math.round((selectedRating / 5) * 100)
+              const selectedRating = (row.rating !== undefined && row.rating !== null && row.rating !== '') ? Number(row.rating) : null
+              const isAnswered = selectedRating !== null && selectedRating >= 1 && selectedRating <= 5
+              const rowPercentage = isAnswered ? Math.round((selectedRating / 5) * 100) : null
               const isLocked = isAttendanceCriterion(row) || index === 2 || Boolean(row.isLockedByHr2)
 
               return (
-                <tr key={index} className={selectedRating >= 4 ? 'row-high' : selectedRating <= 2 ? 'row-low' : ''} style={isLocked ? { background: 'rgba(254, 243, 199, 0.15)' } : {}}>
+                <tr key={index} className={isAnswered ? (selectedRating >= 4 ? 'row-high' : selectedRating <= 2 ? 'row-low' : '') : 'row-unanswered'} style={isLocked ? { background: 'rgba(254, 243, 199, 0.15)' } : {}}>
                   <td className="td-criteria">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <b>{row.name}</b>
@@ -977,7 +997,7 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
                           color: '#92400e',
                           border: '1px solid #fde68a'
                         }}>
-                          🔒 Locked: Verified by HR2 Biometrics ({hr2Attendance?.attendance_score ? `${hr2Attendance.attendance_score}%` : `${rowPercentage}%`})
+                          🔒 Locked: Verified by HR2 Biometrics ({hr2Attendance?.attendance_score ? `${hr2Attendance.attendance_score}%` : `${rowPercentage || 80}%`})
                         </span>
                       </div>
                     )}
@@ -988,8 +1008,8 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
                   {[1, 2, 3, 4, 5].map(ratingNum => (
                     <td 
                       key={ratingNum} 
-                      className={`td-rating-cell ${selectedRating === ratingNum ? 'selected' : ''}`}
-                      style={isLocked ? { cursor: 'not-allowed', opacity: selectedRating === ratingNum ? 1 : 0.35 } : {}}
+                      className={`td-rating-cell ${isAnswered && selectedRating === ratingNum ? 'selected' : ''}`}
+                      style={isLocked ? { cursor: 'not-allowed', opacity: isAnswered && selectedRating === ratingNum ? 1 : 0.35 } : {}}
                       onClick={() => !isLocked && handleRatingSelect(index, ratingNum)}
                       title={isLocked ? "This rating is locked and verified from HR2 Daily Time Records." : undefined}
                     >
@@ -997,7 +1017,7 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
                         <input 
                           type="radio" 
                           name={`criteria-rating-${index}`} 
-                          checked={selectedRating === ratingNum} 
+                          checked={isAnswered && selectedRating === ratingNum} 
                           disabled={isLocked}
                           onChange={() => !isLocked && handleRatingSelect(index, ratingNum)}
                         />
@@ -1006,9 +1026,15 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
                     </td>
                   ))}
                   <td className="td-score">
-                    <span className={`eval-score-pill score-${selectedRating}`}>
-                      {rowPercentage}%
-                    </span>
+                    {isAnswered ? (
+                      <span className={`eval-score-pill score-${selectedRating}`}>
+                        {rowPercentage}%
+                      </span>
+                    ) : (
+                      <span className="eval-score-pill score-pending" style={{ color: '#94a3b8', background: '#f8fafc', border: '1px dashed #cbd5e1', fontSize: 11 }}>
+                        Unanswered
+                      </span>
+                    )}
                   </td>
                 </tr>
               )
@@ -1066,7 +1092,7 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
         <div className="summary-col">
           <span className="summary-label">Average Evaluation Rating</span>
           <div className="summary-rating-big">
-            <b>{totalAverage}</b> <small>/ 5.0</small>
+            <b>{totalAverage !== null ? totalAverage : '—'}</b> <small>{totalAverage !== null ? '/ 5.0' : 'No rating yet'}</small>
           </div>
         </div>
 
@@ -1075,7 +1101,7 @@ function AssessmentBuilder({ value = {}, onChange, role, people = [], events = [
         <div className="summary-col">
           <span className="summary-label">Equivalent Total Percentage</span>
           <div className="summary-percentage-big">
-            <b>{totalPercentage}%</b>
+            <b>{totalPercentage !== null ? `${totalPercentage}%` : '—'}</b>
           </div>
         </div>
 
@@ -1154,17 +1180,28 @@ function CalibrationBuilder({ value = {}, onChange, events = [], subject, workfl
   const isReturn = decision === 'Return for Revision' || decision === 'Return Evaluation for Revision'
 
   const handleDecisionSelect = opt => {
-    let calculatedFinal = ''
-    if (opt.includes('Supervisor') || opt.includes('Department Head')) calculatedFinal = overallDeptAvg
-    else if (opt.includes('Self-Assessment') || opt.includes('Employee')) calculatedFinal = overallEmpAvg
-    else if (opt.includes('Average') || opt.includes('Balanced')) calculatedFinal = Math.round(((overallEmpAvg + overallDeptAvg) / 2) * 10) / 10
-    else if (opt.includes('Override') || opt.includes('Custom')) calculatedFinal = value.finalScore ?? overallDeptAvg
-    else calculatedFinal = ''
+    // Requirement: Reset custom calibrated score to zero before applying the newly selected card value.
+    // Prevent score accumulation or retention caused by repeatedly clicking different cards.
+    let targetScore = 0
+
+    if (opt.includes('Supervisor') || opt.includes('Department Head')) {
+      targetScore = overallDeptAvg
+    } else if (opt.includes('Self-Assessment') || opt.includes('Employee')) {
+      targetScore = overallEmpAvg
+    } else if (opt.includes('Average') || opt.includes('Balanced')) {
+      targetScore = Math.round(((overallEmpAvg + overallDeptAvg) / 2) * 10) / 10
+    } else if (opt.includes('Override') || opt.includes('Custom')) {
+      // Explicitly reset to 0 so only the fresh evaluator-provided custom score determines this value
+      targetScore = 0
+    } else if (opt.includes('Return') || opt.includes('Revision')) {
+      targetScore = ''
+    }
 
     onChange({
       ...value,
       decision: opt,
-      finalScore: calculatedFinal,
+      finalScore: targetScore,
+      customCalibratedScore: targetScore,
       employeeAvg: overallEmpAvg,
       deptAvg: overallDeptAvg,
       overallDiff,
@@ -1278,7 +1315,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [], subject, workfl
             { id: 'Accept Department Head Score', label: 'Accept Supervisor Evaluation', score: `${overallDeptAvg}%`, sub: 'Official supervisor rating' },
             { id: 'Use Average of Scores', label: 'Apply Balanced Average (50/50)', score: `${Math.round(((overallEmpAvg + overallDeptAvg)/2) * 10) / 10}%`, sub: 'Blend self and supervisor scores' },
             { id: 'Accept Employee Self-Assessment', label: 'Accept Employee Self-Assessment', score: `${overallEmpAvg}%`, sub: 'Adopt employee self-rating' },
-            { id: 'Override Final Score', label: 'Custom HR Calibrated Score', score: 'Custom %', sub: 'HR adjustment with justification' },
+            { id: 'Override Final Score', label: 'Custom HR Calibrated Score', score: isOverride ? `${value.finalScore ?? 0}%` : 'Custom %', sub: 'HR adjustment with justification' },
             { id: 'Return for Revision', label: 'Return Evaluation for Revision', score: 'Revision', sub: 'Send back to Supervisor' }
           ].map(opt => (
             <button
@@ -1300,7 +1337,7 @@ function CalibrationBuilder({ value = {}, onChange, events = [], subject, workfl
         {decision && !isReturn && (
           <div className="final-score-box" style={{ marginTop: 16, padding: 14, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-              Final Calibrated Performance Score (%):
+              {isOverride ? 'Custom Calibrated Score (%):' : 'Final Calibrated Performance Score (%):'}
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
@@ -1310,13 +1347,16 @@ function CalibrationBuilder({ value = {}, onChange, events = [], subject, workfl
                 step="0.1"
                 value={value.finalScore ?? ''}
                 disabled={!isOverride}
-                onChange={e => onChange({ ...value, finalScore: e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))) })}
+                onChange={e => {
+                  const val = e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value)))
+                  onChange({ ...value, finalScore: val, customCalibratedScore: val })
+                }}
                 style={{ width: 100, padding: '8px 12px', fontSize: 15, fontWeight: 700, borderRadius: 8, border: '1px solid #c7d2fe', background: isOverride ? '#fff' : '#f1f5f9' }}
               />
               <span style={{ fontWeight: 700 }}>%</span>
             </div>
             <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 4 }}>
-              {isOverride ? 'Enter custom calibrated percentage score.' : 'Authoritative percentage score that will be saved and published.'}
+              {isOverride ? 'Enter custom calibrated percentage score (resets to 0 when switching calibration cards).' : 'Authoritative percentage score that will be saved and published.'}
             </small>
           </div>
         )}
@@ -2587,8 +2627,6 @@ function TrainingInviteBuilder({ value = {}, onChange, people = [] }) {
 function ProgressBuilder({ value = [], onChange, role, people = [], subject, events = [] }) {
   const [dbAssignments, setDbAssignments] = useState([])
   const [loading, setLoading] = useState(false)
-  const [updatingId, setUpdatingId] = useState(null)
-  const [notice, setNotice] = useState('')
 
   const subjectEmp = subject || (Array.isArray(people) && people.length > 0 ? people[0] : null)
   const employeeId = subjectEmp?.id || subjectEmp?.employee_id
@@ -2616,187 +2654,167 @@ function ProgressBuilder({ value = [], onChange, role, people = [], subject, eve
     void loadAssignments()
   }, [loadAssignments])
 
-  const handleUpdateProgress = async (assignment, newProgress) => {
-    setUpdatingId(assignment.id)
-    try {
-      await api.updateLearningProgress(assignment.id, newProgress)
-      const updated = dbAssignments.map(a => a.id === assignment.id ? { ...a, progress: newProgress, status: newProgress >= 100 ? 'completed' : newProgress > 0 ? 'studying' : a.status } : a)
-      setDbAssignments(updated)
-      onChange(updated.map(a => ({ name: a.resource_title, progress: a.progress || 0, status: a.status, assignmentId: a.id })))
-      setNotice(`Updated progress for "${assignment.resource_title}" to ${newProgress}%.`)
-    } catch (err) {
-      setNotice(`Failed to update progress: ${err.message}`)
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const handleUpdateStatus = async (assignment, newStatus) => {
-    setUpdatingId(assignment.id)
-    try {
-      await api.updateLearningStatus(assignment.id, newStatus)
-      const updated = dbAssignments.map(a => a.id === assignment.id ? { ...a, status: newStatus } : a)
-      setDbAssignments(updated)
-      onChange(updated.map(a => ({ name: a.resource_title, progress: a.progress || 0, status: a.status, assignmentId: a.id })))
-      setNotice(`Updated status for "${assignment.resource_title}" to ${newStatus.replace('_', ' ')}.`)
-    } catch (err) {
-      setNotice(`Failed to update status: ${err.message}`)
-    } finally {
-      setUpdatingId(null)
-    }
+  const STATUS_CONFIG = {
+    not_started:         { label: 'Not Started', bg: '#f1f5f9', color: '#475569' },
+    in_progress:         { label: 'In Progress', bg: '#eff6ff', color: '#1d4ed8' },
+    assessment_pending:  { label: 'Assessment Pending', bg: '#fffbeb', color: '#b45309' },
+    completed:           { label: 'Completed', bg: '#ecfdf5', color: '#047857' },
+    needs_improvement:   { label: 'Needs Improvement', bg: '#fef2f2', color: '#b91c1c' },
   }
 
   return (
     <div className="builder progress-builder" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {notice && (
-        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: 11.5, color: '#059669', fontWeight: 600 }}>
-          {notice}
-        </div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h4 style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700 }}>
             {isEmployee ? 'My Assigned Development Plans & Learning Paths' : `Assigned Learning Progress for ${subjectName}`}
           </h4>
           <span style={{ fontSize: 11, color: '#64748b' }}>
-            {isEmployee ? 'Track your study progress and update your completion status.' : 'Review learner completion against assigned competency development plans.'}
+            Evidence-based progress automatically derived from course study activity and assessment results.
           </span>
         </div>
         {loading && <small style={{ color: '#4b5563', fontSize: 11 }}>Syncing progress…</small>}
       </div>
 
+      <div style={{
+        padding: '10px 14px',
+        borderRadius: 8,
+        background: 'rgba(99, 102, 241, 0.06)',
+        border: '1px solid rgba(99, 102, 241, 0.2)',
+        fontSize: 11.5,
+        color: '#3730a3',
+        lineHeight: 1.45,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <Lock size={14} style={{ flexShrink: 0 }} />
+        <span><b>Automatic & Evidence-Based:</b> Learning completion percentage and status are calculated automatically by the system. Manual adjustment is disabled to prevent false completion. Assessments are taken in the <b>Course Library</b>.</span>
+      </div>
+
       {/* Real database assignments list */}
       {dbAssignments.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {dbAssignments.map(a => (
-            <div
-              key={a.id}
-              style={{
-                background: 'var(--card-bg, #ffffff)',
-                border: '1.5px solid var(--border, #e5e3ee)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-                <div>
-                  <b style={{ fontSize: 12.5, color: 'inherit' }}>{a.resource_title}</b>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(17, 24, 39, 0.1)', color: '#111827' }}>
-                      {a.category || 'Skill Development'}
-                    </span>
-                    {a.duration_hours && (
-                      <span style={{ fontSize: 10, color: '#64748b' }}>· {a.duration_hours} hrs</span>
-                    )}
-                    {(a.competencies || []).map(c => (
-                      <span key={c} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(16,185,129,0.1)', color: '#059669', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        ✦ Closes gap in {c}
+          {dbAssignments.map(a => {
+            const st = STATUS_CONFIG[a.status] || { label: a.status || 'Not Started', bg: '#f1f5f9', color: '#475569' }
+            const breakdown = typeof a.progress_breakdown === 'string' ? JSON.parse(a.progress_breakdown) : (a.progress_breakdown || {})
+            return (
+              <div
+                key={a.id}
+                style={{
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1.5px solid var(--border, #e5e3ee)',
+                  borderRadius: 10,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                  <div>
+                    <b style={{ fontSize: 13, color: 'inherit' }}>{a.resource_title}</b>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(17, 24, 39, 0.08)', color: '#111827' }}>
+                        {a.category || 'Skill Development'}
                       </span>
-                    ))}
+                      {a.duration_hours && (
+                        <span style={{ fontSize: 10, color: '#64748b' }}>· {a.duration_hours} hrs</span>
+                      )}
+                      {(a.competencies || []).map(c => (
+                        <span key={c} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 12, background: 'rgba(16,185,129,0.1)', color: '#059669', border: '1px solid rgba(16,185,129,0.2)' }}>
+                          ✦ Closes gap in {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                      background: st.bg,
+                      color: st.color,
+                      border: `1px solid ${st.color}33`,
+                    }}>
+                      {st.label}
+                    </span>
+                    {a.is_overridden && (
+                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <ShieldCheck size={10} /> HR Override
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <select
-                    value={a.status || 'not_started'}
-                    onChange={e => handleUpdateStatus(a, e.target.value)}
-                    disabled={updatingId === a.id}
+                {/* Read-only Computed Progress Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
                     style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: '4px 8px',
-                      borderRadius: 6,
-                      border: '1px solid #d1d5db',
-                      background: 'inherit',
-                      color: 'inherit',
-                      cursor: updatingId === a.id ? 'wait' : 'pointer',
+                      flex: 1,
+                      height: 10,
+                      borderRadius: 5,
+                      background: 'rgba(148,163,184,0.2)',
+                      overflow: 'hidden',
+                      position: 'relative',
                     }}
                   >
-                    <option value="not_started">Not started</option>
-                    <option value="studying">Studying</option>
-                    <option value="completed">Completed</option>
-                    <option value="need_help">Need help</option>
-                  </select>
-                  {a.is_completed && (Number(a.progress) >= 100 || a.status === 'completed') && (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 12, background: '#d1fae5', color: '#065f46' }}>
-                      ✓ Verified
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${a.progress || 0}%`,
+                        background: a.status === 'completed'
+                          ? '#10b981'
+                          : a.status === 'needs_improvement'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #6366f1, #4f46e5)',
+                        borderRadius: 5,
+                        transition: 'width 0.3s ease',
+                      }}
+                    />
+                  </div>
+                  <b style={{ fontSize: 12, minWidth: 42, textAlign: 'right' }}>{Math.round(Number(a.progress || 0))}%</b>
+                </div>
+
+                {/* Evidence Details & Status Explanation */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  fontSize: 11,
+                  color: '#64748b',
+                  paddingTop: 4,
+                  borderTop: '1px dashed #f1f5f9',
+                }}>
+                  <div>
+                    {breakdown.materialProgress != null ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        <BookOpen size={11} style={{ flexShrink: 0 }} /> Material: <b>{breakdown.materialProgress}/50 pts</b> ({a.material_completed ? 'Finished' : a.started_at ? 'In progress' : 'Not started'})
+                        {' · '}
+                        <ClipboardList size={11} style={{ flexShrink: 0 }} /> Assessment: <b>{breakdown.assessmentProgress}/50 pts</b>
+                        {a.assessment_score != null ? ` (Score: ${a.assessment_score}%)` : ' (Pending)'}
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        {a.material_completed ? <><CheckCircle size={11} className="text-emerald-500" /> Material Finished</> : a.started_at ? <><BookOpen size={11} /> Studying</> : 'Awaiting access'}
+                        {a.assessment_score != null && ` · Assessment Score: ${a.assessment_score}%`}
+                      </span>
+                    )}
+                  </div>
+
+                  {a.attempts_count > 0 && (
+                    <span style={{ fontSize: 10.5, color: '#475569' }}>
+                      Attempts: <b>{a.attempts_count}</b>
                     </span>
                   )}
                 </div>
               </div>
-
-              {/* Progress Slider & Interactive Bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div
-                  onClick={e => {
-                    if (updatingId === a.id) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const pct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)))
-                    handleUpdateProgress(a, pct)
-                  }}
-                  title="Click anywhere on the bar to set progress"
-                  style={{
-                    flex: 1,
-                    height: 10,
-                    borderRadius: 5,
-                    background: 'rgba(148,163,184,0.2)',
-                    overflow: 'hidden',
-                    cursor: updatingId === a.id ? 'wait' : 'pointer',
-                    position: 'relative',
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${a.progress || 0}%`,
-                      background: Number(a.progress) >= 100 ? '#10b981' : 'linear-gradient(90deg, #4b5563, #111827)',
-                      borderRadius: 5,
-                      transition: 'width 0.2s ease',
-                    }}
-                  />
-                </div>
-                <b style={{ fontSize: 11.5, minWidth: 42, textAlign: 'right' }}>{Math.round(Number(a.progress || 0))}%</b>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={Math.round(Number(a.progress || 0))}
-                  disabled={updatingId === a.id}
-                  onChange={e => handleUpdateProgress(a, Number(e.target.value))}
-                  style={{ width: 110, cursor: updatingId === a.id ? 'wait' : 'pointer' }}
-                />
-              </div>
-
-              {/* Quick Set Buttons */}
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <small style={{ fontSize: 10, color: '#64748b' }}>Quick set:</small>
-                {[0, 25, 50, 75, 100].map(pct => (
-                  <button
-                    key={pct}
-                    type="button"
-                    disabled={updatingId === a.id}
-                    onClick={() => handleUpdateProgress(a, pct)}
-                    style={{
-                      padding: '2px 8px',
-                      fontSize: 10,
-                      fontWeight: Math.round(Number(a.progress || 0)) === pct ? 700 : 500,
-                      borderRadius: 4,
-                      border: Math.round(Number(a.progress || 0)) === pct ? '1px solid #111827' : '1px solid #cbd5e1',
-                      background: Math.round(Number(a.progress || 0)) === pct ? '#f3f4f6' : '#ffffff',
-                      color: Math.round(Number(a.progress || 0)) === pct ? '#111827' : '#475569',
-                      cursor: updatingId === a.id ? 'wait' : 'pointer',
-                    }}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div style={{ padding: '16px', borderRadius: 10, background: 'rgba(17, 24, 39, 0.04)', border: '1px dashed rgba(17, 24, 39, 0.2)', textAlign: 'center' }}>
@@ -3649,8 +3667,8 @@ function CompetencyComparisonBuilder({ value = {}, onChange, workflow, subjectNa
 const BUILDERS = {
   kpi: { Component: KpiBuilder, initial: () => [] },
   kpiLibrary: { Component: KpiLibraryBuilder, initial: () => [] },
-  assessment: { Component: AssessmentBuilder, initial: role => ({ kpiRatings: [], averageRating: 4.0, overall: 80, strengths: '', improvements: '', comments: '', role: role || '' }) },
-  calibration: { Component: CalibrationBuilder, initial: () => ({ decision: '', finalScore: '', reason: '' }) },
+  assessment: { Component: AssessmentBuilder, initial: role => ({ kpiRatings: [], averageRating: null, overall: null, strengths: '', improvements: '', comments: '', role: role || '' }) },
+  calibration: { Component: CalibrationBuilder, initial: () => ({ decision: '', finalScore: 0, customCalibratedScore: 0, reason: '' }) },
   competencyTemplate: { Component: CompetencyTemplateBuilder, initial: () => [] },
   skillGapPlan: { Component: SkillGapPlanBuilder, initial: () => ({ planTitle: 'Development Plan', prioritySkills: ['Customer Service'], coachingNotes: '' }) },
   competencyRequirement: { Component: CompetencyRequirementBuilder, initial: () => [] },
@@ -3705,13 +3723,19 @@ export default function WorkflowForms({ formConfig, value, onChange, role, peopl
       if (formConfig.builder === 'trainingInvite') {
         return Boolean(value?.sessionId && Array.isArray(value?.employeeIds) && value.employeeIds.length > 0)
       }
+      if (formConfig.builder === 'assessment') {
+        const ratings = value?.kpiRatings || []
+        if (!ratings.length) return false
+        return ratings.every(r => r.rating !== undefined && r.rating !== null && r.rating !== '' && Number(r.rating) >= 1 && Number(r.rating) <= 5)
+      }
       if (formConfig.builder === 'calibration') {
-        // Calibration requires a decision; finalScore when overriding; reason
-        // when overriding or returning for reassessment.
+        // Calibration requires a decision; finalScore > 0 when overriding; reason
+        // when overriding or returning for revision.
         const decision = value?.decision || ''
         if (!decision) return false
-        if (decision === 'Override Final Score' && (value?.finalScore === '' || value?.finalScore === undefined || value?.finalScore === null)) return false
-        if ((decision === 'Override Final Score' || decision === 'Return for Reassessment') && !String(value?.reason || '').trim()) return false
+        const isCustom = decision === 'Override Final Score' || decision.includes('Custom')
+        if (isCustom && (value?.finalScore === '' || value?.finalScore === undefined || value?.finalScore === null || Number(value?.finalScore) <= 0)) return false
+        if ((isCustom || decision.includes('Return') || decision === 'Return for Reassessment') && !String(value?.reason || '').trim()) return false
         return true
       }
       return Boolean(value && Object.keys(value).length)

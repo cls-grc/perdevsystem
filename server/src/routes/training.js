@@ -10,17 +10,73 @@ import { sendEmail } from '../services/email.js'
 
 const router = Router()
 
+// Helper functions for unified datetime & attendance window handling
+function formatTime12h(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+function normalizeSessionSchedule(input) {
+  let startDt = input.startDateTime ? new Date(input.startDateTime) : null
+  if ((!startDt || isNaN(startDt.getTime())) && input.startDate && input.startTime) {
+    const timePart = input.startTime.length === 5 ? `${input.startTime}:00` : input.startTime
+    startDt = new Date(`${input.startDate}T${timePart}`)
+  }
+
+  let endDt = input.endDateTime ? new Date(input.endDateTime) : null
+  if ((!endDt || isNaN(endDt.getTime())) && input.endDate && input.endTime) {
+    const timePart = input.endTime.length === 5 ? `${input.endTime}:00` : input.endTime
+    endDt = new Date(`${input.endDate}T${timePart}`)
+  } else if ((!endDt || isNaN(endDt.getTime())) && startDt && !isNaN(startDt.getTime())) {
+    endDt = new Date(startDt.getTime() + 2 * 60 * 60 * 1000)
+  }
+
+  let windowStart = input.attendanceWindowStart ? new Date(input.attendanceWindowStart) : null
+  if ((!windowStart || isNaN(windowStart.getTime())) && startDt && !isNaN(startDt.getTime())) {
+    windowStart = new Date(startDt.getTime() - 10 * 60 * 1000) // 10 mins before start
+  }
+
+  let windowEnd = input.attendanceWindowEnd ? new Date(input.attendanceWindowEnd) : null
+  if ((!windowEnd || isNaN(windowEnd.getTime())) && startDt && !isNaN(startDt.getTime())) {
+    windowEnd = new Date(startDt.getTime() + 15 * 60 * 1000) // 15 mins after start
+  }
+
+  const startDate = input.startDate || (startDt && !isNaN(startDt.getTime()) ? startDt.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+  const startTime = input.startTime || (startDt && !isNaN(startDt.getTime()) ? startDt.toTimeString().slice(0, 8) : '09:00:00')
+  const endDate = input.endDate || (endDt && !isNaN(endDt.getTime()) ? endDt.toISOString().slice(0, 10) : startDate)
+  const endTime = input.endTime || (endDt && !isNaN(endDt.getTime()) ? endDt.toTimeString().slice(0, 8) : '17:00:00')
+
+  return {
+    startDt: startDt && !isNaN(startDt.getTime()) ? startDt : null,
+    endDt: endDt && !isNaN(endDt.getTime()) ? endDt : null,
+    windowStart: windowStart && !isNaN(windowStart.getTime()) ? windowStart : null,
+    windowEnd: windowEnd && !isNaN(windowEnd.getTime()) ? windowEnd : null,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+  }
+}
+
 // Schema definitions
 const createSessionSchema = z.object({
   title: z.string().min(3).max(140),
   description: z.string().optional(),
   category: z.string().min(2).max(100),
   trainer: z.string().optional(),
+  trainerId: z.string().uuid().optional().nullable(),
   venue: z.string().min(2).max(140),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  venueId: z.string().uuid().optional().nullable(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional().nullable(),
+  startDateTime: z.string().optional().nullable(),
+  endDateTime: z.string().optional().nullable(),
+  attendanceWindowStart: z.string().optional().nullable(),
+  attendanceWindowEnd: z.string().optional().nullable(),
   capacity: z.number().int().positive().default(30),
   budget: z.number().nonnegative().default(0),
   department: z.string().default('All Departments'),
@@ -53,6 +109,162 @@ const evaluationSchema = z.object({
 })
 
 router.use(authenticate)
+
+// ---------------------------------------------------------------------------
+// Venues & Trainers Dropdown APIs
+// ---------------------------------------------------------------------------
+router.get('/venues', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      SELECT id, name, building, floor, capacity, is_active
+      FROM training_venues
+      WHERE is_active = true
+      ORDER BY name ASC
+    `)
+    res.json({ venues: rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/trainers', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      SELECT 
+        u.id, 
+        u.full_name, 
+        u.role, 
+        u.email, 
+        e.id AS employee_id, 
+        COALESCE(e.job_title, u.role) AS job_title, 
+        COALESCE(e.department, 'Hospitality') AS department
+      FROM users u
+      LEFT JOIN employees e ON u.employee_id = e.id
+      WHERE u.is_active = true
+      ORDER BY u.full_name ASC
+    `)
+    res.json({ trainers: rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Employee's Personal Training Attendance History
+// ---------------------------------------------------------------------------
+router.get('/attendance/my-records', async (req, res, next) => {
+  try {
+    let employeeId = req.user.employeeId || req.user.employee_id
+    if (!employeeId && req.user.sub) {
+      const u = await query('SELECT employee_id FROM users WHERE id = $1', [req.user.sub || req.user.id])
+      employeeId = u.rows[0]?.employee_id
+    }
+    if (!employeeId) {
+      return res.json({ records: [] })
+    }
+
+    const { rows } = await query(`
+      SELECT 
+        tar.id,
+        tar.session_id,
+        ts.title AS training_title,
+        ts.category,
+        ts.venue,
+        ts.trainer,
+        ts.start_date,
+        ts.start_time,
+        ts.end_date,
+        ts.end_time,
+        ts.start_datetime,
+        ts.end_datetime,
+        tar.attendance_date,
+        tar.time_in,
+        tar.status,
+        tar.scan_method,
+        tar.notes,
+        tar.created_at
+      FROM training_attendance_records tar
+      JOIN training_sessions ts ON tar.session_id = ts.id
+      WHERE tar.employee_id = $1
+      ORDER BY tar.time_in DESC
+    `, [employeeId])
+
+    res.json({ records: rows })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// HR / Supervisor Complete Participant Attendance Records
+// ---------------------------------------------------------------------------
+router.get('/attendance/records', authorize('hr', 'operations_manager', 'supervisor', 'management'), async (req, res, next) => {
+  try {
+    const { sessionId, search, status, department, startDate, endDate } = req.query
+    const params = []
+    let where = 'WHERE 1=1'
+
+    if (sessionId) {
+      params.push(sessionId)
+      where += ` AND tar.session_id = $${params.length}`
+    }
+    if (status) {
+      params.push(status)
+      where += ` AND tar.status = $${params.length}`
+    }
+    if (department && department !== 'All Departments') {
+      params.push(department)
+      where += ` AND e.department = $${params.length}`
+    }
+    if (startDate) {
+      params.push(startDate)
+      where += ` AND tar.attendance_date >= $${params.length}`
+    }
+    if (endDate) {
+      params.push(endDate)
+      where += ` AND tar.attendance_date <= $${params.length}`
+    }
+    if (search) {
+      params.push(`%${search}%`)
+      where += ` AND (e.full_name ILIKE $${params.length} OR e.employee_number ILIKE $${params.length} OR ts.title ILIKE $${params.length})`
+    }
+
+    const { rows } = await query(`
+      SELECT 
+        tar.id,
+        tar.session_id,
+        ts.title AS training_title,
+        ts.category,
+        ts.venue,
+        ts.trainer,
+        ts.start_datetime,
+        ts.end_datetime,
+        ts.start_date,
+        ts.start_time,
+        tar.employee_id,
+        e.full_name AS employee_name,
+        e.employee_number,
+        e.department,
+        e.job_title,
+        tar.attendance_date,
+        tar.time_in,
+        tar.status,
+        tar.scan_method,
+        tar.notes,
+        u.full_name AS recorded_by_name
+      FROM training_attendance_records tar
+      JOIN training_sessions ts ON tar.session_id = ts.id
+      JOIN employees e ON tar.employee_id = e.id
+      LEFT JOIN users u ON tar.scanned_by = u.id
+      ${where}
+      ORDER BY tar.time_in DESC
+    `, params)
+
+    res.json({ records: rows })
+  } catch (error) {
+    next(error)
+  }
+})
 
 // ---------------------------------------------------------------------------
 // 1. GET /api/training/sessions — List sessions with filters & scope
@@ -92,9 +304,10 @@ router.get('/sessions', async (req, res, next) => {
 
     const sql = `
       SELECT 
-        ts.id, ts.title, ts.description, ts.category, ts.trainer, ts.venue,
-        ts.start_date, ts.start_time, ts.end_date, ts.end_time, ts.capacity,
-        ts.budget, ts.department, ts.status, ts.completed_at, ts.created_at,
+        ts.id, ts.title, ts.description, ts.category, ts.trainer, ts.trainer_id, ts.venue, ts.venue_id,
+        ts.start_date, ts.start_time, ts.end_date, ts.end_time,
+        ts.start_datetime, ts.end_datetime, ts.attendance_window_start, ts.attendance_window_end,
+        ts.capacity, ts.budget, ts.department, ts.status, ts.completed_at, ts.created_at,
         u.full_name AS created_by_name,
         COALESCE(p.registered_count, 0) AS registered_count,
         COALESCE(p.present_count, 0) AS present_count,
@@ -145,14 +358,19 @@ router.get('/sessions/:id', async (req, res, next) => {
 
     const session = sessResult.rows[0]
 
-    // Fetch participant list with employee details
+    // Fetch participant list with employee details and persistent attendance records
     const partResult = await query(
       `SELECT 
         tp.id AS participant_id, tp.session_id, tp.employee_id, tp.status, 
         tp.attendance, tp.attendance_recorded_at, tp.evaluation, tp.invited_at,
-        e.full_name, e.department, e.job_title, e.employee_number
+        e.full_name, e.department, e.job_title, e.employee_number,
+        tar.time_in, tar.scan_method, tar.status AS attendance_record_status,
+        u_rec.full_name AS scanned_by_name
        FROM training_participants tp
        JOIN employees e ON tp.employee_id = e.id
+       LEFT JOIN training_attendance_records tar 
+         ON tar.session_id = tp.session_id AND tar.employee_id = tp.employee_id
+       LEFT JOIN users u_rec ON tar.scanned_by = u_rec.id
        WHERE tp.session_id = $1
        ORDER BY e.full_name ASC`,
       [id]
@@ -173,11 +391,32 @@ router.get('/sessions/:id', async (req, res, next) => {
 router.post('/sessions', authorize('hr', 'operations_manager'), async (req, res, next) => {
   try {
     const input = createSessionSchema.parse(req.body)
+    const schedule = normalizeSessionSchedule(input)
+
+    let finalVenue = input.venue
+    let finalVenueId = input.venueId || null
+    if (finalVenueId) {
+      const v = await query('SELECT name FROM training_venues WHERE id = $1', [finalVenueId])
+      if (v.rows.length > 0) finalVenue = v.rows[0].name
+    } else if (finalVenue) {
+      const v = await query('SELECT id FROM training_venues WHERE name = $1', [finalVenue])
+      if (v.rows.length > 0) finalVenueId = v.rows[0].id
+    }
+
+    let finalTrainer = input.trainer || ''
+    let finalTrainerId = input.trainerId || null
+    if (finalTrainerId) {
+      const t = await query('SELECT full_name FROM users WHERE id = $1', [finalTrainerId])
+      if (t.rows.length > 0) finalTrainer = t.rows[0].full_name
+    }
 
     const sql = `
       INSERT INTO training_sessions 
-        (title, description, category, trainer, venue, start_date, start_time, end_date, end_time, capacity, budget, department, status, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13)
+        (title, description, category, trainer, trainer_id, venue, venue_id,
+         start_date, start_time, end_date, end_time,
+         start_datetime, end_datetime, attendance_window_start, attendance_window_end,
+         capacity, budget, department, status, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'scheduled', $19)
       RETURNING *
     `
 
@@ -185,12 +424,18 @@ router.post('/sessions', authorize('hr', 'operations_manager'), async (req, res,
       input.title,
       input.description || '',
       input.category,
-      input.trainer || '',
-      input.venue,
-      input.startDate,
-      input.startTime,
-      input.endDate || null,
-      input.endTime || null,
+      finalTrainer,
+      finalTrainerId,
+      finalVenue,
+      finalVenueId,
+      schedule.startDate,
+      schedule.startTime,
+      schedule.endDate,
+      schedule.endTime,
+      schedule.startDt,
+      schedule.endDt,
+      schedule.windowStart,
+      schedule.windowEnd,
       input.capacity,
       input.budget,
       input.department,
@@ -225,13 +470,40 @@ router.patch('/sessions/:id', authorize('hr', 'operations_manager'), async (req,
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
 
     const s = existing.rows[0]
+    const schedule = normalizeSessionSchedule({
+      startDate: patch.startDate ?? s.start_date,
+      startTime: patch.startTime ?? s.start_time,
+      endDate: patch.endDate ?? s.end_date,
+      endTime: patch.endTime ?? s.end_time,
+      startDateTime: patch.startDateTime ?? s.start_datetime,
+      endDateTime: patch.endDateTime ?? s.end_datetime,
+      attendanceWindowStart: patch.attendanceWindowStart ?? s.attendance_window_start,
+      attendanceWindowEnd: patch.attendanceWindowEnd ?? s.attendance_window_end,
+    })
+
+    let finalVenue = patch.venue ?? s.venue
+    let finalVenueId = patch.venueId ?? s.venue_id
+    if (patch.venueId) {
+      const v = await query('SELECT name FROM training_venues WHERE id = $1', [patch.venueId])
+      if (v.rows.length > 0) finalVenue = v.rows[0].name
+    }
+
+    let finalTrainer = patch.trainer ?? s.trainer
+    let finalTrainerId = patch.trainerId ?? s.trainer_id
+    if (patch.trainerId) {
+      const t = await query('SELECT full_name FROM users WHERE id = $1', [patch.trainerId])
+      if (t.rows.length > 0) finalTrainer = t.rows[0].full_name
+    }
 
     const sql = `
       UPDATE training_sessions SET
-        title = $1, description = $2, category = $3, trainer = $4, venue = $5,
-        start_date = $6, start_time = $7, end_date = $8, end_time = $9,
-        capacity = $10, budget = $11, department = $12, status = $13, updated_at = NOW()
-      WHERE id = $14
+        title = $1, description = $2, category = $3, 
+        trainer = $4, trainer_id = $5, venue = $6, venue_id = $7,
+        start_date = $8, start_time = $9, end_date = $10, end_time = $11,
+        start_datetime = $12, end_datetime = $13,
+        attendance_window_start = $14, attendance_window_end = $15,
+        capacity = $16, budget = $17, department = $18, status = $19, updated_at = NOW()
+      WHERE id = $20
       RETURNING *
     `
 
@@ -239,12 +511,18 @@ router.patch('/sessions/:id', authorize('hr', 'operations_manager'), async (req,
       patch.title ?? s.title,
       patch.description ?? s.description,
       patch.category ?? s.category,
-      patch.trainer ?? s.trainer,
-      patch.venue ?? s.venue,
-      patch.startDate ?? s.start_date,
-      patch.startTime ?? s.start_time,
-      patch.endDate ?? s.end_date,
-      patch.endTime ?? s.end_time,
+      finalTrainer,
+      finalTrainerId,
+      finalVenue,
+      finalVenueId,
+      schedule.startDate,
+      schedule.startTime,
+      schedule.endDate,
+      schedule.endTime,
+      schedule.startDt,
+      schedule.endDt,
+      schedule.windowStart,
+      schedule.windowEnd,
       patch.capacity ?? s.capacity,
       patch.budget ?? s.budget,
       patch.department ?? s.department,
@@ -294,7 +572,7 @@ router.post('/sessions/:id/cancel', authorize('hr', 'operations_manager'), async
 // ---------------------------------------------------------------------------
 // 6. POST /api/training/sessions/:id/participants — Invite participants
 // ---------------------------------------------------------------------------
-router.post('/sessions/:id/participants', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.post('/sessions/:id/participants', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
     const { id } = req.params
     const { employeeIds } = inviteParticipantsSchema.parse(req.body)
@@ -371,7 +649,7 @@ router.post('/sessions/:id/participants', authorize('hr', 'supervisor'), async (
 // ---------------------------------------------------------------------------
 // 7. DELETE /api/training/sessions/:id/participants/:employeeId — Remove participant
 // ---------------------------------------------------------------------------
-router.delete('/sessions/:id/participants/:employeeId', authorize('hr', 'supervisor'), async (req, res, next) => {
+router.delete('/sessions/:id/participants/:employeeId', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
   try {
     const { id, employeeId } = req.params
     await query('DELETE FROM training_participants WHERE session_id = $1 AND employee_id = $2', [id, employeeId])
@@ -400,6 +678,19 @@ router.post('/sessions/:id/attendance', authorize('hr', 'supervisor', 'operation
            WHERE session_id = $3 AND employee_id = $4`,
           [rec.attendance, req.user.id, id, rec.employeeId]
         )
+
+        // Persistent attendance record for historical tracking
+        await client.query(
+          `INSERT INTO training_attendance_records (
+             session_id, employee_id, attendance_date, time_in, status, scan_method, scanned_by, updated_at
+           ) VALUES ($1, $2, CURRENT_DATE, NOW(), $3, 'manual_hr', $4, NOW())
+           ON CONFLICT (session_id, employee_id, attendance_date)
+           DO UPDATE SET 
+             status = EXCLUDED.status,
+             scanned_by = EXCLUDED.scanned_by,
+             updated_at = NOW()`,
+          [id, rec.employeeId, rec.attendance, req.user.id]
+        )
       }
     })
 
@@ -423,7 +714,7 @@ router.post('/sessions/:id/attendance', authorize('hr', 'supervisor', 'operation
 router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'operations_manager'), async (req, res, next) => {
   try {
     const { id } = req.params
-    const { code, employeeId, employeeNumber, status = 'present' } = req.body
+    const { code, employeeId, employeeNumber, status } = req.body
 
     let targetEmpNumber = employeeNumber
     let targetEmpId = employeeId
@@ -463,7 +754,12 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
     }
 
     const employee = empRes.rows[0]
-    const sessRes = await query('SELECT id, title, status FROM training_sessions WHERE id = $1', [id])
+    const sessRes = await query(
+      `SELECT id, title, status, start_date, start_time, end_date, end_time,
+              start_datetime, end_datetime, attendance_window_start, attendance_window_end
+       FROM training_sessions WHERE id = $1`,
+      [id]
+    )
     if (sessRes.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
     const session = sessRes.rows[0]
 
@@ -481,6 +777,12 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
       return res.status(400).json({ error: 'This training session has been cancelled.' })
     }
 
+    // ── Check training schedule end time
+    const now = new Date()
+    if (session.end_datetime && now > new Date(session.end_datetime)) {
+      return res.status(400).json({ error: `This training session schedule has already concluded.` })
+    }
+
     // ── Check employee is an invited participant
     const inviteCheck = await query(
       'SELECT id FROM training_participants WHERE session_id = $1 AND employee_id = $2',
@@ -494,7 +796,69 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
       })
     }
 
+    // ── ENFORCE ATTENDANCE SCANNING WINDOW
+    const windowStart = session.attendance_window_start 
+      ? new Date(session.attendance_window_start) 
+      : new Date(new Date(`${session.start_date}T${session.start_time}`).getTime() - 10 * 60000)
+    const windowEnd = session.attendance_window_end 
+      ? new Date(session.attendance_window_end) 
+      : new Date(new Date(`${session.start_date}T${session.start_time}`).getTime() + 15 * 60000)
+
+    if (now < windowStart) {
+      const openTimeStr = formatTime12h(windowStart)
+      return res.status(400).json({
+        error: `Attendance is not yet open.\n\nAttendance will open at ${openTimeStr}.`,
+        windowNotOpen: true,
+        opensAt: windowStart.toISOString(),
+      })
+    }
+
+    if (now > windowEnd) {
+      const closeTimeStr = formatTime12h(windowEnd)
+      return res.status(400).json({
+        error: `Attendance is already closed.\n\nThe attendance window ended at ${closeTimeStr}.`,
+        windowClosed: true,
+        closedAt: windowEnd.toISOString(),
+      })
+    }
+
+    // ── PREVENT DUPLICATE ATTENDANCE
+    const dupCheck = await query(
+      `SELECT * FROM training_attendance_records 
+       WHERE session_id = $1 AND employee_id = $2 AND attendance_date = CURRENT_DATE`,
+      [id, employee.id]
+    )
+    if (dupCheck.rows.length > 0) {
+      const existing = dupCheck.rows[0]
+      const existingTime = formatTime12h(existing.time_in)
+      return res.status(409).json({
+        error: `Attendance has already been recorded for ${employee.full_name} at ${existingTime} (Status: ${existing.status.toUpperCase()}).`,
+        alreadyRecorded: true,
+        record: existing,
+      })
+    }
+
+    // ── DETERMINE ATTENDANCE STATUS
+    const startThresh = session.start_datetime 
+      ? new Date(session.start_datetime) 
+      : new Date(`${session.start_date}T${session.start_time}`)
+    
+    let resolvedStatus = status
+    if (!resolvedStatus || resolvedStatus === 'auto' || resolvedStatus === 'present') {
+      resolvedStatus = now <= startThresh ? 'present' : 'late'
+    }
+
+    let savedRecord = null
     await transaction(async client => {
+      const insRes = await client.query(
+        `INSERT INTO training_attendance_records (
+           session_id, employee_id, attendance_date, time_in, status, scan_method, scanned_by
+         ) VALUES ($1, $2, CURRENT_DATE, NOW(), $3, 'badge_scan', $4)
+         RETURNING *`,
+        [id, employee.id, resolvedStatus, req.user.id]
+      )
+      savedRecord = insRes.rows[0]
+
       await client.query(
         `UPDATE training_participants SET
            attendance = $1,
@@ -503,7 +867,7 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
            attendance_recorded_by = $2,
            updated_at = NOW()
          WHERE session_id = $3 AND employee_id = $4`,
-        [status, req.user.id, id, employee.id]
+        [resolvedStatus, req.user.id, id, employee.id]
       )
     })
 
@@ -512,15 +876,23 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
       action: 'training_qr_attendance_scanned',
       entityType: 'training_session',
       entityId: id,
-      details: { employeeId: employee.id, employeeNumber: employee.employee_number, employeeName: employee.full_name, status },
+      details: { 
+        employeeId: employee.id, 
+        employeeNumber: employee.employee_number, 
+        employeeName: employee.full_name, 
+        status: resolvedStatus,
+        timeIn: savedRecord?.time_in 
+      },
     })
 
     res.json({
       success: true,
-      message: `Checked in: ${employee.full_name} (${employee.employee_number})`,
+      message: `Checked in: ${employee.full_name} (${employee.employee_number}) — ${resolvedStatus.toUpperCase()}`,
       employee,
-      attendance: status,
-      timestamp: new Date().toISOString(),
+      attendance: resolvedStatus,
+      timeIn: savedRecord?.time_in,
+      timestamp: savedRecord?.time_in || new Date().toISOString(),
+      record: savedRecord,
     })
   } catch (error) {
     next(error)
@@ -533,7 +905,14 @@ router.post('/sessions/:id/scan-attendance', authorize('hr', 'supervisor', 'oper
 router.post('/sessions/:id/self-checkin', async (req, res, next) => {
   try {
     const { id } = req.params
-    const employeeId = req.user.employeeId || req.body.employeeId
+    let employeeId = req.user.employeeId || req.user.employee_id
+    if (req.user.role === 'employee' && !employeeId && req.user.sub) {
+      const u = await query('SELECT employee_id FROM users WHERE id = $1', [req.user.sub])
+      employeeId = u.rows[0]?.employee_id
+    }
+    if (req.user.role !== 'employee' && !employeeId) {
+      employeeId = req.body.employeeId
+    }
 
     if (!employeeId) {
       return res.status(400).json({ error: 'Your account is not linked to an employee record.' })
@@ -545,7 +924,12 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
     }
     const employee = empRes.rows[0]
 
-    const sessRes = await query('SELECT id, title, venue, start_date, status FROM training_sessions WHERE id = $1', [id])
+    const sessRes = await query(
+      `SELECT id, title, venue, start_date, start_time, end_date, end_time,
+              start_datetime, end_datetime, attendance_window_start, attendance_window_end, status
+       FROM training_sessions WHERE id = $1`,
+      [id]
+    )
     if (sessRes.rows.length === 0) return res.status(404).json({ error: 'Training session not found.' })
     const session = sessRes.rows[0]
 
@@ -561,6 +945,12 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
       })
     }
 
+    // ── Check if session has ended
+    const now = new Date()
+    if (session.end_datetime && now > new Date(session.end_datetime)) {
+      return res.status(400).json({ error: `The schedule for "${session.title}" has already concluded.` })
+    }
+
     // ── Check the employee is an invited participant
     const inviteCheck = await query(
       'SELECT id FROM training_participants WHERE session_id = $1 AND employee_id = $2',
@@ -573,16 +963,74 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
       })
     }
 
+    // ── ENFORCE ATTENDANCE SCANNING WINDOW
+    const windowStart = session.attendance_window_start 
+      ? new Date(session.attendance_window_start) 
+      : new Date(new Date(`${session.start_date}T${session.start_time}`).getTime() - 10 * 60000)
+    const windowEnd = session.attendance_window_end 
+      ? new Date(session.attendance_window_end) 
+      : new Date(new Date(`${session.start_date}T${session.start_time}`).getTime() + 15 * 60000)
+
+    if (now < windowStart) {
+      const openTimeStr = formatTime12h(windowStart)
+      return res.status(400).json({
+        error: `Attendance is not yet open.\n\nAttendance will open at ${openTimeStr}.`,
+        windowNotOpen: true,
+        opensAt: windowStart.toISOString(),
+      })
+    }
+
+    if (now > windowEnd) {
+      const closeTimeStr = formatTime12h(windowEnd)
+      return res.status(400).json({
+        error: `Attendance is already closed.\n\nThe attendance window ended at ${closeTimeStr}.`,
+        windowClosed: true,
+        closedAt: windowEnd.toISOString(),
+      })
+    }
+
+    // ── PREVENT DUPLICATE ATTENDANCE
+    const dupCheck = await query(
+      `SELECT * FROM training_attendance_records 
+       WHERE session_id = $1 AND employee_id = $2 AND attendance_date = CURRENT_DATE`,
+      [id, employee.id]
+    )
+    if (dupCheck.rows.length > 0) {
+      const existing = dupCheck.rows[0]
+      const existingTime = formatTime12h(existing.time_in)
+      return res.status(409).json({
+        error: `You have already recorded attendance for this training session at ${existingTime} (Status: ${existing.status.toUpperCase()}).`,
+        alreadyRecorded: true,
+        record: existing,
+      })
+    }
+
+    // ── DERIVE ATTENDANCE STATUS AUTOMATICALLY (Present vs Late)
+    const startThresh = session.start_datetime 
+      ? new Date(session.start_datetime) 
+      : new Date(`${session.start_date}T${session.start_time}`)
+    const derivedStatus = now <= startThresh ? 'present' : 'late'
+
+    let savedRecord = null
     await transaction(async client => {
+      const insRes = await client.query(
+        `INSERT INTO training_attendance_records (
+           session_id, employee_id, attendance_date, time_in, status, scan_method, scanned_by
+         ) VALUES ($1, $2, CURRENT_DATE, NOW(), $3, 'qr_self_scan', $4)
+         RETURNING *`,
+        [id, employee.id, derivedStatus, req.user.id]
+      )
+      savedRecord = insRes.rows[0]
+
       await client.query(
         `UPDATE training_participants SET
-           attendance = 'present',
+           attendance = $1,
            status = 'confirmed',
            attendance_recorded_at = NOW(),
-           attendance_recorded_by = $1,
+           attendance_recorded_by = $2,
            updated_at = NOW()
-         WHERE session_id = $2 AND employee_id = $3`,
-        [req.user.id, id, employee.id]
+         WHERE session_id = $3 AND employee_id = $4`,
+        [derivedStatus, req.user.id, id, employee.id]
       )
     })
 
@@ -591,16 +1039,24 @@ router.post('/sessions/:id/self-checkin', async (req, res, next) => {
       action: 'training_self_checkin_qr',
       entityType: 'training_session',
       entityId: id,
-      details: { employeeId: employee.id, employeeNumber: employee.employee_number, sessionTitle: session.title },
+      details: { 
+        employeeId: employee.id, 
+        employeeNumber: employee.employee_number, 
+        sessionTitle: session.title,
+        status: derivedStatus,
+        timeIn: savedRecord?.time_in,
+      },
     })
 
     res.json({
       success: true,
-      message: `Checked in: ${employee.full_name} is marked PRESENT for ${session.title}`,
+      message: `Checked in: ${employee.full_name} is marked ${derivedStatus.toUpperCase()} for ${session.title}`,
       session,
       employee,
-      attendance: 'present',
-      timestamp: new Date().toISOString(),
+      attendance: derivedStatus,
+      timeIn: savedRecord?.time_in,
+      timestamp: savedRecord?.time_in || new Date().toISOString(),
+      record: savedRecord,
     })
   } catch (error) {
     next(error)
@@ -616,6 +1072,14 @@ router.post('/sessions/:id/evaluation', async (req, res, next) => {
     const evalInput = evaluationSchema.parse(req.body)
 
     const { employeeId, relevance, trainerRating, contentQuality, overallRating, comments } = evalInput
+    let userEmpId = req.user.employeeId || req.user.employee_id
+    if (!userEmpId && req.user.sub) {
+      const u = await query('SELECT employee_id FROM users WHERE id = $1', [req.user.sub])
+      userEmpId = u.rows[0]?.employee_id
+    }
+    if (req.user.role === 'employee' && userEmpId && employeeId !== userEmpId) {
+      return res.status(403).json({ error: 'You may only submit training evaluations for yourself.' })
+    }
 
     const evalData = {
       relevance,

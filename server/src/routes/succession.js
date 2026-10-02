@@ -33,7 +33,7 @@ const directApproveSchema = z.object({
 })
 
 // GET /api/succession/positions - List available target positions
-router.get('/positions', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
+router.get('/positions', authorize('hr', 'supervisor', 'management'), async (req, res, next) => {
   try {
     const scope = await getScopeFilter(req.user)
     let sql = 'SELECT id, title, department, is_critical, description, required_competencies, required_learning, min_performance_score, min_competency_score, min_learning_progress FROM positions'
@@ -53,7 +53,7 @@ router.get('/positions', authorize('hr', 'supervisor', 'management', 'operations
 })
 
 // GET /api/succession/candidates - List eligible succession candidates
-router.get('/candidates', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
+router.get('/candidates', authorize('hr', 'supervisor', 'management'), async (req, res, next) => {
   try {
     const scope = await getScopeFilter(req.user)
     let where = 'WHERE e.is_active = true'
@@ -91,7 +91,7 @@ router.get('/candidates', authorize('hr', 'supervisor', 'management', 'operation
 })
 
 // POST /api/succession/assess - AI Succession Assessment & Critical Role Recommendation
-router.post('/assess', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
+router.post('/assess', authorize('hr', 'supervisor', 'management'), async (req, res, next) => {
   try {
     const { employeeId } = assessSchema.parse(req.body)
 
@@ -108,7 +108,7 @@ router.post('/assess', authorize('hr', 'supervisor', 'management', 'operations_m
 })
 
 // POST /api/succession/workflows/:id/review - Human Review (Approve / Return / Reject)
-router.post('/workflows/:id/review', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
+router.post('/workflows/:id/review', authorize('hr', 'supervisor', 'management'), async (req, res, next) => {
   try {
     const input = reviewSchema.parse(req.body)
 
@@ -127,6 +127,9 @@ router.post('/workflows/:id/review', authorize('hr', 'supervisor', 'management',
       }
 
       if (input.decision === 'approve') {
+        if (req.user.role === 'supervisor') {
+          throw Object.assign(new Error('Access denied: Supervisors cannot approve succession promotions.'), { status: 403 })
+        }
         const targetPos = input.targetPosition || workflow.metadata?.recommendedPosition || workflow.metadata?.targetRole
         if (!targetPos) {
           throw Object.assign(new Error('A target position must be specified to approve succession.'), { status: 400 })
@@ -168,7 +171,7 @@ router.post('/workflows/:id/review', authorize('hr', 'supervisor', 'management',
 })
 
 // POST /api/succession/direct-approve - Direct approval (atomic transaction without workflow id)
-router.post('/direct-approve', authorize('hr', 'supervisor', 'management', 'operations_manager'), async (req, res, next) => {
+router.post('/direct-approve', authorize('hr', 'management', 'operations_manager'), async (req, res, next) => {
   try {
     const input = directApproveSchema.parse(req.body)
 

@@ -252,7 +252,7 @@ export async function checkPerformanceEvaluationCompleted(employeeIdentifier) {
 router.get('/colleagues', async (req, res, next) => {
   try {
     const role = req.user.role || 'employee'
-    const isHrOrAdmin = role === 'hr' || role === 'operations_manager'
+    const isHrOrAdmin = ['hr', 'operations_manager', 'management'].includes(role)
 
     const { rows } = await query(`
       SELECT e.id, e.employee_number, e.full_name, e.department, e.job_title, e.avatar_url,
@@ -399,7 +399,7 @@ router.post('/post', async (req, res, next) => {
   try {
     const input = createKudosSchema.parse(req.body)
     const role = req.user.role || 'employee'
-    const isHr = role === 'hr' || role === 'operations_manager'
+    const isHr = ['hr', 'operations_manager', 'management'].includes(role)
     const isSupervisor = role === 'supervisor'
 
     // ── PERFORMANCE EVALUATION PREREQUISITE CHECKS ──
@@ -577,7 +577,7 @@ router.post('/:id/approve', async (req, res, next) => {
     if (req.body.isOfficialAward !== undefined) {
       post.isOfficialAward = req.body.isOfficialAward
     } else {
-      post.isOfficialAward = post.senderRole === 'hr' || post.senderRole === 'supervisor' || post.senderRole === 'operations_manager'
+      post.isOfficialAward = ['hr', 'supervisor', 'operations_manager', 'management'].includes(post.senderRole)
     }
 
     // Notify recipient that their recognition is now live on the Merit Wall!

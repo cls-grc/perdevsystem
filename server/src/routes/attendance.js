@@ -85,7 +85,7 @@ router.get('/employee/:employeeId', async (req, res, next) => {
 })
 
 // POST /api/attendance/sync — trigger DTR sync from HR2
-router.post('/sync', authorize('hr', 'operations_manager', 'supervisor'), async (req, res, next) => {
+router.post('/sync', authorize('hr', 'operations_manager', 'management', 'supervisor'), async (req, res, next) => {
   try {
     const { period } = syncSchema.parse(req.body || {})
     

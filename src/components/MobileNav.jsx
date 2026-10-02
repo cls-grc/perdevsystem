@@ -58,11 +58,18 @@ const sectionsByRole = {
     },
   ],
   management: [
-    { title: 'Overview', links: [{ to: '/', label: 'Dashboard', icon: 'grid' }] },
+    {
+      title: 'Overview',
+      links: [
+        { to: '/', label: 'Dashboard', icon: 'grid' },
+        { to: '/reports', label: 'Executive Reports', icon: 'trend' },
+      ],
+    },
     {
       title: 'Operations',
       links: [
         { to: '/employees', label: 'Employee Records', icon: 'users' },
+        { to: '/performance', label: 'Performance', icon: 'trend' },
         { to: '/certificates', label: 'Certificates', icon: 'award' },
         { to: '/orgchart', label: 'Org Chart', icon: 'sitemap' },
         { to: '/succession', label: 'Succession', icon: 'crown' },
@@ -94,7 +101,6 @@ const sectionsByRole = {
       links: [
         { to: '/learning', label: 'Learning', icon: 'book' },
         { to: '/training', label: 'Training', icon: 'calendar' },
-        { to: '/succession', label: 'Succession', icon: 'crown' },
         { to: '/audit', label: 'Audit & System Health', icon: 'settings' },
       ],
     },

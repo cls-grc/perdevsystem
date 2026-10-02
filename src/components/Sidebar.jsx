@@ -101,7 +101,6 @@ const sectionsByRole = {
         { to: '/competency', label: 'Skill Development', icon: 'zap' },
         { to: '/learning', label: 'Learning Progress', icon: 'book' },
         { to: '/training', label: 'Training Management', icon: 'calendar' },
-        { to: '/succession', label: 'Succession Planning', icon: 'crown' },
         { to: '/recognition', label: 'Recognition Review', icon: 'heart' }
       ]
     },
@@ -119,8 +118,7 @@ const sectionsByRole = {
     {
       title: 'Overview',
       links: [
-        { to: '/', label: 'My Dashboard', icon: 'grid' },
-        { to: '/reports', label: 'Workforce Reports', icon: 'trend' }
+        { to: '/', label: 'My Dashboard', icon: 'grid' }
       ]
     },
     {

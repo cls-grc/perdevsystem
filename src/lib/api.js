@@ -200,10 +200,20 @@ learningCompetencies: () => request('/api/learning/competencies'),
   generateDevelopmentPlan: (data) => request('/api/learning/development-plan', { method: 'POST', body: JSON.stringify(data) }),
   assignLearning: (data) => request('/api/learning/assign', { method: 'POST', body: JSON.stringify(data) }),
   learningAssignments: () => request('/api/learning/assignments'),
-  // Self-reported progress + status: employee drives their own study progress
-  // (0-100) and a status flag (not_started / studying / completed / need_help).
-updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${id}/progress`, { method: 'PATCH', body: JSON.stringify({ progress }) }),
-  updateLearningStatus: (id, status) => request(`/api/learning/assignments/${id}/progress`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  // Evidence-based learning tracking — replaces manual sliders
+  // Track when employee opens course material (auto starts in_progress)
+  trackLearningAccess: (id) => request(`/api/learning/assignments/${id}/access`, { method: 'POST', body: '{}' }),
+  // Employee marks material as finished (transitions to assessment_pending)
+  completeLearningMaterial: (id) => request(`/api/learning/assignments/${id}/complete-material`, { method: 'POST', body: '{}' }),
+  // Get masked quiz questions for an assignment
+  getLearningAssessment: (id) => request(`/api/learning/assignments/${id}/assessment`),
+  // Submit quiz answers for auto-scoring
+  submitLearningAssessment: (id, answers) => request(`/api/learning/assignments/${id}/submit-assessment`, { method: 'POST', body: JSON.stringify({ answers }) }),
+  // HR Override (exceptional cases — always audit-logged)
+  overrideLearningAssignment: (id, data) => request(`/api/learning/assignments/${id}/override`, { method: 'POST', body: JSON.stringify(data) }),
+  // HR: get all assessment attempts for a specific assignment
+  getLearningAttempts: (id) => request(`/api/learning/assignments/${id}/attempts`),
+  // Legacy HR verification (for external courses without quiz)
   recordLearningCompletion: (data) => request('/api/learning/completions', { method: 'POST', body: JSON.stringify(data) }),
   learningCompletions: () => request('/api/learning/completions'),
 // Workflow due dates & overdue
@@ -236,6 +246,20 @@ updateLearningProgress: (id, progress) => request(`/api/learning/assignments/${i
   generateTrainingAiInsights: (sessionId) => request(`/api/training/sessions/${sessionId}/ai-insights`, { method: 'POST', body: '{}' }),
   employeeTrainingSessions: (employeeId) => request(`/api/training/sessions?employeeId=${employeeId}`),
   trainingStats: () => request('/api/training/stats'),
+  trainingVenues: () => request('/api/training/venues'),
+  trainingTrainers: () => request('/api/training/trainers'),
+  trainingMyAttendance: () => request('/api/training/attendance/my-records'),
+  trainingAttendanceRecords: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.sessionId) qs.set('sessionId', params.sessionId)
+    if (params.search) qs.set('search', params.search)
+    if (params.status) qs.set('status', params.status)
+    if (params.department) qs.set('department', params.department)
+    if (params.startDate) qs.set('startDate', params.startDate)
+    if (params.endDate) qs.set('endDate', params.endDate)
+    const queryStr = qs.toString()
+    return request(`/api/training/attendance/records${queryStr ? `?${queryStr}` : ''}`)
+  },
 
   // Visual Org Chart
   orgTree: () => request('/api/employees/org-tree'),

@@ -116,15 +116,20 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
 
       if (res.success) {
         if (soundEnabled) playSuccessChime()
+        const attStatus = (res.attendance || 'present').toUpperCase()
+        const formattedTime = res.timeIn 
+          ? new Date(res.timeIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+          : new Date().toLocaleTimeString()
         setScanningStatus('success')
-        setStatusMessage('Attendance recorded!')
+        setStatusMessage(`Attendance recorded: marked ${attStatus}!`)
         setSuccessData({
           sessionTitle: res.session?.title || 'Training Session',
           venue: res.session?.venue || '',
           startDate: res.session?.start_date ? String(res.session.start_date).slice(0, 10) : '',
           employeeName: user.name || user.full_name,
           employeeNumber: user.employeeNumber || user.employee_number || 'E001',
-          time: new Date().toLocaleTimeString(),
+          time: formattedTime,
+          status: attStatus,
         })
         if (onAttendanceUpdated) onAttendanceUpdated()
       }
@@ -288,8 +293,14 @@ export default function EmployeeAttendanceQRModal({ user, onClose, onAttendanceU
                 </h2>
                 <p style={{ margin: '0 0 20px', fontSize: 14, color: '#334155' }}>
                   You are marked as{' '}
-                  <strong style={{ background: '#dcfce7', color: '#15803d', padding: '2px 10px', borderRadius: 20, fontWeight: 800 }}>
-                    ✓ PRESENT
+                  <strong style={{
+                    background: successData.status === 'LATE' ? '#fef3c7' : '#dcfce7',
+                    color: successData.status === 'LATE' ? '#b45309' : '#15803d',
+                    padding: '3px 12px',
+                    borderRadius: 20,
+                    fontWeight: 800
+                  }}>
+                    {successData.status === 'LATE' ? '⚠ LATE' : '✓ PRESENT'}
                   </strong>
                 </p>
                 <div style={{
