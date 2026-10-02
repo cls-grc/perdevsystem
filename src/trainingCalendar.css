@@ -317,10 +317,21 @@
 .session-status-badge.draft { background: #f3f4f6; color: #4b5563; }
 .session-status-badge.cancelled { background: #fee2e2; color: #b91c1c; }
 
+/* Attendance status variants */
+.session-status-badge.present { background: #dcfce7; color: #15803d; }
+.session-status-badge.absent  { background: #fee2e2; color: #b91c1c; }
+.session-status-badge.late    { background: #fef3c7; color: #b45309; }
+.session-status-badge.excused { background: #e0e7ff; color: #4338ca; }
+
 .dark .session-status-badge.completed { background: rgba(16, 185, 129, 0.2) !important; color: #6ee7b7 !important; }
 .dark .session-status-badge.cancelled { background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; }
 .dark .session-status-badge.scheduled { background: rgba(17, 24, 39, 0.2) !important; color: #d1d5db !important; }
 .dark .session-status-badge.ongoing { background: rgba(59, 130, 246, 0.2) !important; color: #93c5fd !important; }
+.dark .session-status-badge.present  { background: rgba(16, 185, 129, 0.2) !important; color: #6ee7b7 !important; }
+.dark .session-status-badge.absent   { background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; }
+.dark .session-status-badge.late     { background: rgba(217, 119, 6, 0.2) !important; color: #fcd34d !important; }
+.dark .session-status-badge.excused  { background: rgba(99, 102, 241, 0.2) !important; color: #a5b4fc !important; }
+
 
 .session-title {
   font-size: 16px;
@@ -714,8 +725,16 @@
 }
 
 .att-status-btn.present.active { background: #dcfce7; color: #15803d; border-color: #86efac; }
-.att-status-btn.absent.active { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
-.att-status-btn.excused.active { background: #fef3c7; color: #b45309; border-color: #fde047; }
+.att-status-btn.absent.active  { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+.att-status-btn.late.active    { background: #fef3c7; color: #b45309; border-color: #fde047; }
+.att-status-btn.excused.active { background: #e0e7ff; color: #4338ca; border-color: #a5b4fc; }
+
+/* Hover tints even when not active */
+.att-status-btn.present:hover { background: #f0fdf4; color: #15803d; }
+.att-status-btn.absent:hover  { background: #fef2f2; color: #b91c1c; }
+.att-status-btn.late:hover    { background: #fffbeb; color: #b45309; }
+.att-status-btn.excused:hover { background: #eef2ff; color: #4338ca; }
+
 
 /* =========================================================
    TRAINING OVERVIEW DASHBOARD

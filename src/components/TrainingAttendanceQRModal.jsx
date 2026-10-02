@@ -210,9 +210,32 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
     setTimeout(() => { printWin.print() }, 400)
   }
 
+  // Auto-retry camera once on mount if it fails (handles the case where
+  // permission prompt needs a moment before getUserMedia can succeed)
+  useEffect(() => {
+    let retryTimer
+    if (cameraError) {
+      retryTimer = setTimeout(() => {
+        setCameraError('')
+        setCameraActive(false)
+        requestAnimationFrame(() => setCameraActive(true))
+      }, 800)
+    }
+    return () => clearTimeout(retryTimer)
+  }, [cameraError])
+
   const filteredBadges = employees.filter(e =>
     (e.full_name + ' ' + e.employee_number + ' ' + e.department + ' ' + e.job_title).toLowerCase().includes(badgeSearch.toLowerCase())
   )
+
+  // Status badge colors for the real-time feed
+  const STATUS_COLORS = {
+    present: { bg: '#dcfce7', color: '#15803d', label: 'PRESENT' },
+    late:    { bg: '#fef3c7', color: '#b45309', label: 'LATE' },
+    absent:  { bg: '#fee2e2', color: '#b91c1c', label: 'ABSENT' },
+    excused: { bg: '#e0e7ff', color: '#4338ca', label: 'EXCUSED' },
+  }
+
 
   return (
     <div className="training-modal-overlay" role="dialog" aria-modal="true">
@@ -356,11 +379,20 @@ export default function TrainingAttendanceQRModal({ session, onClose, onAttendan
                         </small>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <span className="session-status-badge present" style={{ fontSize: 9.5, padding: '2px 6px' }}>
-                          PRESENT
-                        </span>
+                        {(() => {
+                          const sc = STATUS_COLORS[log.status] || STATUS_COLORS.present
+                          return (
+                            <span style={{
+                              fontSize: 9.5, padding: '2px 6px', borderRadius: 99,
+                              fontWeight: 700, background: sc.bg, color: sc.color
+                            }}>
+                              {sc.label}
+                            </span>
+                          )
+                        })()}
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{log.time}</div>
                       </div>
+
                     </div>
                   ))
                 ) : (
